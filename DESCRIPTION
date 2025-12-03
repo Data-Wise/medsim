@@ -1,0 +1,51 @@
+Package: medsim
+Type: Package
+Title: Simulation Infrastructure for Mediation Analysis
+Version: 0.0.0.9000
+Date: 2025-12-03
+Authors@R: person("Davood", "Tofighi",
+    email = "dtofighi@gmail.com",
+    role = c("aut", "cre"),
+    comment = c(ORCID = "0000-0001-8523-7776"))
+Maintainer: Davood Tofighi <dtofighi@gmail.com>
+Description: Provides standardized infrastructure for conducting Monte Carlo
+    simulation studies in mediation analysis. Features include environment-aware
+    execution (local vs HPC cluster), parallel processing with progress reporting,
+    ground truth caching, automated result analysis, and publication-ready
+    visualization. Designed to work seamlessly with the mediation analysis
+    ecosystem: 'medfit', 'probmed', 'RMediation', and 'medrobust'.
+License: GPL (>= 3)
+URL: https://github.com/data-wise/medsim,
+    https://data-wise.github.io/medsim/
+BugReports: https://github.com/data-wise/medsim/issues
+Depends:
+    R (>= 4.1.0)
+Imports:
+    parallel,
+    foreach,
+    doParallel,
+    pbapply,
+    ggplot2,
+    dplyr,
+    tidyr,
+    rlang,
+    cli
+Suggests:
+    medfit (>= 0.1.0),
+    probmed,
+    RMediation,
+    medrobust,
+    mvtnorm,
+    MASS,
+    tictoc,
+    here,
+    renv,
+    testthat (>= 3.0.0),
+    knitr,
+    rmarkdown,
+    covr
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+VignetteBuilder: knitr
+Config/testthat/edition: 3
