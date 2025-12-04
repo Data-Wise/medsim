@@ -7,3 +7,4 @@
 ^CLAUDE\.md$
 ^run_devtools_check\.R$
 ^run_document\.R$
+^\.github$

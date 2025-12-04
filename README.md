@@ -4,6 +4,7 @@
 [![R-CMD-check](https://github.com/data-wise/medsim/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/data-wise/medsim/actions/workflows/R-CMD-check.yaml)
 [![Codecov test coverage](https://codecov.io/gh/data-wise/medsim/branch/main/graph/badge.svg)](https://app.codecov.io/gh/data-wise/medsim?branch=main)
 [![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
+[![Codecov test coverage](https://codecov.io/gh/data-wise/medsim/graph/badge.svg)](https://app.codecov.io/gh/data-wise/medsim)
 <!-- badges: end -->
 
 Standardized infrastructure for conducting Monte Carlo simulation studies in mediation analysis.
