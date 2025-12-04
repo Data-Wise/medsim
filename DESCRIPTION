@@ -22,14 +22,9 @@ Depends:
     R (>= 4.1.0)
 Imports:
     parallel,
-    foreach,
-    doParallel,
     pbapply,
     ggplot2,
-    dplyr,
-    tidyr,
-    rlang,
-    cli
+    dplyr
 Suggests:
     medfit (>= 0.1.0),
     probmed,
@@ -43,7 +38,10 @@ Suggests:
     testthat (>= 3.0.0),
     knitr,
     rmarkdown,
-    covr
+    covr,
+    gridExtra,
+    patchwork,
+    RColorBrewer
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3

@@ -64,12 +64,11 @@
 #'
 #' @export
 medsim_plot_error_boxplot <- function(results,
-                                       parameter = "indirect",
-                                       log_scale = FALSE,
-                                       color_palette = NULL,
-                                       title = NULL,
-                                       ...) {
-
+                                      parameter = "indirect",
+                                      log_scale = FALSE,
+                                      color_palette = NULL,
+                                      title = NULL,
+                                      ...) {
   # Check for ggplot2
   if (!requireNamespace("ggplot2", quietly = TRUE)) {
     stop("Package 'ggplot2' is required for visualization. Install with: install.packages('ggplot2')")
@@ -77,9 +76,7 @@ medsim_plot_error_boxplot <- function(results,
   if (!requireNamespace("dplyr", quietly = TRUE)) {
     stop("Package 'dplyr' is required for visualization. Install with: install.packages('dplyr')")
   }
-  if (!requireNamespace("tidyr", quietly = TRUE)) {
-    stop("Package 'tidyr' is required for visualization. Install with: install.packages('tidyr')")
-  }
+
 
   # --- Handle Multiple Methods ---
   if (is.list(results) && !inherits(results, "medsim_results")) {
@@ -119,7 +116,6 @@ medsim_plot_error_boxplot <- function(results,
 
     plot_data <- do.call(rbind, plot_data_list)
     fill_var <- "method"
-
   } else {
     # Single method
     if (!inherits(results, "medsim_results")) {
@@ -192,7 +188,7 @@ medsim_plot_error_boxplot <- function(results,
 
   # Facet by parameter if multiple parameters
   if ("parameter" %in% names(plot_data) && length(unique(plot_data$parameter)) > 1) {
-    p <- p + ggplot2::facet_wrap(~ parameter, scales = "free_y")
+    p <- p + ggplot2::facet_wrap(~parameter, scales = "free_y")
   }
 
   return(p)
@@ -223,11 +219,10 @@ medsim_plot_error_boxplot <- function(results,
 #'
 #' @export
 medsim_plot_timing <- function(results,
-                                metric = "mean",
-                                log_scale = FALSE,
-                                title = NULL,
-                                ...) {
-
+                               metric = "mean",
+                               log_scale = FALSE,
+                               title = NULL,
+                               ...) {
   if (!requireNamespace("ggplot2", quietly = TRUE)) {
     stop("Package 'ggplot2' required")
   }
@@ -259,7 +254,7 @@ medsim_plot_timing <- function(results,
         mean_time = mean(elapsed, na.rm = TRUE),
         median_time = median(elapsed, na.rm = TRUE),
         total_time = sum(elapsed, na.rm = TRUE),
-        .groups = 'drop'
+        .groups = "drop"
       ) %>%
       dplyr::mutate(method = method)
 
@@ -326,11 +321,10 @@ medsim_plot_timing <- function(results,
 #'
 #' @export
 medsim_plot_coverage <- function(coverage,
-                                  expected_coverage = 0.95,
-                                  tolerance = 0.02,
-                                  title = NULL,
-                                  ...) {
-
+                                 expected_coverage = 0.95,
+                                 tolerance = 0.02,
+                                 title = NULL,
+                                 ...) {
   if (!requireNamespace("ggplot2", quietly = TRUE)) {
     stop("Package 'ggplot2' required")
   }
@@ -360,7 +354,6 @@ medsim_plot_coverage <- function(coverage,
 
     plot_data <- do.call(rbind, plot_data_list)
     color_var <- "method"
-
   } else {
     if (!inherits(coverage, "medsim_coverage")) {
       stop("coverage must be a medsim_coverage object or named list of coverage objects")
@@ -438,17 +431,18 @@ medsim_plot_coverage <- function(coverage,
 #'
 #' @export
 medsim_plot_combined_panel <- function(results,
-                                        panels = c("error", "timing"),
-                                        layout = NULL,
-                                        ...) {
-
+                                       panels = c("error", "timing"),
+                                       layout = NULL,
+                                       ...) {
   # Check for combining package
   has_patchwork <- requireNamespace("patchwork", quietly = TRUE)
   has_gridExtra <- requireNamespace("gridExtra", quietly = TRUE)
 
   if (!has_patchwork && !has_gridExtra) {
-    stop("Either 'patchwork' or 'gridExtra' package required for combined panels. ",
-         "Install with: install.packages('patchwork')")
+    stop(
+      "Either 'patchwork' or 'gridExtra' package required for combined panels. ",
+      "Install with: install.packages('patchwork')"
+    )
   }
 
   # Generate individual plots

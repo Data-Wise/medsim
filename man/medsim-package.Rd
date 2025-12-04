@@ -6,7 +6,110 @@
 \alias{medsim-package}
 \title{medsim: Simulation Infrastructure for Mediation Analysis}
 \description{
-Provides standardized infrastructure for conducting Monte Carlo simulation studies in mediation analysis. Features include environment-aware execution (local vs HPC cluster), parallel processing with progress reporting, ground truth caching, automated result analysis, and publication-ready visualization. Designed to work seamlessly with the mediation analysis ecosystem: 'medfit', 'probmed', 'RMediation', and 'medrobust'.
+medsim provides standardized infrastructure for conducting Monte Carlo
+simulation studies in mediation analysis. The package is designed to work
+seamlessly with the mediation analysis ecosystem.
+}
+\details{
+\subsection{Core Features}{
+\itemize{
+\item \strong{Environment-aware execution}: Automatically detects local vs HPC cluster
+\item \strong{Parallel processing}: Built-in parallelization with progress reporting
+\item \strong{Three execution modes}: test (<1 min), local (~15 min), cluster (hours)
+\item \strong{Ground truth caching}: Avoid expensive recomputation
+\item \strong{Automated analysis}: Generate summary statistics automatically
+\item \strong{Publication-ready output}: Figures and LaTeX tables with one function
+}
+}
+
+\subsection{Key Functions}{
+
+\strong{Configuration}:
+\itemize{
+\item \code{\link[=medsim_config]{medsim_config()}} - Create simulation configuration
+\item \code{\link[=medsim_detect_environment]{medsim_detect_environment()}} - Detect local vs cluster
+}
+
+\strong{Scenarios}:
+\itemize{
+\item \code{\link[=medsim_scenarios_mediation]{medsim_scenarios_mediation()}} - Standard mediation scenarios
+\item \code{\link[=medsim_scenario]{medsim_scenario()}} - Define custom scenario
+}
+
+\strong{Execution}:
+\itemize{
+\item \code{\link[=medsim_run]{medsim_run()}} - Run simulation study
+\item \code{\link[=medsim_run_parallel]{medsim_run_parallel()}} - Parallel execution
+}
+
+\strong{Analysis}:
+\itemize{
+\item \code{\link[=medsim_analyze]{medsim_analyze()}} - Analyze simulation results
+\item \code{\link[=medsim_analyze_coverage]{medsim_analyze_coverage()}} - Analyze coverage rates
+\item \code{\link[=medsim_analyze_power]{medsim_analyze_power()}} - Analyze statistical power
+\item \code{\link[=medsim_table_accuracy]{medsim_table_accuracy()}} - Create accuracy tables
+\item \code{\link[=medsim_plot_error_boxplot]{medsim_plot_error_boxplot()}} - Generate error boxplots
+}
+}
+
+\subsection{Quick Start}{
+
+Basic simulation workflow:
+
+\if{html}{\out{<div class="sourceCode r">}}\preformatted{library(medsim)
+
+# Define your method
+my_method <- function(data, params) \{
+  # ... your implementation ...
+  list(estimate = ..., se = ...)
+\}
+
+# Configure and run
+config <- medsim_config("local")
+scenarios <- medsim_scenarios_mediation()
+
+results <- medsim_run(
+  method = my_method,
+  scenarios = scenarios,
+  config = config
+)
+
+# Analyze results
+analysis <- medsim_analyze(results)
+}\if{html}{\out{</div>}}
+}
+
+\subsection{Execution Modes}{
+
+Three modes for different use cases:\tabular{llll}{
+   Mode \tab Replications \tab Runtime \tab Use Case \cr
+   test \tab 20 \tab ~30s \tab Quick validation \cr
+   local \tab 100 \tab ~15m \tab Development \cr
+   cluster \tab 1000 \tab hours \tab Production \cr
+}
+
+}
+
+\subsection{Integration with Mediation Ecosystem}{
+
+medsim is designed to work with:
+\itemize{
+\item \strong{medfit}: Model infrastructure and extraction
+\item \strong{probmed}: Probabilistic effect size (P_med)
+\item \strong{RMediation}: Confidence intervals (DOP, MBCO, MC)
+\item \strong{medrobust}: Sensitivity analysis
+}
+}
+
+\subsection{Learn More}{
+\itemize{
+\item Getting Started: \code{vignette("getting-started", package = "medsim")}
+\item Custom Scenarios: \code{vignette("custom-scenarios", package = "medsim")}
+\item HPC Clusters: \code{vignette("parallel-computing", package = "medsim")}
+\item GitHub: \url{https://github.com/data-wise/medsim}
+\item Website: \url{https://data-wise.github.io/medsim/}
+}
+}
 }
 \seealso{
 Useful links:

@@ -4,3 +4,6 @@
 ^medsim\.code-workspace$
 ^\.DS_Store$
 ^setup_ignores\.R$
+^CLAUDE\.md$
+^run_devtools_check\.R$
+^run_document\.R$

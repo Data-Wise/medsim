@@ -1,12 +1,3 @@
-#' @keywords internal
-"_PACKAGE"
-
-## usethis namespace: start
-#' @importFrom stats aggregate median quantile rnorm sd
-#' @importFrom utils glob2rx write.csv
-## usethis namespace: end
-NULL
-
 #' medsim: Simulation Infrastructure for Mediation Analysis
 #'
 #' @description
@@ -98,4 +89,17 @@ NULL
 #' - HPC Clusters: `vignette("parallel-computing", package = "medsim")`
 #' - GitHub: <https://github.com/data-wise/medsim>
 #' - Website: <https://data-wise.github.io/medsim/>
+#'
+#' @keywords internal
+"_PACKAGE"
+
+## usethis namespace: start
+#' @importFrom stats aggregate median quantile rnorm sd
+#' @importFrom utils glob2rx write.csv
+#' @importFrom pbapply pboptions
+#' @importFrom dplyr %>%
+## usethis namespace: end
 NULL
+
+# Global variables to avoid R CMD check notes
+utils::globalVariables(c(".data", "scenario", "elapsed", "time", "error"))
