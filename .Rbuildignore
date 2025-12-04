@@ -8,3 +8,6 @@
 ^run_devtools_check\.R$
 ^run_document\.R$
 ^\.github$
+^_pkgdown\.yml$
+^docs$
+^pkgdown$
