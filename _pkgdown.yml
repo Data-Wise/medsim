@@ -1,16 +1,124 @@
 url: https://data-wise.github.io/medsim/
+
 template:
   bootstrap: 5
+  bootswatch: litera
+  math-rendering: mathjax
+
 development:
   mode: auto
+
+home:
+  title: medsim - Simulation Infrastructure for Mediation Analysis
+  description: >
+    Standardized infrastructure for conducting Monte Carlo simulation studies
+    in mediation analysis. Features environment-aware execution, parallel
+    processing, and publication-ready visualization.
+
+authors:
+  Davood Tofighi:
+    href: https://orcid.org/0000-0001-8523-7776
+
 navbar:
   structure:
-    left:
-    - intro
-    - reference
-    - articles
-    - news
-    right:
-    - search
-    - github
+    left:  [intro, reference, articles, news]
+    right: [search, github]
+  components:
+    github:
+      icon: fa-github
+      href: https://github.com/data-wise/medsim
+      aria-label: GitHub
 
+reference:
+- title: Configuration & Environment
+  desc: >
+    Functions for configuring simulation execution and detecting the runtime
+    environment (local vs HPC cluster).
+  contents:
+  - medsim_config
+  - medsim_detect_environment
+  - medsim_detect_cores
+  - medsim_get_optimal_cores
+  - medsim_estimate_speedup
+  - medsim_compare_configs
+
+- title: Simulation Scenarios
+  desc: >
+    Functions for defining and validating simulation scenarios with ground
+    truth parameters.
+  contents:
+  - medsim_scenario
+  - medsim_scenarios_mediation
+  - medsim_validate_scenario
+
+- title: Running Simulations
+  desc: >
+    Core functions for executing Monte Carlo simulations with progress
+    tracking and parallel processing.
+  contents:
+  - medsim_run
+  - medsim_run_parallel
+
+- title: Result Analysis
+  desc: >
+    Functions for analyzing simulation results including coverage, power,
+    and method comparisons.
+  contents:
+  - medsim_analyze
+  - medsim_analyze_coverage
+  - medsim_analyze_power
+  - medsim_compare_methods
+  - medsim_check_results
+
+- title: Caching
+  desc: >
+    Functions for caching ground truth values and simulation results to
+    avoid redundant computation.
+  contents:
+  - medsim_cache_init
+  - medsim_cache_save
+  - medsim_cache_load
+  - medsim_cache_exists
+  - medsim_cache_list
+  - medsim_cache_info
+  - medsim_cache_clear
+
+- title: Visualization
+  desc: >
+    Functions for creating publication-ready figures from simulation results.
+  contents:
+  - medsim_plot_coverage
+  - medsim_plot_error_boxplot
+  - medsim_plot_timing
+  - medsim_plot_combined_panel
+
+- title: LaTeX Tables
+  desc: >
+    Functions for generating publication-ready LaTeX tables from simulation
+    results.
+  contents:
+  - medsim_table_accuracy
+  - medsim_table_comparison
+  - medsim_table_coverage
+  - medsim_table_power
+  - medsim_table_timing
+  - medsim_tables_workflow
+  - medsim_write_table
+
+- title: Print & Summary Methods
+  desc: >
+    S3 methods for printing and summarizing medsim objects.
+  contents:
+  - starts_with("print.")
+  - starts_with("summary.")
+
+articles:
+- title: Getting Started
+  navbar: ~
+  contents:
+  - getting-started
+
+footer:
+  structure:
+    left: developed_by
+    right: built_with
