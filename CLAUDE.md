@@ -25,33 +25,15 @@ Provide a complete, reusable simulation framework that eliminates the need to re
 
 ## Common Development Commands
 
-### Package Building and Checking
-
 ```r
-# Install dependencies
+# Install dependencies and check package
 remotes::install_deps(dependencies = TRUE)
-
-# Check package
 rcmdcheck::rcmdcheck(args = "--no-manual", error_on = "error")
 
-# Load for development
+# Development workflow
 devtools::load_all()
-
-# Generate documentation
 devtools::document()
-```
-
-### Testing
-
-```r
-# Run all tests
 devtools::test()
-
-# Run specific test file
-testthat::test_file("tests/testthat/test-config.R")
-
-# Check coverage
-covr::package_coverage()
 ```
 
 ---
@@ -96,57 +78,19 @@ medsim tests and validates methods from other mediationverse packages:
 | RMediation | DOP/MBCO CI coverage |
 | medrobust | Sensitivity bounds |
 
-### Central Planning Documents
+### Central Planning
 
-All ecosystem-wide coordination is managed in `/Users/dt/mediation-planning/`:
+Ecosystem coordination managed in `/Users/dt/mediation-planning/`:
+- `ECOSYSTEM-COORDINATION.md` - Version matrix, change propagation
+- `MONTHLY-CHECKLIST.md` - Recurring ecosystem health checks
 
-| Document | Purpose |
-|----------|---------|
-| `ECOSYSTEM-COORDINATION.md` | Version matrix, change propagation |
-| `MONTHLY-CHECKLIST.md` | Recurring ecosystem health checks |
-| `templates/README-template.md` | Standardized README structure |
-| `templates/NEWS-template.md` | Standardized NEWS.md format |
-
-### Testing Other Packages
-
-When simulating methods from medfit or other packages:
-
-```r
-library(medsim)
-library(medfit)
-library(probmed)
-
-pmed_method <- function(data, params) {
-  fit_m <- lm(M ~ X, data = data)
-  fit_y <- lm(Y ~ X + M, data = data)
-
-  med_data <- medfit::extract_mediation(
-    fit_m, model_y = fit_y,
-    treatment = "X", mediator = "M"
-  )
-
-  p_med <- probmed::compute_pmed(med_data)
-
-  list(estimate = p_med, truth = params$true_pmed)
-}
-
-results <- medsim_run(pmed_method, scenarios, config)
-```
-
-### Compatibility
-
-- Requires: R >= 4.1.0
-- Suggested: medfit, probmed, RMediation, medrobust (for method testing)
-
----
-
-## Related Packages
+### Related Packages
 
 | Package | Repository | Purpose |
 |---------|-----------|---------|
-| medfit | https://github.com/data-wise/medfit | Foundation (model fitting, extraction, bootstrap) |
-| probmed | https://github.com/data-wise/probmed | Probabilistic effect size (P_med) |
-| RMediation | https://github.com/data-wise/rmediation | Confidence intervals (DOP, MBCO) |
+| medfit | https://github.com/data-wise/medfit | Foundation (model fitting, extraction) |
+| probmed | https://github.com/data-wise/probmed | P_med effect size |
+| RMediation | https://github.com/data-wise/rmediation | Confidence intervals |
 | medrobust | https://github.com/data-wise/medrobust | Sensitivity analysis |
 
 ---
@@ -166,12 +110,6 @@ results <- medsim_run(pmed_method, scenarios, config)
 - Test HPC detection logic
 - Test output generation (figures, tables)
 
-### Documentation
-
-- All exported functions have roxygen2 documentation
-- Vignettes for common workflows
-- pkgdown website at https://data-wise.github.io/medsim/
-
 ---
 
-**Last Updated**: 2025-12-03
+**Last Updated**: 2025-12-04

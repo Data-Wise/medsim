@@ -45,11 +45,14 @@ jobs:
           http-user-agent: ${{ matrix.config.http-user-agent }}
           use-public-rspm: true
 
+      - uses: quarto-dev/quarto-actions/setup@v2
+        with:
+          version: 1.5.57
+
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
-          extra-packages: any::rcmdcheck, any::quarto
+          extra-packages: any::rcmdcheck
           needs: check
-          install-quarto: true
 
       - uses: r-lib/actions/check-r-package@v2
         with:
