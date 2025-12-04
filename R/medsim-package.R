@@ -2,6 +2,8 @@
 "_PACKAGE"
 
 ## usethis namespace: start
+#' @importFrom stats aggregate median quantile rnorm sd
+#' @importFrom utils glob2rx write.csv
 ## usethis namespace: end
 NULL
 
@@ -38,11 +40,10 @@ NULL
 #'
 #' **Analysis**:
 #' - [medsim_analyze()] - Analyze simulation results
-#' - [medsim_visualize()] - Generate publication figures
-#' - [medsim_tables()] - Create LaTeX tables
-#'
-#' **Workflow**:
-#' - [medsim_workflow()] - Complete simulation pipeline
+#' - [medsim_analyze_coverage()] - Analyze coverage rates
+#' - [medsim_analyze_power()] - Analyze statistical power
+#' - [medsim_table_accuracy()] - Create accuracy tables
+#' - [medsim_plot_error_boxplot()] - Generate error boxplots
 #'
 #' ## Quick Start
 #'
@@ -67,8 +68,8 @@ NULL
 #'   config = config
 #' )
 #'
-#' # Analyze and visualize
-#' medsim_workflow(results, output_dir = "results")
+#' # Analyze results
+#' analysis <- medsim_analyze(results)
 #' ```
 #'
 #' ## Execution Modes
@@ -97,7 +98,4 @@ NULL
 #' - HPC Clusters: `vignette("parallel-computing", package = "medsim")`
 #' - GitHub: <https://github.com/data-wise/medsim>
 #' - Website: <https://data-wise.github.io/medsim/>
-#'
-#' @docType package
-#' @name medsim-package
 NULL

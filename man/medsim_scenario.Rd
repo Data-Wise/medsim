@@ -37,9 +37,9 @@ The data_generator function must:
 
 The params list should include known population values:
 \itemize{
-\item \code{a}: X → M path coefficient
-\item \code{b}: M → Y path coefficient
-\item \code{c_prime}: X → Y direct effect
+\item \code{a}: X -> M path coefficient
+\item \code{b}: M -> Y path coefficient
+\item \code{c_prime}: X -> Y direct effect
 \item \code{indirect}: True indirect effect (a * b)
 \item Additional parameters as needed
 }

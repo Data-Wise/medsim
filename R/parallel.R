@@ -469,7 +469,7 @@ medsim_check_results <- function(results, stop_on_error = FALSE) {
   n_total <- length(results)
 
   if (n_errors == 0) {
-    message(sprintf("✓ All %d tasks completed successfully", n_total))
+    message(sprintf("* All %d tasks completed successfully", n_total))
     return(invisible(integer(0)))
   }
 

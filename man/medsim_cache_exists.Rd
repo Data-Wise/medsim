@@ -16,11 +16,13 @@ Logical: TRUE if cache exists and is readable, FALSE otherwise
 Checks if a cache file exists and is readable.
 }
 \examples{
+\dontrun{
 if (medsim_cache_exists("cache/truth.rds")) {
   truth <- medsim_cache_load("cache/truth.rds")
 } else {
-  truth <- compute_truth()
+  truth <- list(indirect = 0.09)  # Compute your truth values
   medsim_cache_save(truth, "cache/truth.rds")
+}
 }
 
 }

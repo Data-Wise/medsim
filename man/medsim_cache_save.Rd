@@ -41,9 +41,9 @@ Cache files are stored in RDS format with metadata:
 Recommended cache directory structure:
 
 \if{html}{\out{<div class="sourceCode">}}\preformatted{cache/
-├── truth_scenario_1.rds
-├── truth_scenario_2.rds
-└── ...
+|-- truth_scenario_1.rds
+|-- truth_scenario_2.rds
++-- ...
 }\if{html}{\out{</div>}}
 }
 }

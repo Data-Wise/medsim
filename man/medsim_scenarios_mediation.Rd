@@ -20,8 +20,8 @@ conditions.
 \subsection{Standard Scenarios}{
 \enumerate{
 \item \strong{Independent Paths}: No correlation between X, M, Y
-\item \strong{Moderate Correlation}: ρ = 0.3 between all pairs
-\item \strong{High Correlation}: ρ = 0.7 between all pairs
+\item \strong{Moderate Correlation}: rho = 0.3 between all pairs
+\item \strong{High Correlation}: rho = 0.7 between all pairs
 \item \strong{Suppression}: Mixed positive and negative correlations
 \item \strong{Non-zero Effects}: Small to moderate true effects
 \item \strong{Unequal Variances}: Different residual variances

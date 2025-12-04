@@ -31,9 +31,9 @@
 #' Recommended cache directory structure:
 #' ```
 #' cache/
-#' ├── truth_scenario_1.rds
-#' ├── truth_scenario_2.rds
-#' └── ...
+#' |-- truth_scenario_1.rds
+#' |-- truth_scenario_2.rds
+#' +-- ...
 #' ```
 #'
 #' @examples
@@ -85,7 +85,7 @@ medsim_cache_save <- function(object,
     compress = compress
   )
 
-  message(sprintf("✓ Cached to: %s", file))
+  message(sprintf("* Cached to: %s", file))
 
   invisible(file)
 }
@@ -178,7 +178,7 @@ medsim_cache_load <- function(file,
   if (!is.list(cache_object) || !"data" %in% names(cache_object)) {
     # Old format - just return the object
     if (verbose) {
-      message(sprintf("✓ Cache hit: %s (legacy format)", basename(file)))
+      message(sprintf("* Cache hit: %s (legacy format)", basename(file)))
     }
     return(cache_object)
   }
@@ -199,7 +199,7 @@ medsim_cache_load <- function(file,
   }
 
   if (verbose) {
-    message(sprintf("✓ Cache hit: %s", basename(file)))
+    message(sprintf("* Cache hit: %s", basename(file)))
   }
 
   return(cache_object$data)
@@ -215,11 +215,13 @@ medsim_cache_load <- function(file,
 #' @return Logical: TRUE if cache exists and is readable, FALSE otherwise
 #'
 #' @examples
+#' \dontrun{
 #' if (medsim_cache_exists("cache/truth.rds")) {
 #'   truth <- medsim_cache_load("cache/truth.rds")
 #' } else {
-#'   truth <- compute_truth()
+#'   truth <- list(indirect = 0.09)  # Compute your truth values
 #'   medsim_cache_save(truth, "cache/truth.rds")
+#' }
 #' }
 #'
 #' @export
@@ -379,7 +381,7 @@ medsim_cache_clear <- function(cache_dir,
   }
 
   message(sprintf(
-    "✓ Deleted %d cache files (%.1f MB freed)",
+    "* Deleted %d cache files (%.1f MB freed)",
     deleted, total_size_mb
   ))
 
@@ -468,7 +470,7 @@ medsim_cache_init <- function(cache_dir, create_readme = TRUE) {
   # Create directory
   if (!dir.exists(cache_dir)) {
     dir.create(cache_dir, recursive = TRUE, showWarnings = FALSE)
-    message(sprintf("✓ Created cache directory: %s", cache_dir))
+    message(sprintf("* Created cache directory: %s", cache_dir))
   } else {
     message(sprintf("Cache directory already exists: %s", cache_dir))
   }
@@ -507,7 +509,7 @@ medsim::medsim_cache_list(\"cache\")
 "
 
       writeLines(readme_content, readme_file)
-      message(sprintf("✓ Created README: %s", readme_file))
+      message(sprintf("* Created README: %s", readme_file))
     }
   }
 

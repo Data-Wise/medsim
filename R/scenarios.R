@@ -15,8 +15,8 @@
 #' ## Standard Scenarios
 #'
 #' 1. **Independent Paths**: No correlation between X, M, Y
-#' 2. **Moderate Correlation**: ρ = 0.3 between all pairs
-#' 3. **High Correlation**: ρ = 0.7 between all pairs
+#' 2. **Moderate Correlation**: rho = 0.3 between all pairs
+#' 3. **High Correlation**: rho = 0.7 between all pairs
 #' 4. **Suppression**: Mixed positive and negative correlations
 #' 5. **Non-zero Effects**: Small to moderate true effects
 #' 6. **Unequal Variances**: Different residual variances
@@ -70,7 +70,7 @@ medsim_scenarios_mediation <- function() {
     # Scenario 2: Moderate correlation
     medsim_scenario(
       name = "Moderate Correlation",
-      description = "Moderate positive correlation (ρ = 0.3)",
+      description = "Moderate positive correlation (rho = 0.3)",
       data_generator = function(n = 200) {
         # Generate correlated residuals
         Sigma <- matrix(c(1, 0.3, 0.3,
@@ -95,7 +95,7 @@ medsim_scenarios_mediation <- function() {
     # Scenario 3: High correlation
     medsim_scenario(
       name = "High Correlation",
-      description = "High positive correlation (ρ = 0.7)",
+      description = "High positive correlation (rho = 0.7)",
       data_generator = function(n = 200) {
         Sigma <- matrix(c(1, 0.7, 0.7,
                           0.7, 1, 0.7,
@@ -210,9 +210,9 @@ medsim_scenarios_mediation <- function() {
 #' ## Parameters List
 #'
 #' The params list should include known population values:
-#' - `a`: X → M path coefficient
-#' - `b`: M → Y path coefficient
-#' - `c_prime`: X → Y direct effect
+#' - `a`: X -> M path coefficient
+#' - `b`: M -> Y path coefficient
+#' - `c_prime`: X -> Y direct effect
 #' - `indirect`: True indirect effect (a * b)
 #' - Additional parameters as needed
 #'
@@ -376,6 +376,6 @@ medsim_validate_scenario <- function(scenario, n = 10) {
     stop(sprintf("data_generator returned %d rows, expected %d", nrow(data), n))
   }
 
-  message(sprintf("✓ Scenario '%s' is valid", scenario$name))
+  message(sprintf("* Scenario '%s' is valid", scenario$name))
   return(TRUE)
 }
