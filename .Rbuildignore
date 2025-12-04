@@ -1,0 +1,6 @@
+^\.git$
+^\.gitignore$
+^\.Rproj\.user$
+^medsim\.code-workspace$
+^\.DS_Store$
+^setup_ignores\.R$
