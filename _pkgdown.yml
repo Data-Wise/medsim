@@ -3,29 +3,76 @@ url: https://data-wise.github.io/medsim/
 template:
   bootstrap: 5
   bootswatch: litera
-  math-rendering: mathjax
+  bslib:
+    # Consistent academic blue across ecosystem
+    primary: "#0054AD"
+    bg: "#ffffff"
+    fg: "#212529"
+    # Modern, readable fonts (consistent with medfit/probmed)
+    base_font: { google: "Inter" }
+    heading_font: { google: "Montserrat" }
+    code_font: { google: "Fira Code" }
+    font-size-base: 0.925rem
 
-development:
-  mode: auto
+  opengraph:
+    image:
+      src: man/figures/logo.png
+      alt: "medsim: Simulation Infrastructure for Mediation Analysis"
+    twitter:
+      creator: "@dtofighi"
+      card: summary_large_image
 
 home:
-  title: medsim - Simulation Infrastructure for Mediation Analysis
+  title: "medsim: Simulation Infrastructure for Mediation Analysis"
   description: >
     Standardized infrastructure for conducting Monte Carlo simulation studies
     in mediation analysis. Features environment-aware execution, parallel
     processing, and publication-ready visualization.
 
-authors:
-  Davood Tofighi:
-    href: https://orcid.org/0000-0001-8523-7776
+  sidebar:
+    structure: [links, license, citation, authors, dev]
+
+  links:
+  - text: "Source Code"
+    href: https://github.com/data-wise/medsim
+  - text: "Report Issues"
+    href: https://github.com/data-wise/medsim/issues
+  - text: "Request Feature"
+    href: https://github.com/data-wise/medsim/issues/new
+
+logo:
+  image: man/figures/logo.png
+  align: right
+  width: 350px
 
 navbar:
   structure:
-    left:  [intro, reference, articles, news]
+    left:  [home, reference, articles, news]
     right: [search, github]
   components:
+    home:
+      icon: fas fa-home fa-lg
+      href: index.html
+      aria-label: Home
+    reference:
+      text: Reference
+      href: reference/index.html
+    articles:
+      text: Vignettes
+      menu:
+      - text: "Getting Started"
+        href: articles/getting-started.html
+      - text: "─────────────"
+      - text: "Advanced Topics"
+      - text: "HPC Cluster Integration"
+        href: articles/hpc-integration.html
+      - text: "Method Comparison"
+        href: articles/method-comparison.html
+    news:
+      text: News
+      href: news/index.html
     github:
-      icon: fa-github
+      icon: fab fa-github fa-lg
       href: https://github.com/data-wise/medsim
       aria-label: GitHub
 
@@ -112,13 +159,23 @@ reference:
   - starts_with("print.")
   - starts_with("summary.")
 
-articles:
-- title: Getting Started
-  navbar: ~
-  contents:
-  - getting-started
+development:
+  mode: auto
+  version_label: default
+  version_tooltip: "Development version"
+
+authors:
+  Davood Tofighi:
+    href: "https://orcid.org/0000-0001-8523-7776"
+    html: "<img src='https://orcid.org/sites/default/files/images/orcid_16x16.png' height='16' width='16' alt='ORCID iD icon'> Davood Tofighi"
 
 footer:
   structure:
-    left: developed_by
-    right: built_with
+    left: [developed_by, built_with]
+    right: [package_version]
+  components:
+    package_version: "Version {version}"
+    developed_by: |
+      Developed by [Davood Tofighi](https://orcid.org/0000-0001-8523-7776)
+    built_with: |
+      Built with [pkgdown](https://pkgdown.r-lib.org/)

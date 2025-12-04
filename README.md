@@ -1,25 +1,22 @@
 # medsim <img src="man/figures/logo.png" align="right" height="139" alt="" />
 
 <!-- badges: start -->
+[![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
+[![Repo Status](https://www.repostatus.org/badges/latest/wip.svg)](https://www.repostatus.org/#wip)
 [![R-CMD-check](https://github.com/data-wise/medsim/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/data-wise/medsim/actions/workflows/R-CMD-check.yaml)
 [![pkgdown](https://github.com/data-wise/medsim/actions/workflows/pkgdown.yaml/badge.svg)](https://github.com/data-wise/medsim/actions/workflows/pkgdown.yaml)
-[![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
 <!-- badges: end -->
 
-Standardized infrastructure for conducting Monte Carlo simulation studies in mediation analysis.
+**medsim** provides standardized infrastructure for conducting Monte Carlo simulation studies in mediation analysis. Eliminate the need to repeatedly implement parallel processing, progress reporting, result analysis, and visualization across different research projects.
 
-## Overview
+## Features
 
-**medsim** provides a complete toolkit for running rigorous simulation studies in mediation analysis. It eliminates the need to repeatedly implement parallel processing, progress reporting, result analysis, and visualization across different projects.
-
-### Key Features
-
-- **Environment-aware execution**: Automatically detects local machine vs HPC cluster
-- **Three execution modes**: test (~30s), local (~15min), cluster (hours)
-- **Parallel processing**: Built-in parallelization with progress bars
-- **Ground truth caching**: Avoid expensive recomputation
-- **Automated analysis**: Summary statistics, accuracy metrics, coverage rates
-- **Publication-ready output**: Figures and LaTeX tables with one function
+- **Environment-Aware Execution**: Automatically detects local machine vs HPC cluster
+- **Three Execution Modes**: test (~30s), local (~15min), cluster (hours)
+- **Parallel Processing**: Built-in parallelization with progress bars
+- **Ground Truth Caching**: Avoid expensive recomputation
+- **Automated Analysis**: Summary statistics, accuracy metrics, coverage rates
+- **Publication-Ready Output**: Figures and LaTeX tables with one function call
 
 ## Mediationverse Ecosystem
 
@@ -27,10 +24,10 @@ Standardized infrastructure for conducting Monte Carlo simulation studies in med
 
 | Package | Purpose | Role |
 |---------|---------|------|
-| [**medfit**](https://github.com/data-wise/medfit) | Model fitting, extraction, bootstrap | Foundation |
-| [**probmed**](https://github.com/data-wise/probmed) | Probabilistic effect size (P_med) | Application |
-| [**RMediation**](https://github.com/data-wise/rmediation) | Confidence intervals (DOP, MBCO) | Application |
-| [**medrobust**](https://github.com/data-wise/medrobust) | Sensitivity analysis | Application |
+| [medfit](https://data-wise.github.io/medfit/) | Model fitting, extraction, bootstrap | Foundation |
+| [probmed](https://data-wise.github.io/probmed/) | Probabilistic effect size (P_med) | Application |
+| [RMediation](https://cran.r-project.org/package=RMediation) | Confidence intervals (DOP, MBCO) | Application |
+| [medrobust](https://data-wise.github.io/medrobust/) | Sensitivity analysis | Application |
 | **medsim** (this) | Simulation infrastructure | Support |
 
 See [Ecosystem Coordination](https://github.com/data-wise/medfit/blob/main/planning/ECOSYSTEM.md) for version compatibility and development guidelines.
@@ -49,7 +46,7 @@ pak::pak("data-wise/medsim")
 ```r
 library(medsim)
 
-# 1. Define your method
+# 1. Define your estimation method
 my_method <- function(data, params) {
   fit_m <- lm(M ~ X, data = data)
   fit_y <- lm(Y ~ X + M, data = data)
@@ -60,7 +57,7 @@ my_method <- function(data, params) {
   list(indirect = a * b, a = a, b = b)
 }
 
-# 2. Configure and run
+# 2. Configure and run simulation
 config <- medsim_config("local")
 scenarios <- medsim_scenarios_mediation()
 
@@ -70,7 +67,7 @@ results <- medsim_run(
   config = config
 )
 
-# 3. Analyze and visualize
+# 3. Generate analysis and output
 medsim_workflow(results, output_dir = "results")
 ```
 
@@ -78,13 +75,13 @@ medsim_workflow(results, output_dir = "results")
 
 ## Execution Modes
 
-Three modes for different use cases:
+Three modes optimized for different use cases:
 
 | Mode | Replications | Runtime | Use Case |
 |------|--------------|---------|----------|
 | `test` | 20 | ~30s | Quick validation |
 | `local` | 100 | ~15m | Development |
-| `cluster` | 1000 | hours | Production |
+| `cluster` | 1000+ | hours | Production runs |
 
 ```r
 # Auto-detect environment
@@ -98,33 +95,33 @@ config_cluster <- medsim_config(mode = "cluster")  # Production
 
 ## Standard Scenarios
 
-Six standard mediation scenarios covering common patterns:
+Six standard mediation scenarios covering common data-generating patterns:
 
 ```r
 scenarios <- medsim_scenarios_mediation()
 
-# 1. Independent paths
+# 1. Independent paths (ρ = 0)
 # 2. Moderate correlation (ρ = 0.3)
 # 3. High correlation (ρ = 0.7)
 # 4. Suppression (mixed signs)
-# 5. Non-zero effects (with direct path)
+# 5. Non-zero direct effect
 # 6. Unequal variances
 
 # View scenario details
 print(scenarios[[1]])
 
-# Generate data from scenario
+# Generate data from a scenario
 data <- scenarios[[1]]$data_generator(n = 200)
 ```
 
 ## Custom Scenarios
 
-Define your own scenarios:
+Define custom data-generating processes:
 
 ```r
 my_scenario <- medsim_scenario(
   name = "Large Effects",
-  description = "Both paths have large effects",
+  description = "Both paths have large effects (a = b = 0.7)",
   data_generator = function(n = 200) {
     X <- rnorm(n)
     M <- 0.7 * X + rnorm(n)
@@ -138,13 +135,13 @@ my_scenario <- medsim_scenario(
   )
 )
 
-# Use with standard scenarios
+# Combine with standard scenarios
 all_scenarios <- c(medsim_scenarios_mediation(), list(my_scenario))
 ```
 
 ## Complete Workflow
 
-Full workflow from simulation to publication-ready output:
+Full pipeline from simulation to manuscript-ready output:
 
 ```r
 # Run simulation
@@ -159,7 +156,7 @@ analysis <- medsim_analyze(results)
 coverage <- medsim_analyze_coverage(results)
 power <- medsim_analyze_power(results)
 
-# Create figures
+# Create publication-ready figures
 medsim_plot_coverage(coverage, output_file = "figures/coverage.pdf")
 medsim_plot_error_boxplot(results, output_file = "figures/errors.pdf")
 
@@ -169,12 +166,12 @@ medsim_tables_workflow(results, output_dir = "tables")
 
 **Generates**:
 - Summary statistics and accuracy metrics
-- Publication-ready figures (PDF format)
-- LaTeX tables for manuscripts
+- Publication-ready PDF figures
+- LaTeX tables ready for manuscript inclusion
 
 ## HPC Cluster Support
 
-**medsim** automatically detects HPC environments (SLURM, PBS, LSF):
+Automatic detection of SLURM, PBS, and LSF job schedulers:
 
 ```bash
 #!/bin/bash
@@ -203,12 +200,7 @@ results <- medsim_run(
 
 ## Integration with Mediation Ecosystem
 
-**medsim** is designed to work seamlessly with:
-
-- **medfit**: Model infrastructure and extraction
-- **probmed**: Probabilistic effect size (P_med)
-- **RMediation**: Confidence intervals (DOP, MBCO, MC)
-- **medrobust**: Sensitivity analysis
+Designed to work seamlessly with other mediationverse packages:
 
 ```r
 library(medsim)
@@ -246,22 +238,22 @@ results <- medsim_run(pmed_method, scenarios, config)
 coverage <- medsim_analyze_coverage(results)
 ```
 
-## Example: Method Comparison
+## Method Comparison
 
-Compare methods from different packages:
+Compare performance across different estimation approaches:
 
 ```r
 methods <- list(
   pmed = function(data, params) {
-    # ... compute P_med ...
+    # Compute P_med with bootstrap CI
   },
 
   dop = function(data, params) {
-    # ... compute DOP CI ...
+    # Distribution of Product CI
   },
 
   bounds = function(data, params) {
-    # ... compute sensitivity bounds ...
+    # Sensitivity analysis bounds
   }
 )
 
@@ -279,20 +271,20 @@ medsim_comparison_table(results)
 #> Bounds    0.93      0.945     0.78   1.5s
 ```
 
-## Documentation
-
-- [Getting Started](https://data-wise.github.io/medsim/articles/getting-started.html) - Basic workflow tutorial
-- [Function Reference](https://data-wise.github.io/medsim/reference/index.html) - Complete API documentation
-- [Package Website](https://data-wise.github.io/medsim/) - Full documentation
-
 ## Design Philosophy
 
-**medsim** is inspired by the excellent simulation infrastructure in the [product-of-three distribution project](https://github.com/data-wise/prod3) and follows these principles:
+Inspired by simulation infrastructure in successful R packages and academic projects:
 
-1. **Configuration over repetition**: Write simulation logic once, run in multiple modes
-2. **Environment awareness**: Seamlessly scale from laptop to cluster
-3. **Reproducibility by design**: Automatic seed management, session tracking
-4. **Publication ready**: One function generates manuscript-ready output
+1. **Configuration Over Repetition**: Write simulation logic once, run in multiple modes
+2. **Environment Awareness**: Seamlessly scale from laptop to HPC cluster
+3. **Reproducibility by Design**: Automatic seed management, session tracking
+4. **Publication Ready**: One function generates manuscript-ready output
+
+## Documentation
+
+- [Getting Started](https://data-wise.github.io/medsim/articles/getting-started.html) - Step-by-step tutorial
+- [Function Reference](https://data-wise.github.io/medsim/reference/index.html) - Complete API documentation
+- [Package Website](https://data-wise.github.io/medsim/) - Comprehensive guides and examples
 
 ## Citation
 
@@ -305,13 +297,18 @@ citation("medsim")
 ## Getting Help
 
 - [GitHub Issues](https://github.com/data-wise/medsim/issues) - Bug reports and feature requests
-- [Documentation](https://data-wise.github.io/medsim/) - Comprehensive guides and examples
-- [Discussions](https://github.com/data-wise/medsim/discussions) - Questions and community
+- [Documentation](https://data-wise.github.io/medsim/) - Comprehensive guides
+- [Discussions](https://github.com/data-wise/medsim/discussions) - Questions and community support
 
 ## Code of Conduct
 
-Please note that this project is released with a [Contributor Code of Conduct](https://contributor-covenant.org/version/2/1/CODE_OF_CONDUCT.html). By contributing to this project, you agree to abide by its terms.
+This project is released with a [Contributor Code of Conduct](https://contributor-covenant.org/version/2/1/CODE_OF_CONDUCT.html). By contributing, you agree to abide by its terms.
 
 ## License
 
 GPL (>= 3)
+
+## Contact
+
+**Maintainer**: Davood Tofighi (dtofighi@gmail.com)
+**ORCID**: [0000-0001-8523-7776](https://orcid.org/0000-0001-8523-7776)
