@@ -45,7 +45,7 @@ jobs:
         with:
           extra-packages: any::rcmdcheck, any::quarto
           needs: check
-          install-quarto: needs
+          install-quarto: true
 
       - uses: r-lib/actions/check-r-package@v2
         with:
