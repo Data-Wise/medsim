@@ -2,9 +2,8 @@
 
 <!-- badges: start -->
 [![R-CMD-check](https://github.com/data-wise/medsim/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/data-wise/medsim/actions/workflows/R-CMD-check.yaml)
-[![Codecov test coverage](https://codecov.io/gh/data-wise/medsim/branch/main/graph/badge.svg)](https://app.codecov.io/gh/data-wise/medsim?branch=main)
+[![pkgdown](https://github.com/data-wise/medsim/actions/workflows/pkgdown.yaml/badge.svg)](https://github.com/data-wise/medsim/actions/workflows/pkgdown.yaml)
 [![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
-[![Codecov test coverage](https://codecov.io/gh/data-wise/medsim/graph/badge.svg)](https://app.codecov.io/gh/data-wise/medsim)
 <!-- badges: end -->
 
 Standardized infrastructure for conducting Monte Carlo simulation studies in mediation analysis.
@@ -145,23 +144,33 @@ all_scenarios <- c(medsim_scenarios_mediation(), list(my_scenario))
 
 ## Complete Workflow
 
-Single function for simulation → analysis → figures → tables:
+Full workflow from simulation to publication-ready output:
 
 ```r
-medsim_workflow(
+# Run simulation
+results <- medsim_run(
   method = my_method,
   scenarios = scenarios,
-  config = medsim_config("local"),
-  output_dir = "manuscript",
-  run_simulation = TRUE  # Set FALSE to use cached results
+  config = medsim_config("local")
 )
+
+# Analyze results
+analysis <- medsim_analyze(results)
+coverage <- medsim_analyze_coverage(results)
+power <- medsim_analyze_power(results)
+
+# Create figures
+medsim_plot_coverage(coverage, output_file = "figures/coverage.pdf")
+medsim_plot_error_boxplot(results, output_file = "figures/errors.pdf")
+
+# Generate LaTeX tables
+medsim_tables_workflow(results, output_dir = "tables")
 ```
 
 **Generates**:
-- `manuscript/all_results.csv` - Complete simulation data
-- `manuscript/summary_stats.csv` - Aggregated results
-- `manuscript/figures/*.pdf` - Publication-ready figures
-- `manuscript/tables/*.tex` - LaTeX tables
+- Summary statistics and accuracy metrics
+- Publication-ready figures (PDF format)
+- LaTeX tables for manuscripts
 
 ## HPC Cluster Support
 
@@ -272,11 +281,9 @@ medsim_comparison_table(results)
 
 ## Documentation
 
-- [Getting Started](https://data-wise.github.io/medsim/articles/getting-started.html)
-- [Custom Scenarios](https://data-wise.github.io/medsim/articles/custom-scenarios.html)
-- [Parallel Computing & HPC](https://data-wise.github.io/medsim/articles/parallel-computing.html)
-- [Mediation Simulations](https://data-wise.github.io/medsim/articles/mediation-sims.html)
-- [Function Reference](https://data-wise.github.io/medsim/reference/index.html)
+- [Getting Started](https://data-wise.github.io/medsim/articles/getting-started.html) - Basic workflow tutorial
+- [Function Reference](https://data-wise.github.io/medsim/reference/index.html) - Complete API documentation
+- [Package Website](https://data-wise.github.io/medsim/) - Full documentation
 
 ## Design Philosophy
 
