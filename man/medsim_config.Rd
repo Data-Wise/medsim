@@ -8,8 +8,8 @@ medsim_config(
   mode = "auto",
   n_replications = NULL,
   n_cores = NULL,
-  scenarios = "all",
-  output_dir = "simulation_results",
+  scenarios = NULL,
+  output_dir = NULL,
   seed = 12345,
   ...
 )

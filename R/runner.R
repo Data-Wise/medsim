@@ -243,20 +243,11 @@ medsim_run <- function(method,
   # Combine all results
   all_results_df <- do.call(rbind, all_results)
 
-  # --- Step 3: Merge with Ground Truth (if available) ---
-  if (!is.null(truth_results)) {
-    if (verbose) {
-      cat("[STEP 3] Merging with ground truth...\n")
-    }
-
-    all_results_df <- merge(
-      all_results_df,
-      truth_results,
-      by = c("scenario", "scenario_idx"),
-      all.x = TRUE,
-      suffixes = c("", "_truth")
-    )
-  }
+  # --- Step 3: Store Ground Truth (if available) ---
+  # Note: truth_results columns are plain (no _truth suffix)
+  # The analyze.R functions will add suffixes during their merge operations
+  # We don't merge here - just store truth separately
+  truth_combined <- truth_results
 
   # --- Step 4: Compute Summary Statistics ---
   if (verbose) {
@@ -294,7 +285,7 @@ medsim_run <- function(method,
   results <- list(
     results = all_results_df,
     summary = summary_stats,
-    truth = truth_results,
+    truth = truth_combined,  # Use truth_combined (may be NULL if no compute_truth)
     config = config,
     scenarios = scenarios,
     method_name = deparse(substitute(method))[1],
@@ -354,10 +345,8 @@ medsim_run_single_replication <- function(scenario, rep_id, method, config) {
   # Create result data.frame
   result_df <- data.frame(
     scenario = scenario$name,
-    scenario_idx = which(sapply(config$scenarios %||% list(scenario),
-                                 function(s) identical(s$name, scenario$name)))[1],
     replication = rep_id,
-    time_elapsed = elapsed_time,
+    elapsed = elapsed_time,
     stringsAsFactors = FALSE
   )
 
@@ -447,16 +436,15 @@ medsim_compute_all_truth <- function(scenarios,
     # Create truth data.frame
     truth_df <- data.frame(
       scenario = scenario$name,
-      scenario_idx = s_idx,
       stringsAsFactors = FALSE
     )
 
-    # Add truth values
+    # Add truth values (WITHOUT _truth suffix - analyze.R adds it during merge)
     if (is.list(truth_value)) {
       for (name in names(truth_value)) {
         value <- truth_value[[name]]
         if (length(value) == 1 && is.numeric(value)) {
-          truth_df[[paste0(name, "_truth")]] <- value
+          truth_df[[name]] <- value
         }
       }
     }
