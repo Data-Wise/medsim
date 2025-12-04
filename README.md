@@ -21,6 +21,20 @@ Standardized infrastructure for conducting Monte Carlo simulation studies in med
 - **Automated analysis**: Summary statistics, accuracy metrics, coverage rates
 - **Publication-ready output**: Figures and LaTeX tables with one function
 
+## Mediationverse Ecosystem
+
+**medsim** is part of the **mediationverse** ecosystem for mediation analysis in R:
+
+| Package | Purpose | Role |
+|---------|---------|------|
+| [**medfit**](https://github.com/data-wise/medfit) | Model fitting, extraction, bootstrap | Foundation |
+| [**probmed**](https://github.com/data-wise/probmed) | Probabilistic effect size (P_med) | Application |
+| [**RMediation**](https://github.com/data-wise/rmediation) | Confidence intervals (DOP, MBCO) | Application |
+| [**medrobust**](https://github.com/data-wise/medrobust) | Sensitivity analysis | Application |
+| **medsim** (this) | Simulation infrastructure | Support |
+
+See [Ecosystem Coordination](https://github.com/data-wise/medfit/blob/main/planning/ECOSYSTEM.md) for version compatibility and development guidelines.
+
 ## Installation
 
 Install the development version from GitHub:
@@ -285,16 +299,6 @@ citation("medsim")
 - [GitHub Issues](https://github.com/data-wise/medsim/issues) - Bug reports and feature requests
 - [Documentation](https://data-wise.github.io/medsim/) - Comprehensive guides and examples
 - [Discussions](https://github.com/data-wise/medsim/discussions) - Questions and community
-
-## Related Packages
-
-Part of the mediation analysis ecosystem:
-
-- [medfit](https://github.com/data-wise/medfit) - Model infrastructure
-- [probmed](https://github.com/data-wise/probmed) - P_med effect size
-- [RMediation](https://github.com/data-wise/rmediation) - Confidence intervals
-- [medrobust](https://github.com/data-wise/medrobust) - Sensitivity analysis
-- [mediationverse](https://github.com/data-wise/mediationverse) - Meta-package
 
 ## Code of Conduct
 
