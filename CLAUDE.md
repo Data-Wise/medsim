@@ -138,6 +138,22 @@ results <- medsim_run(pmed_method, scenarios, config)
 - Requires: R >= 4.1.0
 - Suggested: medfit, probmed, RMediation, medrobust (for method testing)
 
+### GitHub-only Sibling Dependencies
+
+Sibling packages medfit, medrobust, and probmed are NOT on CRAN. DESCRIPTION
+must include a `Remotes:` field so pak can resolve them during R-CMD-check:
+
+```
+Remotes:
+    Data-Wise/medfit,
+    Data-Wise/medrobust,
+    Data-Wise/probmed
+```
+
+RMediation IS on CRAN — do not list it under Remotes. Without this hint, pak
+treats these as missing packages and R-CMD-check fails. Added in PR #1
+(2026-05-09).
+
 ---
 
 ## Related Packages
@@ -174,4 +190,21 @@ results <- medsim_run(pmed_method, scenarios, config)
 
 ---
 
-**Last Updated**: 2025-12-03
+## CI / GitHub Actions Notes
+
+- **Workflow auto-disable**: GitHub auto-disables scheduled workflows that
+  fail for 60+ days without a manual successful run. Re-enable via:
+  `gh api -X PUT repos/Data-Wise/medsim/actions/workflows/<id>/enable`
+- **`pull_request.branches:` filter is base-branch-matched**: GitHub
+  Actions matches the PR's *target* branch, not the head. R-CMD-check
+  silently skipped every PR to `dev` until PR #2 added `dev` to the
+  filter (2026-05-09). When introducing a new integration branch, audit
+  every workflow's `pull_request.branches:` list — they don't auto-update.
+- **Branch protection on `main`**: PR required, no force-push, no deletions.
+  R-CMD-check is now a candidate to add as a required status check (it
+  reliably fires on PRs to `dev` post-fix, and passes when DESCRIPTION's
+  `Remotes:` field is in place).
+
+---
+
+**Last Updated**: 2026-05-09
