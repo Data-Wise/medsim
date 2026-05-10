@@ -204,6 +204,18 @@ treats these as missing packages and R-CMD-check fails. Added in PR #1
   R-CMD-check is now a candidate to add as a required status check (it
   reliably fires on PRs to `dev` post-fix, and passes when DESCRIPTION's
   `Remotes:` field is in place).
+- **R-devel runs on a separate weekly schedule** (PR #3, 2026-05-09).
+  PR-time `R-CMD-check.yaml` covers macOS, Windows, Ubuntu release +
+  oldrel-1 (~4 min). Weekly `R-CMD-check-devel.yaml` covers Ubuntu
+  R-devel via cron (Mon 08:00 UTC) + `workflow_dispatch`. Re-add
+  `ubuntu-devel` to `R-CMD-check.yaml`'s matrix before any CRAN
+  submission. Note: `schedule:` triggers only fire from the *default*
+  branch (main), so the cron won't activate until the workflow file
+  lands on main via a dev → main release.
+- **Concurrency cancel-in-progress** is set on `R-CMD-check.yaml` and
+  `test-coverage.yaml` (PR #3). Rapid pushes cancel stale runs.
+  `pkgdown.yaml` keeps its own job-level concurrency design (unique
+  group per PR run); leave it alone.
 
 ---
 
