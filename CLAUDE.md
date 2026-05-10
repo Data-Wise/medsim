@@ -25,33 +25,15 @@ Provide a complete, reusable simulation framework that eliminates the need to re
 
 ## Common Development Commands
 
-### Package Building and Checking
-
 ```r
-# Install dependencies
+# Install dependencies and check package
 remotes::install_deps(dependencies = TRUE)
-
-# Check package
 rcmdcheck::rcmdcheck(args = "--no-manual", error_on = "error")
 
-# Load for development
+# Development workflow
 devtools::load_all()
-
-# Generate documentation
 devtools::document()
-```
-
-### Testing
-
-```r
-# Run all tests
 devtools::test()
-
-# Run specific test file
-testthat::test_file("tests/testthat/test-config.R")
-
-# Check coverage
-covr::package_coverage()
 ```
 
 ---
@@ -96,9 +78,11 @@ medsim tests and validates methods from other mediationverse packages:
 | RMediation | DOP/MBCO CI coverage |
 | medrobust | Sensitivity bounds |
 
-### Central Planning Documents
+### Central Planning
 
-All ecosystem-wide coordination is managed in `/Users/dt/mediation-planning/`:
+Ecosystem coordination managed in `/Users/dt/mediation-planning/`:
+- `ECOSYSTEM-COORDINATION.md` - Version matrix, change propagation
+- `MONTHLY-CHECKLIST.md` - Recurring ecosystem health checks
 
 | Document | Purpose |
 |----------|---------|
@@ -160,9 +144,9 @@ treats these as missing packages and R-CMD-check fails. Added in PR #1
 
 | Package | Repository | Purpose |
 |---------|-----------|---------|
-| medfit | https://github.com/data-wise/medfit | Foundation (model fitting, extraction, bootstrap) |
-| probmed | https://github.com/data-wise/probmed | Probabilistic effect size (P_med) |
-| RMediation | https://github.com/data-wise/rmediation | Confidence intervals (DOP, MBCO) |
+| medfit | https://github.com/data-wise/medfit | Foundation (model fitting, extraction) |
+| probmed | https://github.com/data-wise/probmed | P_med effect size |
+| RMediation | https://github.com/data-wise/rmediation | Confidence intervals |
 | medrobust | https://github.com/data-wise/medrobust | Sensitivity analysis |
 
 ---
@@ -181,12 +165,6 @@ treats these as missing packages and R-CMD-check fails. Added in PR #1
 - Test all execution modes (test, local)
 - Test HPC detection logic
 - Test output generation (figures, tables)
-
-### Documentation
-
-- All exported functions have roxygen2 documentation
-- Vignettes for common workflows
-- pkgdown website at https://data-wise.github.io/medsim/
 
 ---
 
@@ -216,7 +194,10 @@ treats these as missing packages and R-CMD-check fails. Added in PR #1
   `test-coverage.yaml` (PR #3). Rapid pushes cancel stale runs.
   `pkgdown.yaml` keeps its own job-level concurrency design (unique
   group per PR run); leave it alone.
+- **`R-hub` workflow** (`.github/workflows/rhub.yaml`, restored from main
+  via the dev/main reconciliation) is registered with GitHub but
+  scheduled-only / dispatch-only. Use for multi-platform pre-CRAN testing.
 
 ---
 
-**Last Updated**: 2026-05-09
+**Last Updated**: 2026-05-10
