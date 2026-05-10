@@ -46,7 +46,7 @@ medsim_figures <- function(results,
   timing_input <- if (inherits(results, "medsim_results")) {
     method <- results$method_name
     if (is.null(method) || !nzchar(method)) method <- "method"
-    setNames(list(results), method)
+    stats::setNames(list(results), method)
   } else {
     results
   }
