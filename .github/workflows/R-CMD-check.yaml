@@ -1,5 +1,9 @@
 # Workflow derived from https://github.com/r-lib/actions/tree/v2/examples
 # Need help debugging build failures? Start at https://github.com/r-lib/actions#where-to-find-help
+#
+# R-devel runs separately on a weekly schedule (R-CMD-check-devel.yaml)
+# because it has no PPM binaries and source compilation takes ~30 min.
+# Keeping it off PRs makes the feedback loop ~4 min instead of ~30 min.
 on:
   push:
     branches: [main, master, dev]
@@ -7,6 +11,10 @@ on:
     branches: [main, master, dev]
 
 name: R-CMD-check
+
+concurrency:
+  group: R-CMD-check-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   R-CMD-check:
@@ -20,7 +28,6 @@ jobs:
         config:
           - {os: macos-latest,   r: 'release'}
           - {os: windows-latest, r: 'release'}
-          - {os: ubuntu-latest,   r: 'devel', http-user-agent: 'release'}
           - {os: ubuntu-latest,   r: 'release'}
           - {os: ubuntu-latest,   r: 'oldrel-1'}
 
