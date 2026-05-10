@@ -119,5 +119,5 @@ if (any(errors)) {
 
 }
 \seealso{
-\code{\link[parallel:makeCluster]{parallel::makeCluster()}}, \code{\link[parallel:clusterApply]{parallel::parLapply()}}, \code{\link[pbapply:pbapply]{pbapply::pblapply()}}
+\code{\link[parallel:makeCluster]{parallel::makeCluster()}}, \code{\link[parallel:parLapply]{parallel::parLapply()}}, \code{\link[pbapply:pblapply]{pbapply::pblapply()}}
 }

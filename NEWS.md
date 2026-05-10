@@ -1,5 +1,16 @@
 # medsim (development version)
 
+* New end-to-end output wrappers (`medsim_workflow()`, `medsim_figures()`,
+  `medsim_tables()`) that previous documentation referenced but had not been
+  implemented. They wrap the existing granular `medsim_plot_*` and
+  `medsim_table_*` functions for one-call output generation.
+* CI overhaul: PR-time R-CMD-check now ~4 min (was ~30 min) by moving
+  R-devel to a weekly schedule (`R-CMD-check-devel.yaml`). Concurrency
+  cancel-in-progress on R-CMD-check and test-coverage.
+* DESCRIPTION: added `Remotes:` for GitHub-only sibling deps
+  (medfit, medrobust, probmed) so `pak::pkg_install(".")` resolves them
+  during R-CMD-check.
+
 ## medsim 0.1.0
 
 **Initial development release**
