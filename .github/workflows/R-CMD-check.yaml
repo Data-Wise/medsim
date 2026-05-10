@@ -12,6 +12,8 @@ on:
 
 name: R-CMD-check
 
+permissions: read-all
+
 concurrency:
   group: R-CMD-check-${{ github.ref }}
   cancel-in-progress: true
