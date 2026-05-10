@@ -40,7 +40,17 @@ medsim_figures <- function(results,
   }
 
   save_one("error_boxplot", medsim_plot_error_boxplot(results))
-  save_one("timing", medsim_plot_timing(results))
+
+  # medsim_plot_timing wants a NAMED LIST of medsim_results (built for
+  # cross-method comparison). Wrap a single result under its method name.
+  timing_input <- if (inherits(results, "medsim_results")) {
+    method <- results$method_name
+    if (is.null(method) || !nzchar(method)) method <- "method"
+    setNames(list(results), method)
+  } else {
+    results
+  }
+  save_one("timing", medsim_plot_timing(timing_input))
 
   invisible(paths)
 }
