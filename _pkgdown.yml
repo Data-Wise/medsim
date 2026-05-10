@@ -71,6 +71,15 @@ navbar:
       aria-label: GitHub
 
 reference:
+- title: End-to-End Workflow
+  desc: >
+    Convenience wrappers that produce all standard outputs (analysis,
+    figures, tables) from simulation results in one call.
+  contents:
+  - medsim_workflow
+  - medsim_figures
+  - medsim_tables
+
 - title: Configuration & Environment
   desc: >
     Functions for configuring simulation execution and detecting the runtime
