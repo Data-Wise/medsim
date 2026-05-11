@@ -13,3 +13,10 @@
 ^pkgdown$
 ^vignettes/\.quarto$
 ^vignettes/getting-started_files$
+^vignettes/.+_files$
+^cache$
+^simulation_results$
+^BRAINSTORM-.*\.md$
+^\.STATUS$
+^\.STATUS\.backup$
+^\.claude$
