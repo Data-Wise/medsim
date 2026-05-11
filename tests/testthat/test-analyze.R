@@ -368,11 +368,13 @@ test_that("medsim_compare_methods computes all metrics", {
   results1 <- create_mock_results(include_ci = TRUE)
   results2 <- create_mock_results(include_ci = TRUE)
 
-  comparison <- medsim_compare_methods(
+  # Mock data has CI columns but no truth for indirect_ci_lower/upper, so
+  # accuracy computation legitimately warns about skipped parameters.
+  comparison <- suppressWarnings(medsim_compare_methods(
     method1 = results1,
     method2 = results2,
     metrics = "all"
-  )
+  ))
 
   expect_true("accuracy_comparison" %in% names(comparison))
   expect_true("timing_comparison" %in% names(comparison))
@@ -408,10 +410,12 @@ test_that("print.medsim_comparison works", {
   results1 <- create_mock_results()
   results2 <- create_mock_results()
 
-  comparison <- medsim_compare_methods(
+  # Default metrics include coverage, which warns on missing ground truth
+  # for CI bounds in mock data — see "computes all metrics" above.
+  comparison <- suppressWarnings(medsim_compare_methods(
     method1 = results1,
     method2 = results2
-  )
+  ))
 
   expect_output(print(comparison), "Method Comparison")
 })

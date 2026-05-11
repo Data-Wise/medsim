@@ -154,13 +154,16 @@ medsim_run_parallel <- function(tasks,
     }
   }
 
-  # Load packages on workers
+  # Load packages on workers. Use clusterCall (not clusterEvalQ) so that
+  # `packages` is passed as a function argument and serialized to PSOCK
+  # workers. clusterEvalQ would leave `packages` as a free variable that
+  # the workers can't resolve, crashing with "object 'packages' not found".
   if (!is.null(packages)) {
-    parallel::clusterEvalQ(cl, {
-      for (pkg in packages) {
+    parallel::clusterCall(cl, function(pkgs) {
+      for (pkg in pkgs) {
         suppressPackageStartupMessages(library(pkg, character.only = TRUE))
       }
-    })
+    }, packages)
   }
 
   # Run tasks with progress bar

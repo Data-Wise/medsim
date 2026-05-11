@@ -45,12 +45,17 @@ mock_workflow_results <- function() {
   results
 }
 
+# ggplot2 emits "Removed N row containing missing values" warnings when
+# mock_workflow_results has NAs in CI bounds; medsim_tables also warns on
+# partial mock data. Suppressed below — downstream library noise, not
+# assertions about medsim behavior.
+
 test_that("medsim_figures writes expected files to output_dir", {
   skip_if_not_installed("ggplot2")
   results <- mock_workflow_results()
   out <- withr::local_tempdir()
 
-  paths <- medsim_figures(results, output_dir = out, format = "pdf")
+  paths <- suppressWarnings(medsim_figures(results, output_dir = out, format = "pdf"))
 
   expect_true(dir.exists(out))
   expect_true(file.exists(file.path(out, "error_boxplot.pdf")))
@@ -64,7 +69,7 @@ test_that("medsim_figures creates output_dir if missing", {
   out <- file.path(withr::local_tempdir(), "nested", "deep")
 
   expect_false(dir.exists(out))
-  medsim_figures(results, output_dir = out, format = "pdf")
+  suppressWarnings(medsim_figures(results, output_dir = out, format = "pdf"))
   expect_true(dir.exists(out))
 })
 
@@ -72,7 +77,7 @@ test_that("medsim_tables delegates to medsim_tables_workflow", {
   results <- mock_workflow_results()
   out <- withr::local_tempdir()
 
-  expect_no_error(medsim_tables(results, output_dir = out, format = "latex"))
+  expect_no_error(suppressWarnings(medsim_tables(results, output_dir = out, format = "latex")))
   expect_true(dir.exists(out))
 })
 
@@ -81,7 +86,7 @@ test_that("medsim_workflow runs the full output pipeline", {
   results <- mock_workflow_results()
   out <- withr::local_tempdir()
 
-  ret <- medsim_workflow(results, output_dir = out)
+  ret <- suppressWarnings(medsim_workflow(results, output_dir = out))
 
   expect_true(dir.exists(file.path(out, "figures")))
   expect_true(dir.exists(file.path(out, "tables")))
