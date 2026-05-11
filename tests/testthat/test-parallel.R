@@ -352,11 +352,6 @@ test_that("medsim_run_parallel PSOCK cluster wraps errors per task", {
 })
 
 test_that("medsim_run_parallel PSOCK cluster with no packages arg returns correct length", {
-  # NOTE: The clusterEvalQ code path in parallel.R (lines 159-163) has a bug:
-  # `packages` is referenced as a free variable inside clusterEvalQ's expr but
-  # PSOCK workers don't have it in scope. Passing packages = NULL avoids that
-  # branch. The bug should be fixed in a separate PR (do not pass 'packages'
-  # via clusterEvalQ without exporting the variable first).
   skip_on_cran()
   result <- medsim_run_parallel(
     tasks = 1:4,
@@ -367,6 +362,28 @@ test_that("medsim_run_parallel PSOCK cluster with no packages arg returns correc
     packages = NULL
   )
   expect_length(result, 4)
+})
+
+test_that("medsim_run_parallel loads packages on PSOCK workers", {
+  # Regression test for the clusterCall fix. Previously `packages` was a free
+  # variable inside clusterEvalQ that PSOCK workers couldn't resolve, crashing
+  # with "object 'packages' not found". After the fix (using clusterCall with
+  # `packages` passed as a function arg), workers can require()-load packages
+  # before running the user function.
+  skip_on_cran()
+  result <- medsim_run_parallel(
+    tasks = 1:2,
+    # Function uses `tools::file_ext()` which is in base R 'tools' — proves
+    # the package was loaded on the worker. Without the fix, the cluster
+    # setup itself would crash before reaching this function.
+    fun = function(i) tools::file_ext(paste0("x", i, ".csv")),
+    n_cores = 2,
+    progress = FALSE,
+    cluster_type = "PSOCK",
+    packages = "tools"
+  )
+  expect_length(result, 2)
+  expect_true(all(unlist(result) == "csv"))
 })
 
 test_that("medsim_run_parallel NULL n_cores auto-detects and runs", {
