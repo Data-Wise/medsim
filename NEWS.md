@@ -1,6 +1,15 @@
 # medsim (development version)
 
-<!-- Add notes here for the next release cycle. -->
+## Dependencies
+
+* Removed `probmed` and `medrobust` from `Suggests:` and `Remotes:`. The
+  package's example code never referenced them and the cross-package
+  integration is now documented as an ecosystem pattern rather than a
+  declared dependency. Users who want to test probmed or medrobust
+  methods via medsim can install them separately from GitHub.
+* `medfit` and `RMediation` remain in `Suggests:` because they are
+  exercised by method-testing examples (medfit) or available via CRAN
+  (RMediation).
 
 # medsim 0.1.0 (2026-05-11)
 

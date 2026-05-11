@@ -26,9 +26,7 @@ Imports:
     dplyr
 Suggests:
     medfit (>= 0.1.0),
-    probmed,
     RMediation,
-    medrobust,
     mvtnorm,
     MASS,
     tictoc,
@@ -45,9 +43,7 @@ Suggests:
     patchwork,
     RColorBrewer
 Remotes:
-    Data-Wise/medfit,
-    Data-Wise/medrobust,
-    Data-Wise/probmed
+    Data-Wise/medfit
 Config/Needs/website:
     pkgdown,
     quarto
