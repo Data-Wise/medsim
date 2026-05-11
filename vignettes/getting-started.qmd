@@ -159,6 +159,7 @@ medsim_detect_environment()
 
 ## Next Steps
 
-- Explore the [Function Reference](../reference/index.html)
-- Learn about [Custom Scenarios](custom-scenarios.html)
-- See [Parallel Computing](parallel-computing.html) for HPC details
+- Browse the [Function Reference](https://data-wise.github.io/medsim/reference/index.html)
+  for the full API.
+- See the [pkgdown website](https://data-wise.github.io/medsim/) for additional
+  examples and the changelog.
