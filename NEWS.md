@@ -1,93 +1,100 @@
 # medsim (development version)
 
-## New functionality
+<!-- Add notes here for the next release cycle. -->
 
-* End-to-end output wrappers (`medsim_workflow()`, `medsim_figures()`,
-  `medsim_tables()`) that previous documentation referenced but had not
-  been implemented. They wrap the existing granular `medsim_plot_*` and
-  `medsim_table_*` functions for one-call output generation.
+# medsim 0.1.0 (2026-05-11)
+
+**Initial release.** First tagged version of medsim, providing standardized
+infrastructure for Monte Carlo simulation studies in mediation analysis as
+part of the mediationverse ecosystem.
+
+## Features
+
+### Core infrastructure
+
+* `medsim_config()` — environment-aware configuration (test/local/cluster modes)
+* `medsim_run()` — simulation execution with progress tracking
+* `medsim_run_parallel()` — parallel execution with PSOCK/FORK clusters
+* `medsim_scenario()` — define custom simulation scenarios
+* `medsim_scenarios_mediation()` — standard mediation scenarios
+
+### Analysis
+
+* `medsim_analyze()` — summarize simulation results
+* `medsim_analyze_coverage()` — coverage rate computation
+* `medsim_analyze_power()` — power analysis
+* `medsim_compare_methods()` — multi-method comparison
+
+### Visualization
+
+* `medsim_plot_coverage()`, `medsim_plot_error_boxplot()`,
+  `medsim_plot_timing()`, `medsim_plot_combined_panel()` — publication-ready
+  plots
+* `medsim_figures()` — one-call wrapper that generates all standard figures
+
+### LaTeX tables
+
+* `medsim_table_accuracy()`, `medsim_table_coverage()`, `medsim_table_power()`,
+  `medsim_table_timing()`, `medsim_table_comparison()` — publication-ready
+  table generators
+* `medsim_tables()` and `medsim_tables_workflow()` — one-call wrappers
+
+### End-to-end workflow
+
+* `medsim_workflow()` — single function from simulation to manuscript-ready
+  output (analysis + figures + tables)
+
+### HPC support
+
+* Automatic SLURM / PBS / LSF environment detection
+* Parallel processing with automatic core detection
+* Ground truth caching for expensive computations
+
+### Ecosystem integration
+
+* Part of the mediationverse ecosystem
+* Designed to test methods from medfit, probmed, RMediation, and medrobust
+* GitHub-only siblings (medfit, medrobust, probmed) resolved via DESCRIPTION
+  `Remotes:` field so `pak::pkg_install(".")` works
 
 ## Bug fixes
 
-* `medsim_run_parallel(packages = ...)` on PSOCK clusters used to crash
-  with `object 'packages' not found`. The `packages` argument was a free
-  variable inside a `clusterEvalQ` call and never reached the workers.
-  Switched to `clusterCall`, which serializes the argument to workers.
-  Regression test added.
+* `medsim_run_parallel(packages = ...)` on PSOCK clusters used to crash with
+  `object 'packages' not found`. The `packages` argument was a free variable
+  inside a `clusterEvalQ` call and never reached the workers. Switched to
+  `clusterCall`, which serializes the argument to workers. Regression test
+  added.
+
+## Documentation
+
+* Comprehensive pkgdown website at https://data-wise.github.io/medsim/
+* Vignette: `getting-started.qmd` (custom-scenarios and HPC vignettes planned
+  for a future release)
+* All exported functions have roxygen2 documentation; high-level docs
+  (README, NEWS, CLAUDE.md) audited and consistent with the actual API
 
 ## Testing
 
-* Added unit tests for `R/runner.R`, `R/parallel.R`, and `R/visualize.R`,
-  which were previously untested or only partially tested. Test suite
-  grew substantially; key core paths now exercised.
-* Silenced known-legitimate warnings in test-analyze.R and test-workflow.R
-  (no-ground-truth-for-CI warnings and ggplot2 NA-removal noise) so real
-  warnings remain visible.
+* Unit tests for all core modules including `R/runner.R`, `R/parallel.R`, and
+  `R/visualize.R`. Test suite covers happy paths, edge cases, input
+  validation, error handling, and HPC-environment detection.
 
 ## Infrastructure
 
-* CI overhaul: PR-time R-CMD-check now ~4 min (was ~30 min) by moving
-  R-devel to a weekly schedule (`R-CMD-check-devel.yaml`). Concurrency
-  cancel-in-progress added on `R-CMD-check.yaml` and `test-coverage.yaml`.
-* `R-hub` workflow now installs Quarto before running checks, so vignette
-  re-build succeeds on r-hub containers.
-* DESCRIPTION: added `Remotes:` for GitHub-only sibling deps
-  (medfit, medrobust, probmed) so `pak::pkg_install(".")` resolves them
-  during R-CMD-check.
-* `.Rbuildignore` expanded to exclude local-only artifacts (`cache/`,
-  `simulation_results/`, `BRAINSTORM-*.md`, `.STATUS*`, `.claude/`) and
-  qmd build directories (`vignettes/.+_files`).
-
-## medsim 0.1.0 (planned, not yet released)
-
-**Planned scope of the 0.1.0 release.** Marked here as a forward-looking
-summary of the work happening in the 0.0.0.9000 dev cycle. Will become
-the canonical 0.1.0 entry once a release is tagged.
-
-### New Features
-
-* **Core Infrastructure** - Complete simulation framework
-  - `medsim_config()` for environment-aware configuration (test/local/cluster modes)
-  - `medsim_run()` for parallel simulation execution with progress tracking
-  - `medsim_scenario()` for defining custom simulation scenarios
-  - `medsim_scenarios_mediation()` for standard mediation scenarios
-
-* **Analysis Functions**
-  - `medsim_analyze()` for summarizing simulation results
-  - `medsim_analyze_coverage()` for coverage rate computation
-  - `medsim_compare_methods()` for multi-method comparison
-
-* **Visualization**
-  - `medsim_figures()` for publication-ready figure generation
-  - `medsim_tables()` for LaTeX table generation
-
-* **Complete Workflow**
-  - `medsim_workflow()` - single function from simulation to manuscript-ready output
-
-* **HPC Support**
-  - Automatic SLURM/PBS/LSF environment detection
-  - Parallel processing with automatic core detection
-  - Ground truth caching for expensive computations
-
-### Documentation
-
-* Comprehensive pkgdown website at https://data-wise.github.io/medsim/
-* Vignette: `getting-started.qmd` (custom-scenarios and HPC vignettes
-  planned for a future release)
-
-### Ecosystem Notes
-
-* Part of the mediationverse ecosystem for mediation analysis
-* Designed to test methods from medfit, probmed, RMediation, and medrobust
-* Tested with R 4.1.0+
-* See [Ecosystem Coordination](https://github.com/data-wise/medfit/blob/main/planning/ECOSYSTEM.md) for guidelines
-
-### Internal
-
-* GitHub Actions CI/CD with multi-platform testing (macOS, Windows,
-  Ubuntu release + oldrel-1; Ubuntu R-devel weekly via cron)
+* GitHub Actions CI/CD on macOS, Windows, Ubuntu release, and Ubuntu
+  oldrel-1; PR-time R-CMD-check completes in ~4 minutes
+* Weekly R-devel signal via cron (`R-CMD-check-devel.yaml`)
+* R-hub workflow available via manual dispatch (with Quarto installed for
+  vignette re-build)
 * Codecov integration for coverage tracking
+* Concurrency cancel-in-progress on R-CMD-check and test-coverage
+
+## Compatibility
+
+* Requires R >= 4.1.0
+* Suggests: medfit, probmed, RMediation, medrobust (for method testing)
 
 ---
 
-*This is a development version. Breaking changes may occur.*
+*medsim is in active development. Breaking changes between 0.x releases
+remain possible until a 1.0.0 release.*
