@@ -6,7 +6,7 @@
 [![R-CMD-check](https://github.com/data-wise/medsim/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/data-wise/medsim/actions/workflows/R-CMD-check.yaml)
 [![Website Status](https://github.com/data-wise/medsim/actions/workflows/pkgdown.yaml/badge.svg)](https://github.com/data-wise/medsim/actions/workflows/pkgdown.yaml)
 [![R-hub](https://github.com/data-wise/medsim/actions/workflows/rhub.yaml/badge.svg)](https://github.com/data-wise/medsim/actions/workflows/rhub.yaml)
-[![Codecov](https://codecov.io/gh/data-wise/medsim/graph/badge.svg)](https://codecov.io/gh/data-wise/medsim)
+[![Codecov](https://codecov.io/gh/data-wise/medsim/graph/badge.svg)](https://app.codecov.io/gh/data-wise/medsim)
 <!-- badges: end -->
 
 **medsim** provides standardized infrastructure for conducting Monte Carlo simulation studies in mediation analysis. Eliminate the need to repeatedly implement parallel processing, progress reporting, result analysis, and visualization across different research projects.
@@ -29,7 +29,7 @@
 | [medfit](https://data-wise.github.io/medfit/) | Model fitting, extraction, bootstrap | Foundation |
 | [probmed](https://data-wise.github.io/probmed/) | Probabilistic effect size (P_med) | Application |
 | [RMediation](https://cran.r-project.org/package=RMediation) | Confidence intervals (DOP, MBCO) | Application |
-| [medrobust](https://data-wise.github.io/medrobust/) | Sensitivity analysis | Application |
+| [medrobust](https://github.com/Data-Wise/medrobust) | Sensitivity analysis | Application |
 | **medsim** (this) | Simulation infrastructure | Support |
 
 See [Ecosystem Coordination](https://github.com/data-wise/medfit/blob/main/planning/ECOSYSTEM.md) for version compatibility and development guidelines.
@@ -298,9 +298,9 @@ citation("medsim")
 
 ## Getting Help
 
-- [GitHub Issues](https://github.com/data-wise/medsim/issues) - Bug reports and feature requests
-- [Documentation](https://data-wise.github.io/medsim/) - Comprehensive guides
-- [Discussions](https://github.com/data-wise/medsim/discussions) - Questions and community support
+- [GitHub Issues](https://github.com/Data-Wise/medsim/issues) — Bug reports and feature requests
+- [Documentation](https://data-wise.github.io/medsim/) — Comprehensive guides
+- [pkgdown reference](https://data-wise.github.io/medsim/reference/index.html) — Function reference
 
 ## Code of Conduct
 

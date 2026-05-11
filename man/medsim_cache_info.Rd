@@ -24,7 +24,11 @@ List with cache metadata:
 Retrieves metadata about a cached object without loading the full object.
 }
 \examples{
-info <- medsim_cache_info("cache/truth.rds")
+# Save a cached object to a temp file, then inspect it
+cache_file <- tempfile(fileext = ".rds")
+medsim_cache_save(list(value = 42), cache_file)
+info <- medsim_cache_info(cache_file)
 print(info)
+unlink(cache_file)
 
 }

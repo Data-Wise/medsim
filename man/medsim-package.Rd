@@ -114,9 +114,9 @@ medsim is designed to work with:
 \seealso{
 Useful links:
 \itemize{
-  \item \url{https://github.com/data-wise/medsim}
+  \item \url{https://github.com/Data-Wise/medsim}
   \item \url{https://data-wise.github.io/medsim/}
-  \item Report bugs at \url{https://github.com/data-wise/medsim/issues}
+  \item Report bugs at \url{https://github.com/Data-Wise/medsim/issues}
 }
 
 }
