@@ -245,8 +245,12 @@ medsim_cache_exists <- function(file) {
 #'   - `r_version`: Character - R version used (if available)
 #'
 #' @examples
-#' info <- medsim_cache_info("cache/truth.rds")
+#' # Save a cached object to a temp file, then inspect it
+#' cache_file <- tempfile(fileext = ".rds")
+#' medsim_cache_save(list(value = 42), cache_file)
+#' info <- medsim_cache_info(cache_file)
 #' print(info)
+#' unlink(cache_file)
 #'
 #' @export
 medsim_cache_info <- function(file) {
@@ -404,12 +408,16 @@ medsim_cache_clear <- function(cache_dir,
 #'   - `modified`: Last modified time
 #'
 #' @examples
-#' # List all cache
-#' cache_list <- medsim_cache_list("cache")
+#' # Create a small cache in a temp directory, then list it
+#' cache_dir <- file.path(tempdir(), "medsim_cache_list_example")
+#' dir.create(cache_dir, showWarnings = FALSE)
+#' medsim_cache_save(list(a = 1), file.path(cache_dir, "result1.rds"))
+#' medsim_cache_save(list(b = 2), file.path(cache_dir, "result2.rds"))
+#'
+#' cache_list <- medsim_cache_list(cache_dir)
 #' print(cache_list)
 #'
-#' # List specific pattern
-#' truth_cache <- medsim_cache_list("cache", pattern = "truth_*.rds")
+#' unlink(cache_dir, recursive = TRUE)
 #'
 #' @export
 medsim_cache_list <- function(cache_dir, pattern = "*.rds") {
@@ -461,8 +469,9 @@ medsim_cache_list <- function(cache_dir, pattern = "*.rds") {
 #' @return Invisibly returns cache directory path
 #'
 #' @examples
-#' medsim_cache_init("cache")
-#' medsim_cache_init("simulation_results/cache")
+#' cache_dir <- file.path(tempdir(), "medsim_cache_example")
+#' medsim_cache_init(cache_dir)
+#' unlink(cache_dir, recursive = TRUE)
 #'
 #' @export
 medsim_cache_init <- function(cache_dir, create_readme = TRUE) {

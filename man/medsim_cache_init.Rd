@@ -19,7 +19,8 @@ Creates a cache directory with proper structure and a README file explaining
 the cache system.
 }
 \examples{
-medsim_cache_init("cache")
-medsim_cache_init("simulation_results/cache")
+cache_dir <- file.path(tempdir(), "medsim_cache_example")
+medsim_cache_init(cache_dir)
+unlink(cache_dir, recursive = TRUE)
 
 }
