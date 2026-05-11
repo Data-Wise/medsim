@@ -1,5 +1,12 @@
 # medsim (development version)
 
+<!-- Add notes here for the next release cycle. -->
+
+# medsim 0.1.1 (2026-05-11)
+
+Cleanup release. No user-facing API changes; pure documentation,
+metadata, and dependency-declaration hygiene.
+
 ## Dependencies
 
 * Removed `probmed` and `medrobust` from `Suggests:` and `Remotes:`. The
@@ -10,6 +17,23 @@
 * `medfit` and `RMediation` remain in `Suggests:` because they are
   exercised by method-testing examples (medfit) or available via CRAN
   (RMediation).
+
+## Documentation
+
+* `medsim_cache_init()`, `medsim_cache_info()`, and `medsim_cache_list()`
+  examples now use `tempdir()`/`tempfile()` instead of writing to the
+  working directory — makes the examples CRAN-clean and shows users a
+  more idiomatic pattern.
+* Vignette `getting-started.qmd`: the install chunk
+  (`pak::pak("Data-Wise/medsim")`) is explicitly marked `eval: false` so
+  it doesn't run during vignette builds or R CMD check. Also fixed the
+  install command to use canonical case `Data-Wise`.
+* `README.md`: fixed three broken URLs (Codecov moved to `app.codecov.io`,
+  medrobust link → GitHub repo, Discussions link removed since the feature
+  isn't enabled).
+* `DESCRIPTION`: canonicalized GitHub URLs to use `Data-Wise` org case.
+* Added `cran-comments.md` as a future-reference template (gitignored
+  from package builds).
 
 # medsim 0.1.0 (2026-05-11)
 
