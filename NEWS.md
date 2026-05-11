@@ -11,9 +11,11 @@
   (medfit, medrobust, probmed) so `pak::pkg_install(".")` resolves them
   during R-CMD-check.
 
-## medsim 0.1.0
+## medsim 0.1.0 (planned, not yet released)
 
-**Initial development release**
+**Planned scope of the 0.1.0 release.** Marked here as a forward-looking
+summary of the work happening in the 0.0.0.9000 dev cycle. Will become
+the canonical 0.1.0 entry once a release is tagged.
 
 ### New Features
 
