@@ -23,8 +23,9 @@ Install the development version from GitHub:
 
 ```{r}
 #| label: install
+#| eval: false
 # install.packages("pak")
-pak::pak("data-wise/medsim")
+pak::pak("Data-Wise/medsim")
 ```
 
 ## Quick Start

@@ -25,11 +25,15 @@ data.frame with columns:
 Lists all cache files in a directory with their metadata.
 }
 \examples{
-# List all cache
-cache_list <- medsim_cache_list("cache")
+# Create a small cache in a temp directory, then list it
+cache_dir <- file.path(tempdir(), "medsim_cache_list_example")
+dir.create(cache_dir, showWarnings = FALSE)
+medsim_cache_save(list(a = 1), file.path(cache_dir, "result1.rds"))
+medsim_cache_save(list(b = 2), file.path(cache_dir, "result2.rds"))
+
+cache_list <- medsim_cache_list(cache_dir)
 print(cache_list)
 
-# List specific pattern
-truth_cache <- medsim_cache_list("cache", pattern = "truth_*.rds")
+unlink(cache_dir, recursive = TRUE)
 
 }
