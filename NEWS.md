@@ -45,7 +45,8 @@ the canonical 0.1.0 entry once a release is tagged.
 ### Documentation
 
 * Comprehensive pkgdown website at https://data-wise.github.io/medsim/
-* Vignettes for getting started, custom scenarios, and HPC usage
+* Vignette: `getting-started.qmd` (custom-scenarios and HPC vignettes
+  planned for a future release)
 
 ### Ecosystem Notes
 
@@ -56,8 +57,8 @@ the canonical 0.1.0 entry once a release is tagged.
 
 ### Internal
 
-* 313+ tests passing
-* GitHub Actions CI/CD with multi-platform testing
+* GitHub Actions CI/CD with multi-platform testing (macOS, Windows,
+  Ubuntu release + oldrel-1; Ubuntu R-devel weekly via cron)
 * Codecov integration for coverage tracking
 
 ---
