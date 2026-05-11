@@ -1,0 +1,53 @@
+# Weekly R-devel R CMD check.
+#
+# Split out from R-CMD-check.yaml because R-devel has no PPM binaries on
+# Linux, so pak compiles every transitive dep from source (~30 min cold
+# cache). Keeping it off PRs makes PR feedback ~4 min instead of ~30 min.
+#
+# Trade-off: R-devel breakage is caught within a week instead of on every
+# PR. Re-add ubuntu-devel to R-CMD-check.yaml's matrix before any CRAN
+# submission for continuous devel signal.
+#
+# See BRAINSTORM-ci-timeline-2026-05-09.md for the full rationale.
+on:
+  schedule:
+    - cron: '0 8 * * 1'  # 08:00 UTC every Monday
+  workflow_dispatch:
+
+name: R-CMD-check-devel
+
+concurrency:
+  group: R-CMD-check-devel-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  R-CMD-check-devel:
+    runs-on: ubuntu-latest
+
+    name: ubuntu-latest (devel)
+
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      R_KEEP_PKG_SOURCE: yes
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-pandoc@v2
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: 'devel'
+          http-user-agent: 'release'
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::rcmdcheck, any::quarto
+          needs: check
+          install-quarto: true
+
+      - uses: r-lib/actions/check-r-package@v2
+        with:
+          upload-snapshots: true
+          build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'

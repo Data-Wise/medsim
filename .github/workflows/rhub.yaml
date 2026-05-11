@@ -4,7 +4,10 @@
 #
 # rhub::rhub_setup()
 #
-# It is unlikely that you need to modify this file manually.
+# Local modification: added quarto-dev/quarto-actions/setup@v2 before
+# r-hub/actions/setup-deps@v1 in linux-containers + other-platforms.
+# r-hub's setup-deps does NOT auto-install Quarto, but medsim has
+# `VignetteBuilder: quarto` so vignette re-build fails without it.
 
 name: R-hub
 run-name: "${{ github.event.inputs.id }}: ${{ github.event.inputs.name || format('Manually run by {0}', github.triggering_actor) }}"
@@ -56,6 +59,9 @@ jobs:
         with:
           token: ${{ secrets.RHUB_TOKEN }}
           job-config: ${{ matrix.config.job-config }}
+      - uses: quarto-dev/quarto-actions/setup@v2
+        with:
+          version: '1.5.1'
       - uses: r-hub/actions/setup-deps@v1
         with:
           token: ${{ secrets.RHUB_TOKEN }}
@@ -85,6 +91,9 @@ jobs:
         with:
           token: ${{ secrets.RHUB_TOKEN }}
           job-config: ${{ matrix.config.job-config }}
+      - uses: quarto-dev/quarto-actions/setup@v2
+        with:
+          version: '1.5.1'
       - uses: r-hub/actions/setup-deps@v1
         with:
           job-config: ${{ matrix.config.job-config }}

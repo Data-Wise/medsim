@@ -266,7 +266,7 @@ results <- medsim_compare_methods(
 )
 
 # Generate comparison table
-medsim_comparison_table(results)
+medsim_table_comparison(results)
 #>           Accuracy  Coverage  Power  Runtime
 #> P_med     0.95      0.948     0.82   3.2s
 #> DOP CI    0.94      0.952     0.81   0.1s
