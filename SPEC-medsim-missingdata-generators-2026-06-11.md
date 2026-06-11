@@ -253,11 +253,16 @@ surface is `DESCRIPTION` Suggests — reconcile in each one's integration step.
   guards on `missingmed`/`rmediation`; documented base-R fallback estimator so adapters run end-to-end
   with neither installed. Invariant: package loads + tests pass with the Suggests **absent**.
 
-## Deferred #3 — corrected scope (decided 2026-06-11; do NOT re-assume `missingmed`/`rmediation`)
+## #3 — DONE (D4-MBCO ported 2026-06-11; corrected scope — NOT `missingmed`/`rmediation`)
 
-The WS-D adapters currently ship a **Sobel/listwise placeholder** (graceful-degrade). Promoting them to
-the real method was investigated and **deferred** — but the original framing ("wire `missingmed` +
-`rmediation::mbco()`/`medci()`") is **wrong** and should not be revived as-is:
+**STATUS: COMPLETED** on `feature/dgm-mbco-port`. `medsim_method_mbco_mi()` now implements the validated
+D4-stacked MBCO (`mice` MI → MBCO union-null LRT → Reiter/Chan–Meng D4 pooling → F reference), reproducing
+`mitml::testModels(method = "D4")` **exactly** (acceptance test in `test-methods-missing.R`). `missingmed`
+and `rmediation` were **removed** from `Suggests`/`Remotes` (the validated method uses neither); `mitml` was
+added for the D4 validation. The complete-case path degrades to the MBCO chi-square test, never Sobel.
+
+The investigation that led here (kept for the record) — the original framing ("wire `missingmed` +
+`rmediation::mbco()`/`medci()`") was **wrong** and was not revived:
 
 - **The validated method does not use either sibling.** `~/projects/research/Missing Effect/code/prototype-d4-mbco.R`
   (phase-2 VALIDATED 2026-06-10, exact match vs `mitml`) has **zero** references to `missingmed`/`rmediation`.
@@ -271,7 +276,7 @@ the real method was investigated and **deferred** — but the original framing (
 - **Consumer sim-design not frozen** (`Missing Effect/SPEC-simulation-design-2026-06.md` = `draft-for-review`;
   "freeze v1.0" still an open gate). No urgency: the manuscript runs on the prototype directly meanwhile.
 
-**Real upgrade path when chosen (own PR):** port the validated prototype (`mice` MI + D4 pooling + MBCO LRT
-branch diagnostic) into `medsim_method_mbco_mi()` — **no new dependencies, fully CI-testable**. Acceptance:
-reproduce the prototype's coverage/Type-I on ≥3 cells. Best done *after* the sim-design freezes (stable
-scenario grid). Gated on the decision to invest, **not** on any missing package.
+**Upgrade path taken (this PR):** ported the validated prototype (`mice` MI + D4 pooling + MBCO union-null
+LRT + branch diagnostic) into `medsim_method_mbco_mi()` — **no new hard dependencies, fully CI-testable**.
+Acceptance met: D4 pooling reproduces `mitml::testModels(method = "D4")` exactly. Note: the *study's*
+scenario grid still waits on the sim-design freeze, but the **method** port did not depend on it.
