@@ -6,11 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## About This Package
 
-**medsim** provides standardized infrastructure for conducting Monte Carlo simulation studies in mediation analysis. It is part of the mediationverse ecosystem.
-
-### Core Mission
-
-Provide a complete, reusable simulation framework that eliminates the need to repeatedly implement parallel processing, progress reporting, result analysis, and visualization across different mediation research projects.
+**medsim** is the mediationverse's standardized infrastructure for Monte Carlo simulation studies in mediation analysis — a reusable framework so parallel processing, progress reporting, result analysis, and visualization don't get reimplemented per project.
 
 ### Key Features
 
@@ -103,9 +99,7 @@ medsim tests and validates methods from other mediationverse packages:
 
 ### Central Planning
 
-Ecosystem coordination managed in `/Users/dt/mediation-planning/`:
-- `ECOSYSTEM-COORDINATION.md` - Version matrix, change propagation
-- `MONTHLY-CHECKLIST.md` - Recurring ecosystem health checks
+Ecosystem coordination lives in `/Users/dt/mediation-planning/`:
 
 | Document | Purpose |
 |----------|---------|
@@ -147,19 +141,19 @@ results <- medsim_run(pmed_method, scenarios, config)
 
 ### GitHub-only Sibling Dependencies
 
-Sibling packages medfit, medrobust, and probmed are NOT on CRAN. DESCRIPTION
-must include a `Remotes:` field so pak can resolve them during R-CMD-check:
+medsim's GitHub-only dependencies need a `Remotes:` field so pak can resolve
+them during R-CMD-check (without it, pak treats them as missing and the check
+fails). Match the actual deps in `Suggests`:
 
 ```
 Remotes:
     Data-Wise/medfit,
-    Data-Wise/medrobust,
-    Data-Wise/probmed
+    Data-Wise/missingmed,
+    Data-Wise/rmediation
 ```
 
-RMediation IS on CRAN — do not list it under Remotes. Without this hint, pak
-treats these as missing packages and R-CMD-check fails. Added in PR #1
-(2026-05-09).
+Stable RMediation is on CRAN; `Data-Wise/rmediation` pins the dev fork. First
+added in PR #1 (2026-05-09).
 
 ---
 
