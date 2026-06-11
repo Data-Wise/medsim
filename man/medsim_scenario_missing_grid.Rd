@@ -2,7 +2,7 @@
 % Please edit documentation in R/scenarios_missing.R
 \name{medsim_scenario_missing_grid}
 \alias{medsim_scenario_missing_grid}
-\title{Build the full factorial of missing-data scenarios (WS-C, optional)}
+\title{Build the full factorial of missing-data scenarios}
 \usage{
 medsim_scenario_missing_grid(
   true_params_list,

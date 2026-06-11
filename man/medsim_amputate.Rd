@@ -2,7 +2,7 @@
 % Please edit documentation in R/dgm_amputate.R
 \name{medsim_amputate}
 \alias{medsim_amputate}
-\title{Insert missing values under MCAR / MAR / MNAR (WS-B)}
+\title{Insert missing values under MCAR / MAR / MNAR}
 \usage{
 medsim_amputate(
   data,

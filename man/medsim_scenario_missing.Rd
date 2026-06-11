@@ -2,7 +2,7 @@
 % Please edit documentation in R/scenarios_missing.R
 \name{medsim_scenario_missing}
 \alias{medsim_scenario_missing}
-\title{Construct a missing-data mediation scenario (WS-C)}
+\title{Construct a missing-data mediation scenario}
 \usage{
 medsim_scenario_missing(
   name,

@@ -2,7 +2,7 @@
 # Spec: SPEC-medsim-missingdata-generators-2026-06-11.md  (§"3. Missing-data scenario constructor")
 # Builds on the WS-A (medsim_rnonnormal) and WS-B (medsim_amputate) interfaces.
 
-#' Construct a missing-data mediation scenario (WS-C)
+#' Construct a missing-data mediation scenario
 #'
 #' Wraps [medsim_scenario()] with a `data_generator` that (1) draws complete `X -> M -> Y`
 #' with optional nonnormal residuals ([medsim_rnonnormal()]), then (2) amputes `target`
@@ -36,7 +36,7 @@ medsim_scenario_missing <- function(name, true_params, mechanism, prop = 0.2,
   }
   if (!is.null(nonnormal)) {
     if (!is.list(nonnormal) ||
-        !all(c("skew", "kurtosis") %in% names(nonnormal))) {
+      !all(c("skew", "kurtosis") %in% names(nonnormal))) {
       stop("nonnormal must be NULL or a list with `skew` and `kurtosis`")
     }
   }
@@ -71,8 +71,8 @@ medsim_scenario_missing <- function(name, true_params, mechanism, prop = 0.2,
 # Internal: draw a complete X -> M -> Y mediation data.frame from `true_params`,
 # with optional nonnormal residuals on M and Y. Returns columns X, M, Y.
 .gen_complete_med <- function(n, true_params, nonnormal = NULL) {
-  a  <- if (!is.null(true_params$a))  true_params$a  else 0
-  b  <- if (!is.null(true_params$b))  true_params$b  else 0
+  a <- if (!is.null(true_params$a)) true_params$a else 0
+  b <- if (!is.null(true_params$b)) true_params$b else 0
   cp <- if (!is.null(true_params$cp)) true_params$cp else 0
   sd_M <- if (!is.null(true_params$sd_M)) true_params$sd_M else 1
   sd_Y <- if (!is.null(true_params$sd_Y)) true_params$sd_Y else 1
@@ -98,7 +98,7 @@ medsim_scenario_missing <- function(name, true_params, mechanism, prop = 0.2,
   data.frame(X = X, M = M, Y = Y)
 }
 
-#' Build the full factorial of missing-data scenarios (WS-C, optional)
+#' Build the full factorial of missing-data scenarios
 #'
 #' Convenience: expand `SPEC-simulation-design` cells (mechanism × prop × n × effect ×
 #' nonnormality) into a list of [medsim_scenario_missing()] objects in one call.

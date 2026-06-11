@@ -53,6 +53,7 @@ Config/Needs/website:
     pkgdown,
     quarto
 Encoding: UTF-8
+Language: en-US
 Roxygen: list(markdown = TRUE)
 VignetteBuilder: quarto
 Config/testthat/edition: 3

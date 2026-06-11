@@ -1,7 +1,7 @@
 # INTERFACE FREEZE (Step 0) — signature stub for WS-B.
 # Spec: SPEC-medsim-missingdata-generators-2026-06-11.md  (§"2. Missingness amputation")
 
-#' Insert missing values under MCAR / MAR / MNAR (WS-B)
+#' Insert missing values under MCAR / MAR / MNAR
 #'
 #' Thin, documented amputer aligning `mice::ampute` semantics to the medsim DGM contract.
 #' Returns the input frame with `NA`s inserted in `target` column(s); column names/order
@@ -32,8 +32,10 @@ medsim_amputate <- function(data, target, mechanism = c("MCAR", "MAR", "MNAR"),
   target <- as.character(target)
   missing_cols <- setdiff(target, names(data))
   if (length(missing_cols) > 0L) {
-    stop(sprintf("`target` column(s) not found in `data`: %s",
-                 paste(missing_cols, collapse = ", ")), call. = FALSE)
+    stop(sprintf(
+      "`target` column(s) not found in `data`: %s",
+      paste(missing_cols, collapse = ", ")
+    ), call. = FALSE)
   }
   if (!is.numeric(prop) || length(prop) != 1L || prop < 0 || prop > 1) {
     stop("`prop` must be a single number in [0, 1].", call. = FALSE)
@@ -54,8 +56,10 @@ medsim_amputate <- function(data, target, mechanism = c("MCAR", "MAR", "MNAR"),
     predictors <- as.character(predictors)
     bad_pred <- setdiff(predictors, orig_names)
     if (length(bad_pred) > 0L) {
-      stop(sprintf("`predictors` not found in `data`: %s",
-                   paste(bad_pred, collapse = ", ")), call. = FALSE)
+      stop(sprintf(
+        "`predictors` not found in `data`: %s",
+        paste(bad_pred, collapse = ", ")
+      ), call. = FALSE)
     }
   }
 
@@ -171,19 +175,29 @@ medsim_amputate <- function(data, target, mechanism = c("MCAR", "MAR", "MNAR"),
 # Solve for intercept a such that mean(plogis(a + lin)) == prop, via bisection
 # on the monotone increasing function a -> mean(plogis(a + lin)).
 .medsim_calibrate_intercept <- function(lin, prop) {
-  if (prop <= 0) return(-Inf)
-  if (prop >= 1) return(Inf)
+  if (prop <= 0) {
+    return(-Inf)
+  }
+  if (prop >= 1) {
+    return(Inf)
+  }
   f <- function(a) mean(stats::plogis(a + lin)) - prop
   lo <- -50
   hi <- 50
   flo <- f(lo)
   fhi <- f(hi)
-  if (flo > 0) return(lo)  # already over-missing at the floor
-  if (fhi < 0) return(hi)  # cannot reach prop even at the ceiling
+  if (flo > 0) {
+    return(lo)
+  } # already over-missing at the floor
+  if (fhi < 0) {
+    return(hi)
+  } # cannot reach prop even at the ceiling
   for (i in seq_len(100)) {
     mid <- (lo + hi) / 2
     fm <- f(mid)
-    if (abs(fm) < 1e-9) return(mid)
+    if (abs(fm) < 1e-9) {
+      return(mid)
+    }
     if (fm < 0) lo <- mid else hi <- mid
   }
   (lo + hi) / 2

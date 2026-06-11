@@ -2,7 +2,7 @@
 % Please edit documentation in R/methods_missing.R
 \name{medsim_method_mc_ci}
 \alias{medsim_method_mc_ci}
-\title{Monte-Carlo CI estimator adapter (WS-D)}
+\title{Monte-Carlo CI estimator adapter}
 \usage{
 medsim_method_mc_ci(model, m = 20L, ...)
 }

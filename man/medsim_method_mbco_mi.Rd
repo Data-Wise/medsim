@@ -2,7 +2,7 @@
 % Please edit documentation in R/methods_missing.R
 \name{medsim_method_mbco_mi}
 \alias{medsim_method_mbco_mi}
-\title{MBCO-MI estimator adapter (WS-D)}
+\title{MBCO-MI estimator adapter}
 \usage{
 medsim_method_mbco_mi(model, m = 20L, ...)
 }

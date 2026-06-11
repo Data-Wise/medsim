@@ -2,7 +2,7 @@
 % Please edit documentation in R/dgm_nonnormal.R
 \name{medsim_rnonnormal}
 \alias{medsim_rnonnormal}
-\title{Draw nonnormal values with a target marginal skew/kurtosis (WS-A)}
+\title{Draw nonnormal values with a target marginal skew/kurtosis}
 \usage{
 medsim_rnonnormal(n, mean = 0, sd = 1, skew = 0, kurtosis = 0)
 }
@@ -11,9 +11,9 @@ medsim_rnonnormal(n, mean = 0, sd = 1, skew = 0, kurtosis = 0)
 
 \item{mean, sd}{Target marginal mean and SD (applied after standardizing).}
 
-\item{skew}{Target marginal skewness (3rd standardized moment).}
+\item{skew}{Target marginal skewness (third standardized moment).}
 
-\item{kurtosis}{Target marginal excess kurtosis (4th standardized moment − 3).}
+\item{kurtosis}{Target marginal excess kurtosis (fourth standardized moment minus 3).}
 }
 \value{
 Numeric vector of length \code{n} with the requested marginal moments.

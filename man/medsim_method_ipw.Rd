@@ -2,7 +2,7 @@
 % Please edit documentation in R/methods_missing.R
 \name{medsim_method_ipw}
 \alias{medsim_method_ipw}
-\title{Thin IPW estimator adapter (WS-D, robustness appendix)}
+\title{Thin IPW estimator adapter (robustness appendix)}
 \usage{
 medsim_method_ipw(model, ...)
 }

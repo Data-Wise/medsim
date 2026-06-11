@@ -2,7 +2,7 @@
 % Please edit documentation in R/analyze_missing.R
 \name{medsim_summarize_branch_switch}
 \alias{medsim_summarize_branch_switch}
-\title{Summarize the MBCO branch-switch rate per scenario (WS-E)}
+\title{Summarize the MBCO branch-switch rate per scenario}
 \usage{
 medsim_summarize_branch_switch(results, by = "scenario")
 }
