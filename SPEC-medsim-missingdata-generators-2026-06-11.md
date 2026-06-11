@@ -1,7 +1,9 @@
-# SPEC (DEFERRED) — `medsim` missing-data + nonnormality DGM generators
+# SPEC (COMPLETED) — `medsim` missing-data + nonnormality DGM generators
 
-**Status:** 🟡 Spec only — **do not build yet** (prototype-first; build after the Missing Effect
-`SPEC-simulation-design` freezes at v1.0 and the standalone prototype validates).
+**Status:** ✅ **BUILT & MERGED to dev** (2026-06-11; deferral overridden by author). Generators +
+amputation + scenarios + adapters via **PR #17** (`@7b3245e`); validated **D4-MBCO** estimator (mice MI +
+D4 pooling + MBCO LRT, exact match vs `mitml`) via **PR #18** (`@68dad3e`). See the **"#3 — DONE"** and
+**"Execution decisions"** sections below. (Original deferral note kept for the record.)
 **Author:** Davood Tofighi
 **Date:** 2026-06-11
 **Consumer:** `~/projects/research/Missing Effect` — the inference-led study (MBCO-MI vs Monte-Carlo CI
