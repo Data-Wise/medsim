@@ -1,6 +1,40 @@
-# medsim (development version)
+# medsim 0.2.0 (2026-06-11)
 
-<!-- Add notes here for the next release cycle. -->
+## New features
+
+### Missing-data + nonnormality DGM generators
+
+Reusable data-generating utilities + missing-data mediation estimator adapters for the
+Missing Effect study (MBCO-MI vs Monte-Carlo CI under missingness × nonnormality),
+reusable by `sensitivity` / `measurement error`.
+
+* `medsim_rnonnormal()` — draw values with a target marginal skew/excess kurtosis
+  (Fleishman power method; pure base R, feasibility-guarded).
+* `medsim_amputate()` — insert `NA`s under MCAR / MAR / MNAR via a rate-calibrated
+  logistic amputer; multi-column targets; `mice` optional.
+* `medsim_scenario_missing()` / `medsim_scenario_missing_grid()` — missing-data
+  mediation scenarios (X→M→Y with optional nonnormal residuals → amputation) + factorial
+  grid builder.
+* `medsim_method_mbco_mi()` / `medsim_method_mc_ci()` / `medsim_method_ipw()` — estimator
+  adapters returning the 6-field `method()` contract. `medsim_method_mbco_mi()` implements
+  the validated **D4-stacked MBCO** union-null test (`mice` multiple imputation → MBCO
+  likelihood-ratio statistic → Reiter/Chan–Meng D4 pooling → F reference), reproducing
+  `mitml::testModels(method = "D4")` exactly; it degrades to the complete-case MBCO
+  chi-square test when imputation is unavailable. `medsim_method_mc_ci()` uses
+  `RMediation::medci()` when present, else a base-R product-of-normals interval.
+* `medsim_summarize_branch_switch()` — summarize the MBCO union-null branch-switch rate
+  per scenario.
+
+The estimator adapters use `mice` (multiple imputation) + `RMediation` (Monte-Carlo CI),
+both in `Suggests`; `mitml` is suggested for the D4 validation test. No new hard
+dependencies. (The earlier `missingmed`/`rmediation` Suggests/Remotes were dropped — the
+validated D4-MBCO method uses neither.)
+
+## Bug fixes
+
+* Vignette `getting-started.qmd`: the analysis step errored ("no ground truth available")
+  because `medsim_run()` was called without `compute_truth`. Added a `compute_truth`
+  example so `medsim_analyze()` computes accuracy metrics.
 
 # medsim 0.1.1 (2026-05-11)
 

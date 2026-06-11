@@ -20,6 +20,8 @@ Provide a complete, reusable simulation framework that eliminates the need to re
 - Ground truth caching
 - Automated analysis and visualization
 - Publication-ready output (figures and LaTeX tables)
+- Missing-data + nonnormality DGM generators + missing-data mediation estimator adapters
+  (*in progress* on `feature/dgm-interface`; see Code Architecture below)
 
 ---
 
@@ -60,6 +62,26 @@ devtools::test()
 | `test` | 20 | Quick validation |
 | `local` | 100 | Development |
 | `cluster` | 1000+ | Production |
+
+### Missing-data DGM generators (in progress — `feature/dgm-interface`)
+
+Reusable data-generating utilities + missing-data mediation estimator adapters, added for the
+**Missing Effect** study (MBCO-MI vs Monte-Carlo CI under missingness × nonnormality) and reusable by
+`sensitivity` / `measurement error`. Spec: `SPEC-medsim-missingdata-generators-2026-06-11.md`.
+
+| Function | Purpose |
+|----------|---------|
+| `medsim_rnonnormal()` | Draw values with target skew/kurtosis (Fleishman power method) |
+| `medsim_amputate()` | Insert `NA`s under MCAR / MAR / MNAR (logistic amputer, rate-calibrated) |
+| `medsim_scenario_missing()` / `medsim_scenario_missing_grid()` | Missing-data mediation scenarios (factorial) |
+| `medsim_method_mbco_mi()` / `medsim_method_mc_ci()` / `medsim_method_ipw()` | Estimator adapters (the headline MBCO-MI vs MC-CI pair; thin IPW) |
+| `medsim_summarize_branch_switch()` | Summarize the MBCO union-null branch-switch rate per scenario |
+
+Design rules: estimator-agnostic boundary preserved (these are `data_generator`/`method` helpers);
+heavy deps (`mice`, `missingmed`, `rmediation`) stay in **Suggests** (loaded via `requireNamespace`);
+the `method()` contract returns the 6-field list `{indirect, indirect_ci_lower/_upper, indirect_p,
+branch_switch, converged}`. Status: WS-A..E implemented; **WS-F integration pending** (DESCRIPTION
+Suggests + roxygen + `R CMD check`). See `WORKSTREAM-KICKOFFS.md` on the branch.
 
 ---
 

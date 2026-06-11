@@ -7,6 +7,9 @@ medsim.code-workspace
 docs
 inst/doc
 
+# medsim simulation output dirs (regenerable test/local/cluster runs; never commit)
+simulation_results*/
+
 # Local Claude Code artifacts
 .claude/
 .STATUS
