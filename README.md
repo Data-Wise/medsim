@@ -39,7 +39,17 @@ See [Ecosystem Coordination](https://github.com/data-wise/medfit/blob/main/plann
 
 ## Installation
 
-Install the development version from GitHub:
+Install from the [data-wise r-universe](https://data-wise.r-universe.dev/medsim)
+(pre-built binaries — no compiler needed):
+
+``` r
+install.packages(
+  "medsim",
+  repos = c("https://data-wise.r-universe.dev", "https://cloud.r-project.org")
+)
+```
+
+Or the development version from GitHub:
 
 ``` r
 # install.packages("pak")
