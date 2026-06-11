@@ -21,7 +21,7 @@ Provide a complete, reusable simulation framework that eliminates the need to re
 - Automated analysis and visualization
 - Publication-ready output (figures and LaTeX tables)
 - Missing-data + nonnormality DGM generators + missing-data mediation estimator adapters
-  (*in progress* on `feature/dgm-interface`; see Code Architecture below)
+  (shipped in **v0.2.0**; see Code Architecture below)
 
 ---
 
@@ -63,7 +63,7 @@ devtools::test()
 | `local` | 100 | Development |
 | `cluster` | 1000+ | Production |
 
-### Missing-data DGM generators (in progress — `feature/dgm-interface`)
+### Missing-data DGM generators (shipped in v0.2.0)
 
 Reusable data-generating utilities + missing-data mediation estimator adapters, added for the
 **Missing Effect** study (MBCO-MI vs Monte-Carlo CI under missingness × nonnormality) and reusable by
@@ -80,8 +80,9 @@ Reusable data-generating utilities + missing-data mediation estimator adapters, 
 Design rules: estimator-agnostic boundary preserved (these are `data_generator`/`method` helpers);
 heavy deps (`mice`, `missingmed`, `rmediation`) stay in **Suggests** (loaded via `requireNamespace`);
 the `method()` contract returns the 6-field list `{indirect, indirect_ci_lower/_upper, indirect_p,
-branch_switch, converged}`. Status: WS-A..E implemented; **WS-F integration pending** (DESCRIPTION
-Suggests + roxygen + `R CMD check`). See `WORKSTREAM-KICKOFFS.md` on the branch.
+branch_switch, converged}`. Status: **complete** — WS-A..F merged via PR #17 and released in
+**v0.2.0** (`mice`/`missingmed`/`rmediation`/`mitml` in Suggests + `Remotes`; all 8 functions
+exported and documented; adapters degrade gracefully via `requireNamespace`).
 
 ---
 
@@ -219,7 +220,15 @@ treats these as missing packages and R-CMD-check fails. Added in PR #1
 - **`R-hub` workflow** (`.github/workflows/rhub.yaml`, restored from main
   via the dev/main reconciliation) is registered with GitHub but
   scheduled-only / dispatch-only. Use for multi-platform pre-CRAN testing.
+- **r-universe distribution**: medsim is published (green, all platforms) at
+  the live `data-wise` universe — `install.packages("medsim", repos =
+  "https://data-wise.r-universe.dev")`. This is a separate service from GitHub
+  CI (rebuilds on its own ~hourly cron, not on push). Registry repo:
+  `Data-Wise/data-wise.r-universe.dev` (`packages.json`) — the registry key
+  MUST match the DESCRIPTION `Package:` field case-sensitively (the
+  `rmediation`→`RMediation` mismatch fail-stopped the whole org sync). Full
+  philosophy + readiness checklist: `R-UNIVERSE-STANDARDS.md` at repo root.
 
 ---
 
-**Last Updated**: 2026-05-10
+**Last Updated**: 2026-06-11
