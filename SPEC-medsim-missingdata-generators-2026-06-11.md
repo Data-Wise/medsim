@@ -226,3 +226,29 @@ surface is `DESCRIPTION` Suggests — reconcile in each one's integration step.
   beyond independent marginal residuals (WS-A, additive).
 - Surface realized (skew, kurtosis, missing-rate) as scenario *diagnostics* in the results object so the
   manuscript can report achieved vs target (small WS-E add).
+
+---
+
+# Execution decisions (2026-06-11) — full build authorized
+
+> The 🟡 deferral was **overridden** by the author: build all 6 workstreams now. Recorded here so the
+> spec stays the single source of truth for what was actually built and why.
+
+- **Step-0 blocker RESOLVED.** `R/runner.R:329` calls `method(data, scenario$params)` → adapters are
+  `function(data, params)` (the spec was right; the DM proposal's `function(data, scenario=NULL)` was
+  wrong). Coverage engine (`R/analyze.R`) keys on `<param>_ci_lower`/`_ci_upper`/`<param>_truth` with
+  default `ci_suffix = "_ci"`, so the `indirect_ci_*` contract flows in with no engine change.
+- **Scaffold already existed.** Commits `355c7fe` (Step-0 interface freeze: 5 stub R files) and
+  `2a03d00` (red `testthat` skeletons + `WORKSTREAM-KICKOFFS.md`) on `feature/dgm-interface`. This run
+  is the TDD **green phase**: fill the stubs to satisfy the existing red tests.
+- **Orchestration = single worktree + `Workflow` tool** (not the 5-worktree/5-session plan). File
+  ownership is provably disjoint, so one `feature/dgm-interface` worktree has zero collision risk.
+  Because authoring only needs the *frozen signatures* (not sibling implementations), all five modules
+  are written in **one parallel barrier**; only execution is ordered. Collapsed DAG:
+  `parallel-write(A–E) → serial integrate+test(F) → repair-to-green → R CMD check`.
+- **No `document()` mid-build.** Concurrent `devtools::document()` would race on the shared
+  `NAMESPACE`/`man/`; all doc regen is deferred to the serial F phase. Implement agents are
+  **write-only** + single-file `parse()` self-check (race-free); F runs the first real `load_all`/test.
+- **WS-D = graceful-degrade** (overrides the kickoff's "wrap the prototype"): `requireNamespace()`
+  guards on `missingmed`/`rmediation`; documented base-R fallback estimator so adapters run end-to-end
+  with neither installed. Invariant: package loads + tests pass with the Suggests **absent**.
