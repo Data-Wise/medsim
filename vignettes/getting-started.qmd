@@ -90,12 +90,26 @@ names(scenarios)
 
 ### Step 4: Run the Simulation
 
+To report accuracy metrics (bias, RMSE, ...), give `medsim_run()` a
+`compute_truth` function. It shares the `(data, params)` signature of your
+method and returns the *true* value of each quantity the method estimates —
+here, taken directly from the data-generating parameters:
+
 ```{r}
 #| label: run
+compute_truth <- function(data, params) {
+  list(
+    indirect = params$indirect,
+    a_path   = params$a,
+    b_path   = params$b
+  )
+}
+
 results <- medsim_run(
   method = my_method,
   scenarios = scenarios,
-  config = medsim_config("test")  # Use "local" for real studies
+  config = medsim_config("test"),  # Use "local" for real studies
+  compute_truth = compute_truth
 )
 ```
 
