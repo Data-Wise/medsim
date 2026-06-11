@@ -252,3 +252,26 @@ surface is `DESCRIPTION` Suggests — reconcile in each one's integration step.
 - **WS-D = graceful-degrade** (overrides the kickoff's "wrap the prototype"): `requireNamespace()`
   guards on `missingmed`/`rmediation`; documented base-R fallback estimator so adapters run end-to-end
   with neither installed. Invariant: package loads + tests pass with the Suggests **absent**.
+
+## Deferred #3 — corrected scope (decided 2026-06-11; do NOT re-assume `missingmed`/`rmediation`)
+
+The WS-D adapters currently ship a **Sobel/listwise placeholder** (graceful-degrade). Promoting them to
+the real method was investigated and **deferred** — but the original framing ("wire `missingmed` +
+`rmediation::mbco()`/`medci()`") is **wrong** and should not be revived as-is:
+
+- **The validated method does not use either sibling.** `~/projects/research/Missing Effect/code/prototype-d4-mbco.R`
+  (phase-2 VALIDATED 2026-06-10, exact match vs `mitml`) has **zero** references to `missingmed`/`rmediation`.
+  It runs on **`mice`** (already in Suggests, installed in CI) + hand-coded **D4 pooling** + **MBCO LRT**.
+  So wiring the siblings would implement an *unvalidated* path, not promote the proven one.
+- **`missingmed`** is mid **S7 migration** (active `feature/s7-migration`; exports `set_sem/run_sem/pool_sem`)
+  → API in flux; coupling now = rework.
+- **`rmediation` (dev, Data-Wise)** exports `ci()` / `MBCOResult` / `ci_mediation_data` — **not** the
+  `mbco()`/`medci()` the spec assumed (that was CRAN `RMediation::medci`, which *is* installed and is
+  already used by `medsim_method_mc_ci()` when present).
+- **Consumer sim-design not frozen** (`Missing Effect/SPEC-simulation-design-2026-06.md` = `draft-for-review`;
+  "freeze v1.0" still an open gate). No urgency: the manuscript runs on the prototype directly meanwhile.
+
+**Real upgrade path when chosen (own PR):** port the validated prototype (`mice` MI + D4 pooling + MBCO LRT
+branch diagnostic) into `medsim_method_mbco_mi()` — **no new dependencies, fully CI-testable**. Acceptance:
+reproduce the prototype's coverage/Type-I on ≥3 cells. Best done *after* the sim-design freezes (stable
+scenario grid). Gated on the decision to invest, **not** on any missing package.
