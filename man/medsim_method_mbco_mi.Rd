@@ -7,17 +7,26 @@
 medsim_method_mbco_mi(model, m = 20L, ...)
 }
 \arguments{
-\item{model}{lavaan/OpenMx mediation model syntax or spec.}
+\item{model}{Mediation model spec (accepted for API symmetry; the estimator
+reads the \code{X}, \code{M}, \code{Y} (+ optional \verb{C*}) columns of \code{data}).}
 
 \item{m}{Integer number of imputations.}
 
-\item{...}{Passed to the underlying MI / MBCO routines.}
+\item{...}{Reserved for future MI / MBCO options.}
 }
 \value{
 A \verb{function(data, params)} returning the shared method contract (see file header).
 }
 \description{
-Multiple imputation (via \code{missingmed}) + MBCO likelihood-ratio inference (via
-\code{rmediation::mbco()}). During prototyping this wraps
-\verb{Missing Effect/code/prototype-d4-mbco.R}.
+Multiple imputation (via \code{mice}) + \strong{D4-stacked MBCO} likelihood-ratio
+inference for the union null \code{H0: ab = 0}. Ports the validated
+\verb{Missing Effect/code/prototype-d4-mbco.R} (phase-2, exact match vs
+\code{mitml::testModels(method = "D4")}): per-imputation MBCO LRTs are pooled with
+the Reiter/Chan-Meng D4 rule (Grund et al. 2021) into an F reference.
+}
+\details{
+The point estimate is the Rubin-pooled \code{a*b}; the CI is a Monte-Carlo product
+interval on the pooled paths; the p-value is the D4-pooled MBCO test. With no
+missingness (or without \code{mice}) it degrades to the complete-case MBCO LRT with
+a chi-square reference — never to a Sobel normal approximation for the test.
 }

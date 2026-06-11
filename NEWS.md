@@ -16,14 +16,19 @@ reusable by `sensitivity` / `measurement error`.
   mediation scenarios (X→M→Y with optional nonnormal residuals → amputation) + factorial
   grid builder.
 * `medsim_method_mbco_mi()` / `medsim_method_mc_ci()` / `medsim_method_ipw()` — estimator
-  adapters returning the 6-field `method()` contract. Graceful degradation:
-  `missingmed`/`rmediation` are optional (Suggests, via `requireNamespace`); a base-R
-  fallback runs when they are absent.
+  adapters returning the 6-field `method()` contract. `medsim_method_mbco_mi()` implements
+  the validated **D4-stacked MBCO** union-null test (`mice` multiple imputation → MBCO
+  likelihood-ratio statistic → Reiter/Chan–Meng D4 pooling → F reference), reproducing
+  `mitml::testModels(method = "D4")` exactly; it degrades to the complete-case MBCO
+  chi-square test when imputation is unavailable. `medsim_method_mc_ci()` uses
+  `RMediation::medci()` when present, else a base-R product-of-normals interval.
 * `medsim_summarize_branch_switch()` — summarize the MBCO union-null branch-switch rate
   per scenario.
 
-`mice`, `missingmed`, `rmediation` added to `Suggests` (latter two also `Remotes`); no
-new hard dependencies.
+The estimator adapters use `mice` (multiple imputation) + `RMediation` (Monte-Carlo CI),
+both in `Suggests`; `mitml` is suggested for the D4 validation test. No new hard
+dependencies. (The earlier `missingmed`/`rmediation` Suggests/Remotes were dropped — the
+validated D4-MBCO method uses neither.)
 
 ## Bug fixes
 

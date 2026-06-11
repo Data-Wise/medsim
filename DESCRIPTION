@@ -28,8 +28,7 @@ Suggests:
     medfit (>= 0.1.0),
     RMediation,
     mice,
-    missingmed,
-    rmediation,
+    mitml,
     mvtnorm,
     MASS,
     tictoc,
@@ -46,9 +45,7 @@ Suggests:
     patchwork,
     RColorBrewer
 Remotes:
-    Data-Wise/medfit,
-    Data-Wise/missingmed,
-    Data-Wise/rmediation
+    Data-Wise/medfit
 Config/Needs/website:
     pkgdown,
     quarto
