@@ -8,6 +8,12 @@ relates to `R CMD check` ("ccheck") and CRAN, and a concrete readiness checklist
 
 **Last updated:** 2026-06-11
 
+> **Live status (2026-06-11):** The universe is already registered and active at
+> **<https://data-wise.r-universe.dev>** with all 7 packages. `medsim` **v0.1.1**
+> builds **green on every platform** (linux, macOS, Windows, wasm); `_status:
+> success`, zero failures. Install with the snippet in §5. This doc is now a
+> *maintenance* reference, not a setup guide.
+
 ---
 
 ## 1. The Three Layers of "Check"
@@ -111,15 +117,22 @@ state is annotated.
 r-universe builds from a **registry**: a `packages.json` in a git repo named
 `<org>.r-universe.dev` (e.g. `Data-Wise/data-wise.r-universe.dev`).
 
-Minimal registry entry:
+> **Already done.** `Data-Wise/data-wise.r-universe.dev` exists and its
+> `packages.json` registers all 7 mediationverse packages (current contents
+> below). To add a future package, append its entry and push — r-universe
+> picks it up automatically.
+
+Current registry entry:
 
 ```json
 [
-  { "package": "medsim",   "url": "https://github.com/Data-Wise/medsim" },
-  { "package": "medfit",   "url": "https://github.com/Data-Wise/medfit" },
-  { "package": "probmed",  "url": "https://github.com/Data-Wise/probmed" },
-  { "package": "rmediation","url": "https://github.com/Data-Wise/rmediation" },
-  { "package": "medrobust","url": "https://github.com/Data-Wise/medrobust" }
+  { "package": "mediationverse", "url": "https://github.com/Data-Wise/mediationverse" },
+  { "package": "medfit",     "url": "https://github.com/Data-Wise/medfit" },
+  { "package": "medsim",     "url": "https://github.com/Data-Wise/medsim" },
+  { "package": "medrobust",  "url": "https://github.com/Data-Wise/medrobust" },
+  { "package": "probmed",    "url": "https://github.com/Data-Wise/probmed" },
+  { "package": "missingmed", "url": "https://github.com/Data-Wise/missingmed" },
+  { "package": "rmediation", "url": "https://github.com/Data-Wise/rmediation" }
 ]
 ```
 
@@ -191,8 +204,8 @@ Manual checklist:
 - [ ] Heavy/optional deps in `Suggests`, guarded by `requireNamespace()`
 - [ ] No `\dontrun{}` hiding broken examples; prefer `\donttest{}` or real runs
 - [ ] Vignettes build offline (no network calls at build time)
-- [ ] Registry entry added to `Data-Wise/data-wise.r-universe.dev/packages.json`
-- [ ] Add the build badge to `README.md` once live:
+- [x] Registry entry added to `Data-Wise/data-wise.r-universe.dev/packages.json`
+- [x] Build badge added to `README.md`:
       `[![r-universe](https://data-wise.r-universe.dev/badges/medsim)](https://data-wise.r-universe.dev/medsim)`
 
 ---
