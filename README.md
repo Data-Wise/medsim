@@ -20,6 +20,8 @@
 - **Ground Truth Caching**: Avoid expensive recomputation
 - **Automated Analysis**: Summary statistics, accuracy metrics, coverage rates
 - **Publication-Ready Output**: Figures and LaTeX tables with one function call
+- **Missing Data & Nonnormality**: MCAR/MAR/MNAR amputation, target skew/kurtosis
+  generators, and validated D4-MBCO multiple-imputation inference
 
 ## Mediationverse Ecosystem
 
@@ -141,6 +143,41 @@ my_scenario <- medsim_scenario(
 # Combine with standard scenarios
 all_scenarios <- c(medsim_scenarios_mediation(), list(my_scenario))
 ```
+
+## Missing-Data Mediation
+
+Simulate mediation under missingness and nonnormality, then test the indirect
+effect with validated multiple-imputation inference:
+
+```r
+# Nonnormal residuals (Fleishman power method) + MCAR/MAR/MNAR amputation
+x <- medsim_rnonnormal(500, skew = 1.5, kurtosis = 4)
+d <- medsim_amputate(my_data, target = "M", mechanism = "MAR", prop = 0.2)
+
+# A missing-data scenario: X -> M -> Y (optional nonnormal residuals) -> amputation
+scn <- medsim_scenario_missing(
+  name = "MAR_M_skewed",
+  true_params = list(a = 0.4, b = 0.4, cp = 0.2),
+  mechanism = "MAR", prop = 0.2,
+  nonnormal = list(skew = 1.5, kurtosis = 4)
+)
+
+# Headline estimator: D4-stacked MBCO via multiple imputation (mice). Reproduces
+# mitml::testModels(method = "D4") exactly; degrades to a complete-case MBCO
+# chi-square test when imputation is unavailable.
+results <- medsim_run(
+  method = medsim_method_mbco_mi(model = NULL, m = 20),
+  scenarios = list(scn),
+  config = medsim_config("local")
+)
+
+medsim_summarize_branch_switch(results)  # MBCO union-null branch-switch rate
+```
+
+The generators (`medsim_rnonnormal()`, `medsim_amputate()`,
+`medsim_scenario_missing()`) are domain-agnostic and reusable across studies;
+the estimator adapters (`medsim_method_mbco_mi()`, `medsim_method_mc_ci()`,
+`medsim_method_ipw()`) return the standard coverage/power contract.
 
 ## Complete Workflow
 
