@@ -57,3 +57,58 @@ test_that("supports multi-column targets (M and Y)", {
   expect_true(any(is.na(out$Y)))
   expect_false(any(is.na(out$X)))
 })
+
+test_that("input validation errors are raised", {
+  d <- make_complete(50)
+  expect_error(medsim_amputate(list(a = 1), target = "M"), "data.frame")
+  expect_error(medsim_amputate(d), "at least one column")
+  expect_error(medsim_amputate(d, target = "Z"), "not found")
+  expect_error(medsim_amputate(d, target = "M", prop = 1.5), "\\[0, 1\\]")
+  expect_error(medsim_amputate(d, target = "M", predictors = "Z"), "not found")
+})
+
+test_that("prop = 0 and zero-row input are structure-preserving no-ops", {
+  d <- make_complete(100)
+  out0 <- medsim_amputate(d, target = "M", prop = 0)
+  expect_false(any(is.na(out0$M)))
+  empty <- medsim_amputate(d[0, ], target = "M", prop = 0.2)
+  expect_equal(nrow(empty), 0)
+  expect_identical(names(empty), names(d))
+})
+
+test_that("MAR honors tail `type` and named `weights`", {
+  d <- make_complete(4000)
+  for (ty in c("LEFT", "MID", "TAIL")) {
+    out <- medsim_amputate(d,
+      target = "M", mechanism = "MAR", prop = 0.25,
+      predictors = "X", type = ty
+    )
+    expect_equal(mean(is.na(out$M)), 0.25, tolerance = 0.04)
+  }
+  w <- medsim_amputate(d,
+    target = "M", mechanism = "MAR", prop = 0.2,
+    predictors = "X", weights = c(X = 2)
+  )
+  expect_equal(mean(is.na(w$M)), 0.2, tolerance = 0.04)
+})
+
+test_that("non-numeric (factor/logical) predictors are coerced for the model", {
+  d <- make_complete(3000)
+  d$G <- factor(sample(c("a", "b"), nrow(d), replace = TRUE))
+  d$L <- d$X > 0
+  out <- medsim_amputate(d,
+    target = "M", mechanism = "MAR", prop = 0.2,
+    predictors = c("G", "L")
+  )
+  expect_equal(mean(is.na(out$M)), 0.2, tolerance = 0.05)
+  expect_identical(names(out), names(d))
+})
+
+test_that("MAR with no usable predictor falls back to a constant-rate draw", {
+  d <- make_complete(3000)
+  out <- medsim_amputate(d,
+    target = "M", mechanism = "MAR", prop = 0.2,
+    predictors = character(0)
+  )
+  expect_equal(mean(is.na(out$M)), 0.2, tolerance = 0.05)
+})

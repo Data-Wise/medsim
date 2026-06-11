@@ -27,3 +27,20 @@ test_that("drops non-converged rows before summarizing", {
   expect_equal(mcar$n_valid, 3)
   expect_equal(mcar$branch_switch_rate, 1 / 3, tolerance = 1e-8)
 })
+
+test_that("errors on bad input or missing required columns", {
+  expect_error(medsim_summarize_branch_switch(42), "data.frame or a medsim_results")
+  bad <- data.frame(scenario = "a", converged = 1) # no branch_switch column
+  expect_error(medsim_summarize_branch_switch(bad), "branch_switch")
+})
+
+test_that("accepts a bare results data.frame and a custom `by`", {
+  df <- data.frame(
+    grp = c("x", "x", "y"),
+    branch_switch = c(1, 0, 1),
+    converged = c(1, 1, 1)
+  )
+  out <- medsim_summarize_branch_switch(df, by = "grp")
+  expect_setequal(out$grp, c("x", "y"))
+  expect_equal(out$branch_switch_rate[out$grp == "y"], 1)
+})

@@ -40,3 +40,32 @@ test_that("grid expands the factorial into a list of scenarios", {
   expect_length(grid, 1 * 3 * 2)
   expect_true(all(vapply(grid, inherits, logical(1), "medsim_scenario")))
 })
+
+test_that("medsim_scenario_missing validates its arguments", {
+  expect_error(medsim_scenario_missing(c("a", "b"), tp, "MCAR"), "single character")
+  expect_error(medsim_scenario_missing("s", true_params = 1, mechanism = "MCAR"), "must be a list")
+  expect_error(medsim_scenario_missing("s", tp, mechanism = c("MCAR", "MAR")), "single character")
+  expect_error(medsim_scenario_missing("s", tp, "MCAR", prop = 2), "\\[0, 1\\]")
+  expect_error(medsim_scenario_missing("s", tp, "MCAR", target = character(0)), "non-empty")
+  expect_error(medsim_scenario_missing("s", tp, "MCAR", nonnormal = list(skew = 1)), "kurtosis")
+})
+
+test_that("grid validates inputs and labels cells from list names", {
+  expect_error(medsim_scenario_missing_grid(list(), "MCAR", 0.2), "non-empty list")
+  expect_error(medsim_scenario_missing_grid(list(tp), character(0), 0.2), "character")
+  expect_error(medsim_scenario_missing_grid(list(tp), "MCAR", numeric(0)), "numeric")
+  expect_error(
+    medsim_scenario_missing_grid(list(tp), "MCAR", 0.2, nonnormal_list = list()),
+    "non-empty"
+  )
+
+  # Unnamed true_params_list -> integer-coded names; named nonnormal -> labeled cell.
+  g <- medsim_scenario_missing_grid(
+    true_params_list = list(tp),
+    mechanisms = "MCAR", props = 0.2,
+    nonnormal_list = list(normal = NULL, heavy = list(skew = 0, kurtosis = 4))
+  )
+  expect_length(g, 1 * 1 * 1 * 2)
+  nms <- vapply(g, function(s) s$name, character(1))
+  expect_true(any(grepl("_heavy$", nms)))
+})

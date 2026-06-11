@@ -33,3 +33,14 @@ test_that("returns a numeric vector of the requested length", {
   expect_type(x, "double")
   expect_length(x, 50)
 })
+
+test_that("validates n and (skew, kurtosis) arguments", {
+  expect_error(medsim_rnonnormal(n = c(1, 2)), "single non-negative")
+  expect_error(medsim_rnonnormal(n = -5), "single non-negative")
+  expect_error(medsim_rnonnormal(n = 10, skew = c(1, 2)), "single finite")
+  expect_error(medsim_rnonnormal(n = 10, kurtosis = NA), "single finite")
+})
+
+test_that("n = 0 yields an empty numeric vector", {
+  expect_length(medsim_rnonnormal(n = 0, skew = 1, kurtosis = 3), 0)
+})
