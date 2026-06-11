@@ -27,6 +27,9 @@ Imports:
 Suggests:
     medfit (>= 0.1.0),
     RMediation,
+    mice,
+    missingmed,
+    rmediation,
     mvtnorm,
     MASS,
     tictoc,
@@ -43,12 +46,16 @@ Suggests:
     patchwork,
     RColorBrewer
 Remotes:
-    Data-Wise/medfit
+    Data-Wise/medfit,
+    Data-Wise/missingmed,
+    Data-Wise/rmediation
 Config/Needs/website:
     pkgdown,
     quarto
 Encoding: UTF-8
+Language: en-US
 Roxygen: list(markdown = TRUE)
 VignetteBuilder: quarto
 Config/testthat/edition: 3
 Config/roxygen2/version: 8.0.0
+RoxygenNote: 7.3.3

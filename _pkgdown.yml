@@ -120,6 +120,20 @@ reference:
   - medsim_compare_methods
   - medsim_check_results
 
+- title: Missing-Data & Nonnormality (DGM)
+  desc: >
+    Data-generating utilities and missing-data mediation estimator adapters for
+    simulations under missingness and nonnormality (the Missing Effect study).
+  contents:
+  - medsim_rnonnormal
+  - medsim_amputate
+  - medsim_scenario_missing
+  - medsim_scenario_missing_grid
+  - medsim_method_mbco_mi
+  - medsim_method_mc_ci
+  - medsim_method_ipw
+  - medsim_summarize_branch_switch
+
 - title: Caching
   desc: >
     Functions for caching ground truth values and simulation results to

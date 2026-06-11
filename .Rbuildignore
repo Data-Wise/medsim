@@ -15,7 +15,7 @@
 ^vignettes/getting-started_files$
 ^vignettes/.+_files$
 ^cache$
-^simulation_results$
+^simulation_results
 ^BRAINSTORM-.*\.md$
 ^\.STATUS$
 ^\.STATUS\.backup$
