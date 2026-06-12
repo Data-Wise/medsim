@@ -1,0 +1,577 @@
+# medsim
+
+**medsim** provides standardized infrastructure for conducting Monte
+Carlo simulation studies in mediation analysis. Eliminate the need to
+repeatedly implement parallel processing, progress reporting, result
+analysis, and visualization across different research projects.
+
+## Features
+
+- **Environment-Aware Execution**: Automatically detects local machine
+  vs HPC cluster
+- **Three Execution Modes**: test (~30s), local (~15min), cluster
+  (hours)
+- **Parallel Processing**: Built-in parallelization with progress bars
+- **Ground Truth Caching**: Avoid expensive recomputation
+- **Automated Analysis**: Summary statistics, accuracy metrics, coverage
+  rates
+- **Publication-Ready Output**: Figures and LaTeX tables with one
+  function call
+- **Missing Data & Nonnormality**: MCAR/MAR/MNAR amputation, target
+  skew/kurtosis generators, and validated D4-MBCO multiple-imputation
+  inference
+
+## Mediationverse Ecosystem
+
+**medsim** is part of the **mediationverse** ecosystem for mediation
+analysis in R:
+
+| Package | Purpose | Role |
+|----|----|----|
+| [medfit](https://data-wise.github.io/medfit/) | Model fitting, extraction, bootstrap | Foundation |
+| [probmed](https://data-wise.github.io/probmed/) | Probabilistic effect size (P_med) | Application |
+| [RMediation](https://cran.r-project.org/package=RMediation) | Confidence intervals (DOP, MBCO) | Application |
+| [medrobust](https://github.com/Data-Wise/medrobust) | Sensitivity analysis | Application |
+| **medsim** (this) | Simulation infrastructure | Support |
+
+See [Ecosystem
+Coordination](https://github.com/data-wise/medfit/blob/main/planning/ECOSYSTEM.md)
+for version compatibility and development guidelines.
+
+## Installation
+
+Install from the [data-wise
+r-universe](https://data-wise.r-universe.dev/medsim) (pre-built binaries
+— no compiler needed):
+
+``` r
+
+install.packages(
+  "medsim",
+  repos = c("https://data-wise.r-universe.dev", "https://cloud.r-project.org")
+)
+```
+
+Or the development version from GitHub:
+
+``` r
+
+# install.packages("pak")
+pak::pak("data-wise/medsim")
+```
+
+## Quick Start
+
+``` r
+
+library(medsim)
+
+# 1. Define your estimation method
+my_method <- function(data, params) {
+  fit_m <- lm(M ~ X, data = data)
+  fit_y <- lm(Y ~ X + M, data = data)
+
+  a <- coef(fit_m)["X"]
+  b <- coef(fit_y)["M"]
+
+  list(indirect = a * b, a = a, b = b)
+}
+
+# 2. Configure and run simulation
+config <- medsim_config("local")
+scenarios <- medsim_scenarios_mediation()
+
+results <- medsim_run(
+  method = my_method,
+  scenarios = scenarios,
+  config = config
+)
+
+# 3. Generate analysis and output
+medsim_workflow(results, output_dir = "results")
+```
+
+**Output**: Complete simulation results with figures and tables in
+`results/`
+
+## Execution Modes
+
+Three modes optimized for different use cases:
+
+| Mode      | Replications | Runtime | Use Case         |
+|-----------|--------------|---------|------------------|
+| `test`    | 20           | ~30s    | Quick validation |
+| `local`   | 100          | ~15m    | Development      |
+| `cluster` | 1000+        | hours   | Production runs  |
+
+``` r
+
+# Auto-detect environment
+config <- medsim_config(mode = "auto")
+
+# Or specify explicitly
+config_test <- medsim_config(mode = "test")      # Quick check
+config_local <- medsim_config(mode = "local")    # Development
+config_cluster <- medsim_config(mode = "cluster")  # Production
+```
+
+## Standard Scenarios
+
+Six standard mediation scenarios covering common data-generating
+patterns:
+
+``` r
+
+scenarios <- medsim_scenarios_mediation()
+
+# 1. Independent paths (ρ = 0)
+# 2. Moderate correlation (ρ = 0.3)
+# 3. High correlation (ρ = 0.7)
+# 4. Suppression (mixed signs)
+# 5. Non-zero direct effect
+# 6. Unequal variances
+
+# View scenario details
+print(scenarios[[1]])
+
+# Generate data from a scenario
+data <- scenarios[[1]]$data_generator(n = 200)
+```
+
+## Custom Scenarios
+
+Define custom data-generating processes:
+
+``` r
+
+my_scenario <- medsim_scenario(
+  name = "Large Effects",
+  description = "Both paths have large effects (a = b = 0.7)",
+  data_generator = function(n = 200) {
+    X <- rnorm(n)
+    M <- 0.7 * X + rnorm(n)
+    Y <- 0.7 * M + rnorm(n)
+    data.frame(X = X, M = M, Y = Y)
+  },
+  params = list(
+    a = 0.7,
+    b = 0.7,
+    indirect = 0.49
+  )
+)
+
+# Combine with standard scenarios
+all_scenarios <- c(medsim_scenarios_mediation(), list(my_scenario))
+```
+
+## Missing-Data Mediation
+
+Simulate mediation under missingness and nonnormality, then test the
+indirect effect with validated multiple-imputation inference:
+
+``` r
+
+# Nonnormal residuals (Fleishman power method) + MCAR/MAR/MNAR amputation
+x <- medsim_rnonnormal(500, skew = 1.5, kurtosis = 4)
+d <- medsim_amputate(my_data, target = "M", mechanism = "MAR", prop = 0.2)
+
+# A missing-data scenario: X -> M -> Y (optional nonnormal residuals) -> amputation
+scn <- medsim_scenario_missing(
+  name = "MAR_M_skewed",
+  true_params = list(a = 0.4, b = 0.4, cp = 0.2),
+  mechanism = "MAR", prop = 0.2,
+  nonnormal = list(skew = 1.5, kurtosis = 4)
+)
+
+# Headline estimator: D4-stacked MBCO via multiple imputation (mice). Reproduces
+# mitml::testModels(method = "D4") exactly; degrades to a complete-case MBCO
+# chi-square test when imputation is unavailable.
+results <- medsim_run(
+  method = medsim_method_mbco_mi(model = NULL, m = 20),
+  scenarios = list(scn),
+  config = medsim_config("local")
+)
+
+medsim_summarize_branch_switch(results)  # MBCO union-null branch-switch rate
+```
+
+The generators
+([`medsim_rnonnormal()`](https://data-wise.github.io/medsim/dev/reference/medsim_rnonnormal.md),
+[`medsim_amputate()`](https://data-wise.github.io/medsim/dev/reference/medsim_amputate.md),
+[`medsim_scenario_missing()`](https://data-wise.github.io/medsim/dev/reference/medsim_scenario_missing.md))
+are domain-agnostic and reusable across studies; the estimator adapters
+([`medsim_method_mbco_mi()`](https://data-wise.github.io/medsim/dev/reference/medsim_method_mbco_mi.md),
+[`medsim_method_mc_ci()`](https://data-wise.github.io/medsim/dev/reference/medsim_method_mc_ci.md),
+[`medsim_method_ipw()`](https://data-wise.github.io/medsim/dev/reference/medsim_method_ipw.md))
+return the standard coverage/power contract.
+
+## Complete Workflow
+
+Full pipeline from simulation to manuscript-ready output:
+
+``` r
+
+# Run simulation
+results <- medsim_run(
+  method = my_method,
+  scenarios = scenarios,
+  config = medsim_config("local")
+)
+
+# Analyze results
+analysis <- medsim_analyze(results)
+coverage <- medsim_analyze_coverage(results)
+power <- medsim_analyze_power(results)
+
+# Create publication-ready figures
+medsim_plot_coverage(coverage, output_file = "figures/coverage.pdf")
+medsim_plot_error_boxplot(results, output_file = "figures/errors.pdf")
+
+# Generate LaTeX tables
+medsim_tables_workflow(results, output_dir = "tables")
+```
+
+**Generates**: - Summary statistics and accuracy metrics -
+Publication-ready PDF figures - LaTeX tables ready for manuscript
+inclusion
+
+## HPC Cluster Support
+
+Automatic detection of SLURM, PBS, and LSF job schedulers:
+
+``` bash
+#!/bin/bash
+#SBATCH --job-name=medsim
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=20
+#SBATCH --time=24:00:00
+
+module load R/4.3.0
+Rscript run_simulation.R
+```
+
+``` r
+
+# run_simulation.R
+library(medsim)
+
+# Auto-detects cluster and uses all allocated cores
+config <- medsim_config(mode = "auto")
+
+results <- medsim_run(
+  method = my_method,
+  scenarios = scenarios,
+  config = config
+)
+```
+
+## Integration with Mediation Ecosystem
+
+Designed to work seamlessly with other mediationverse packages:
+
+``` r
+
+library(medsim)
+library(medfit)
+library(probmed)
+
+# Simulate P_med coverage
+pmed_method <- function(data, params) {
+  fit_m <- lm(M ~ X, data = data)
+  fit_y <- lm(Y ~ X + M, data = data)
+
+  med_data <- medfit::extract_mediation(
+    fit_m, model_y = fit_y,
+    treatment = "X", mediator = "M"
+  )
+
+  p_med <- probmed::compute_pmed(med_data)
+
+  # Bootstrap CI
+  boot <- medfit::bootstrap_mediation(
+    med_data,
+    statistic = probmed::compute_pmed,
+    n_boot = 1000
+  )
+
+  list(
+    estimate = p_med,
+    ci_lower = boot@ci_lower,
+    ci_upper = boot@ci_upper,
+    truth = params$true_pmed
+  )
+}
+
+results <- medsim_run(pmed_method, scenarios, config)
+coverage <- medsim_analyze_coverage(results)
+```
+
+## Method Comparison
+
+Compare performance across different estimation approaches:
+
+``` r
+
+methods <- list(
+  pmed = function(data, params) {
+    # Compute P_med with bootstrap CI
+  },
+
+  dop = function(data, params) {
+    # Distribution of Product CI
+  },
+
+  bounds = function(data, params) {
+    # Sensitivity analysis bounds
+  }
+)
+
+results <- medsim_compare_methods(
+  methods = methods,
+  scenarios = scenarios,
+  config = config
+)
+
+# Generate comparison table
+medsim_table_comparison(results)
+#>           Accuracy  Coverage  Power  Runtime
+#> P_med     0.95      0.948     0.82   3.2s
+#> DOP CI    0.94      0.952     0.81   0.1s
+#> Bounds    0.93      0.945     0.78   1.5s
+```
+
+## Design Philosophy
+
+Inspired by simulation infrastructure in successful R packages and
+academic projects:
+
+1.  **Configuration Over Repetition**: Write simulation logic once, run
+    in multiple modes
+2.  **Environment Awareness**: Seamlessly scale from laptop to HPC
+    cluster
+3.  **Reproducibility by Design**: Automatic seed management, session
+    tracking
+4.  **Publication Ready**: One function generates manuscript-ready
+    output
+
+## Documentation
+
+- [Getting
+  Started](https://data-wise.github.io/medsim/articles/getting-started.html) -
+  Step-by-step tutorial
+- [Function
+  Reference](https://data-wise.github.io/medsim/reference/index.html) -
+  Complete API documentation
+- [Package Website](https://data-wise.github.io/medsim/) - Comprehensive
+  guides and examples
+
+## Citation
+
+If you use **medsim** in your research, please cite:
+
+``` r
+
+citation("medsim")
+```
+
+## Getting Help
+
+- [GitHub Issues](https://github.com/Data-Wise/medsim/issues) — Bug
+  reports and feature requests
+- [Documentation](https://data-wise.github.io/medsim/) — Comprehensive
+  guides
+- [pkgdown
+  reference](https://data-wise.github.io/medsim/reference/index.html) —
+  Function reference
+
+## Code of Conduct
+
+This project is released with a [Contributor Code of
+Conduct](https://contributor-covenant.org/version/2/1/CODE_OF_CONDUCT.html).
+By contributing, you agree to abide by its terms.
+
+## License
+
+GPL (\>= 3)
+
+## Contact
+
+**Maintainer**: Davood Tofighi (<dtofighi@gmail.com>) **ORCID**:
+[0000-0001-8523-7776](https://orcid.org/0000-0001-8523-7776)
+
+# Package index
+
+## End-to-End Workflow
+
+Convenience wrappers that produce all standard outputs (analysis,
+figures, tables) from simulation results in one call.
+
+- [`medsim_workflow()`](https://data-wise.github.io/medsim/dev/reference/medsim_workflow.md)
+  : Generate analysis, figures, and tables from simulation results
+- [`medsim_figures()`](https://data-wise.github.io/medsim/dev/reference/medsim_figures.md)
+  : Generate all standard figures from simulation results
+- [`medsim_tables()`](https://data-wise.github.io/medsim/dev/reference/medsim_tables.md)
+  : Generate all standard LaTeX tables from simulation results
+
+## Configuration & Environment
+
+Functions for configuring simulation execution and detecting the runtime
+environment (local vs HPC cluster).
+
+- [`medsim_config()`](https://data-wise.github.io/medsim/dev/reference/medsim_config.md)
+  : Create Simulation Configuration
+- [`medsim_detect_environment()`](https://data-wise.github.io/medsim/dev/reference/medsim_detect_environment.md)
+  : Detect Computing Environment
+- [`medsim_detect_cores()`](https://data-wise.github.io/medsim/dev/reference/medsim_detect_cores.md)
+  : Detect Number of Available Cores
+- [`medsim_get_optimal_cores()`](https://data-wise.github.io/medsim/dev/reference/medsim_get_optimal_cores.md)
+  : Get Optimal Number of Cores
+- [`medsim_estimate_speedup()`](https://data-wise.github.io/medsim/dev/reference/medsim_estimate_speedup.md)
+  : Estimate Parallel Speedup
+- [`medsim_compare_configs()`](https://data-wise.github.io/medsim/dev/reference/medsim_compare_configs.md)
+  : Compare Multiple Configurations
+
+## Simulation Scenarios
+
+Functions for defining and validating simulation scenarios with ground
+truth parameters.
+
+- [`medsim_scenario()`](https://data-wise.github.io/medsim/dev/reference/medsim_scenario.md)
+  : Create Custom Simulation Scenario
+- [`medsim_scenarios_mediation()`](https://data-wise.github.io/medsim/dev/reference/medsim_scenarios_mediation.md)
+  : Create Standard Mediation Scenarios
+- [`medsim_validate_scenario()`](https://data-wise.github.io/medsim/dev/reference/medsim_validate_scenario.md)
+  : Validate Scenario
+
+## Running Simulations
+
+Core functions for executing Monte Carlo simulations with progress
+tracking and parallel processing.
+
+- [`medsim_run()`](https://data-wise.github.io/medsim/dev/reference/medsim_run.md)
+  : Run Simulation Study
+- [`medsim_run_parallel()`](https://data-wise.github.io/medsim/dev/reference/medsim_run_parallel.md)
+  : Run Tasks in Parallel
+
+## Result Analysis
+
+Functions for analyzing simulation results including coverage, power,
+and method comparisons.
+
+- [`medsim_analyze()`](https://data-wise.github.io/medsim/dev/reference/medsim_analyze.md)
+  : Analyze Simulation Results
+- [`medsim_analyze_coverage()`](https://data-wise.github.io/medsim/dev/reference/medsim_analyze_coverage.md)
+  : Analyze Coverage Rates
+- [`medsim_analyze_power()`](https://data-wise.github.io/medsim/dev/reference/medsim_analyze_power.md)
+  : Analyze Statistical Power
+- [`medsim_compare_methods()`](https://data-wise.github.io/medsim/dev/reference/medsim_compare_methods.md)
+  : Compare Multiple Methods
+- [`medsim_check_results()`](https://data-wise.github.io/medsim/dev/reference/medsim_check_results.md)
+  : Check Results for Errors
+
+## Missing-Data & Nonnormality (DGM)
+
+Data-generating utilities and missing-data mediation estimator adapters
+for simulations under missingness and nonnormality (the Missing Effect
+study).
+
+- [`medsim_rnonnormal()`](https://data-wise.github.io/medsim/dev/reference/medsim_rnonnormal.md)
+  : Draw nonnormal values with a target marginal skew/kurtosis
+- [`medsim_amputate()`](https://data-wise.github.io/medsim/dev/reference/medsim_amputate.md)
+  : Insert missing values under MCAR / MAR / MNAR
+- [`medsim_scenario_missing()`](https://data-wise.github.io/medsim/dev/reference/medsim_scenario_missing.md)
+  : Construct a missing-data mediation scenario
+- [`medsim_scenario_missing_grid()`](https://data-wise.github.io/medsim/dev/reference/medsim_scenario_missing_grid.md)
+  : Build the full factorial of missing-data scenarios
+- [`medsim_method_mbco_mi()`](https://data-wise.github.io/medsim/dev/reference/medsim_method_mbco_mi.md)
+  : MBCO-MI estimator adapter
+- [`medsim_method_mc_ci()`](https://data-wise.github.io/medsim/dev/reference/medsim_method_mc_ci.md)
+  : Monte-Carlo CI estimator adapter
+- [`medsim_method_ipw()`](https://data-wise.github.io/medsim/dev/reference/medsim_method_ipw.md)
+  : Thin IPW estimator adapter (robustness appendix)
+- [`medsim_summarize_branch_switch()`](https://data-wise.github.io/medsim/dev/reference/medsim_summarize_branch_switch.md)
+  : Summarize the MBCO branch-switch rate per scenario
+
+## Caching
+
+Functions for caching ground truth values and simulation results to
+avoid redundant computation.
+
+- [`medsim_cache_init()`](https://data-wise.github.io/medsim/dev/reference/medsim_cache_init.md)
+  : Initialize Cache Directory
+- [`medsim_cache_save()`](https://data-wise.github.io/medsim/dev/reference/medsim_cache_save.md)
+  : Save Object to Cache
+- [`medsim_cache_load()`](https://data-wise.github.io/medsim/dev/reference/medsim_cache_load.md)
+  : Load Object from Cache
+- [`medsim_cache_exists()`](https://data-wise.github.io/medsim/dev/reference/medsim_cache_exists.md)
+  : Check if Cache Exists
+- [`medsim_cache_list()`](https://data-wise.github.io/medsim/dev/reference/medsim_cache_list.md)
+  : List Cache Files
+- [`medsim_cache_info()`](https://data-wise.github.io/medsim/dev/reference/medsim_cache_info.md)
+  : Get Cache Info
+- [`medsim_cache_clear()`](https://data-wise.github.io/medsim/dev/reference/medsim_cache_clear.md)
+  : Clear Cache
+
+## Visualization
+
+Functions for creating publication-ready figures from simulation
+results.
+
+- [`medsim_plot_coverage()`](https://data-wise.github.io/medsim/dev/reference/medsim_plot_coverage.md)
+  : Plot Coverage Rates
+- [`medsim_plot_error_boxplot()`](https://data-wise.github.io/medsim/dev/reference/medsim_plot_error_boxplot.md)
+  : Plot Error Distribution Boxplots
+- [`medsim_plot_timing()`](https://data-wise.github.io/medsim/dev/reference/medsim_plot_timing.md)
+  : Plot Timing Comparison
+- [`medsim_plot_combined_panel()`](https://data-wise.github.io/medsim/dev/reference/medsim_plot_combined_panel.md)
+  : Create Combined Multi-Panel Figure
+
+## LaTeX Tables
+
+Functions for generating publication-ready LaTeX tables from simulation
+results.
+
+- [`medsim_table_accuracy()`](https://data-wise.github.io/medsim/dev/reference/medsim_table_accuracy.md)
+  : Generate Accuracy Table
+- [`medsim_table_comparison()`](https://data-wise.github.io/medsim/dev/reference/medsim_table_comparison.md)
+  : Generate Method Comparison Table
+- [`medsim_table_coverage()`](https://data-wise.github.io/medsim/dev/reference/medsim_table_coverage.md)
+  : Generate Coverage Table
+- [`medsim_table_power()`](https://data-wise.github.io/medsim/dev/reference/medsim_table_power.md)
+  : Generate Power Table
+- [`medsim_table_timing()`](https://data-wise.github.io/medsim/dev/reference/medsim_table_timing.md)
+  : Generate Timing Comparison Table
+- [`medsim_tables_workflow()`](https://data-wise.github.io/medsim/dev/reference/medsim_tables_workflow.md)
+  : Generate All Tables
+- [`medsim_write_table()`](https://data-wise.github.io/medsim/dev/reference/medsim_write_table.md)
+  : Write Table to File
+
+## Print & Summary Methods
+
+S3 methods for printing and summarizing medsim objects.
+
+- [`print(`*`<medsim_analysis>`*`)`](https://data-wise.github.io/medsim/dev/reference/print.medsim_analysis.md)
+  : Print Analysis Results
+- [`print(`*`<medsim_comparison>`*`)`](https://data-wise.github.io/medsim/dev/reference/print.medsim_comparison.md)
+  : Print Method Comparison
+- [`print(`*`<medsim_config>`*`)`](https://data-wise.github.io/medsim/dev/reference/print.medsim_config.md)
+  : Print Configuration Summary
+- [`print(`*`<medsim_coverage>`*`)`](https://data-wise.github.io/medsim/dev/reference/print.medsim_coverage.md)
+  : Print Coverage Results
+- [`print(`*`<medsim_power>`*`)`](https://data-wise.github.io/medsim/dev/reference/print.medsim_power.md)
+  : Print Power Results
+- [`print(`*`<medsim_results>`*`)`](https://data-wise.github.io/medsim/dev/reference/print.medsim_results.md)
+  : Print Simulation Results
+- [`print(`*`<medsim_scenario>`*`)`](https://data-wise.github.io/medsim/dev/reference/print.medsim_scenario.md)
+  : Print Scenario Summary
+- [`print(`*`<medsim_table>`*`)`](https://data-wise.github.io/medsim/dev/reference/print.medsim_table.md)
+  : Print medsim_table
+- [`summary(`*`<medsim_results>`*`)`](https://data-wise.github.io/medsim/dev/reference/summary.medsim_results.md)
+  : Summarize Simulation Results
+
+# Articles
+
+### All vignettes
+
+- [Getting Started with
+  medsim](https://data-wise.github.io/medsim/dev/articles/getting-started.md):
