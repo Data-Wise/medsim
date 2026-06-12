@@ -1,4 +1,13 @@
-# medsim (development version)
+# medsim 0.2.1 (2026-06-11)
+
+## Documentation
+
+* Synced `CLAUDE.md` and `R-UNIVERSE-STANDARDS.md` to the v0.2.0 state: the
+  missing-data DGM feature is documented as shipped, the validated D4-MBCO method
+  is described, and dependencies are reconciled — `Remotes:` is now
+  `Data-Wise/medfit` only (PR #18 dropped the unused `missingmed`/`rmediation`).
+
+No code changes since 0.2.0 — documentation and metadata only.
 
 # medsim 0.2.0 (2026-06-11)
 
