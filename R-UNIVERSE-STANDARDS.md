@@ -99,7 +99,7 @@ state is annotated.
 | `Authors@R` with ORCID | Author pages, contributor feeds | ✅ ORCID present |
 | `URL` | Links dashboard → source + pkgdown site | ✅ GitHub + pages URL |
 | `BugReports` | "Report a bug" link on universe page | ✅ Issues URL |
-| **`Remotes:`** | **Resolves non-CRAN deps** (the critical one) | ✅ `Data-Wise/medfit, missingmed, rmediation` |
+| **`Remotes:`** | **Resolves non-CRAN deps** (the critical one) | ✅ `Data-Wise/medfit` (only GitHub-only dep as of v0.2.0; PR #18 dropped missingmed/rmediation) |
 | `Depends` / `Imports` / `Suggests` | Dependency graph; Suggests built if resolvable | ✅ heavy deps in Suggests |
 | `Config/Needs/website` | Extra pkgs installed *only* for the docs build | ✅ `pkgdown, quarto` |
 | `VignetteBuilder` | Tells build farm how to render vignettes | ✅ `quarto` |
@@ -107,7 +107,7 @@ state is annotated.
 
 > **Remotes is the linchpin.** Same lesson as your CI fix (CLAUDE.md, PR #1):
 > without `Remotes:`, r-universe — like `pak` in R-CMD-check — treats
-> `medfit`/`missingmed`/`rmediation` as missing and the build fails. CRAN, by
+> `medfit` (the sole GitHub-only dep) as missing and the build fails. CRAN, by
 > contrast, **forbids** `Remotes` and requires every hard dependency to be on
 > CRAN/Bioconductor. This is a real fork in the road (see §6).
 
