@@ -74,11 +74,14 @@ Reusable data-generating utilities + missing-data mediation estimator adapters, 
 | `medsim_summarize_branch_switch()` | Summarize the MBCO union-null branch-switch rate per scenario |
 
 Design rules: estimator-agnostic boundary preserved (these are `data_generator`/`method` helpers);
-heavy deps (`mice`, `missingmed`, `rmediation`) stay in **Suggests** (loaded via `requireNamespace`);
 the `method()` contract returns the 6-field list `{indirect, indirect_ci_lower/_upper, indirect_p,
-branch_switch, converged}`. Status: **complete** — WS-A..F merged via PR #17 and released in
-**v0.2.0** (`mice`/`missingmed`/`rmediation`/`mitml` in Suggests + `Remotes`; all 8 functions
-exported and documented; adapters degrade gracefully via `requireNamespace`).
+branch_switch, converged}`. `medsim_method_mbco_mi()` implements the validated **D4-stacked MBCO**
+(`mice` multiple imputation + Reiter/Chan–Meng D4 pooling + union-null LRT; reproduces
+`mitml::testModels(method = "D4")` exactly), degrading to a complete-case MBCO chi-square test without
+`mice`. Suggests used: `mice` (MI), `RMediation` (MC CI via `medci`), `mitml` (D4 validation).
+Status: **complete**, released in **v0.2.0** — PR #17 (generators) + PR #18 (D4-MBCO port, which
+dropped the now-unused `missingmed`/`rmediation` from Suggests/Remotes — the validated method uses
+neither). All 8 functions exported, documented, and in the pkgdown reference index.
 
 ---
 
@@ -143,17 +146,17 @@ results <- medsim_run(pmed_method, scenarios, config)
 
 medsim's GitHub-only dependencies need a `Remotes:` field so pak can resolve
 them during R-CMD-check (without it, pak treats them as missing and the check
-fails). Match the actual deps in `Suggests`:
+fails). Keep it in lockstep with `Suggests` — as of v0.2.0 the only GitHub-only
+dep is `medfit` (PR #18's validated D4-MBCO uses `mice`/`mitml`/`RMediation`,
+all on CRAN, so `missingmed`/`rmediation` were dropped):
 
 ```
 Remotes:
-    Data-Wise/medfit,
-    Data-Wise/missingmed,
-    Data-Wise/rmediation
+    Data-Wise/medfit
 ```
 
-Stable RMediation is on CRAN; `Data-Wise/rmediation` pins the dev fork. First
-added in PR #1 (2026-05-09).
+RMediation is on CRAN — never list it under Remotes. `Remotes:` first added in
+PR #1 (2026-05-09).
 
 ---
 
