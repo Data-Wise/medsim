@@ -9,7 +9,8 @@ relates to `R CMD check` ("ccheck") and CRAN, and a concrete readiness checklist
 **Last updated:** 2026-06-11
 
 > **Live status (2026-06-11):** The universe is already registered and active at
-> **<https://data-wise.r-universe.dev>** with all 7 packages. `medsim` **v0.1.1**
+> **<https://data-wise.r-universe.dev>** with all 7 packages. `medsim` **v0.2.0**
+> (released 2026-06-11; r-universe rebuilds to it on its ~hourly cron)
 > builds **green on every platform** (linux, macOS, Windows, wasm); `_status:
 > success`, zero failures. Install with the snippet in §5. This doc is now a
 > *maintenance* reference, not a setup guide.
@@ -94,11 +95,11 @@ state is annotated.
 
 | Field | Why r-universe cares | `medsim` status |
 |-------|----------------------|-----------------|
-| `Package`, `Version`, `Title`, `Description`, `License` | Registry identity + repo metadata | ✅ Present (`v0.1.1`, GPL ≥ 3) |
+| `Package`, `Version`, `Title`, `Description`, `License` | Registry identity + repo metadata | ✅ Present (`v0.2.0`, GPL ≥ 3) |
 | `Authors@R` with ORCID | Author pages, contributor feeds | ✅ ORCID present |
 | `URL` | Links dashboard → source + pkgdown site | ✅ GitHub + pages URL |
 | `BugReports` | "Report a bug" link on universe page | ✅ Issues URL |
-| **`Remotes:`** | **Resolves non-CRAN deps** (the critical one) | ✅ `Data-Wise/medfit, missingmed, rmediation` |
+| **`Remotes:`** | **Resolves non-CRAN deps** (the critical one) | ✅ `Data-Wise/medfit` (only GitHub-only dep as of v0.2.0; PR #18 dropped missingmed/rmediation) |
 | `Depends` / `Imports` / `Suggests` | Dependency graph; Suggests built if resolvable | ✅ heavy deps in Suggests |
 | `Config/Needs/website` | Extra pkgs installed *only* for the docs build | ✅ `pkgdown, quarto` |
 | `VignetteBuilder` | Tells build farm how to render vignettes | ✅ `quarto` |
@@ -106,7 +107,7 @@ state is annotated.
 
 > **Remotes is the linchpin.** Same lesson as your CI fix (CLAUDE.md, PR #1):
 > without `Remotes:`, r-universe — like `pak` in R-CMD-check — treats
-> `medfit`/`missingmed`/`rmediation` as missing and the build fails. CRAN, by
+> `medfit` (the sole GitHub-only dep) as missing and the build fails. CRAN, by
 > contrast, **forbids** `Remotes` and requires every hard dependency to be on
 > CRAN/Bioconductor. This is a real fork in the road (see §6).
 
@@ -169,7 +170,7 @@ heavy ones). r-universe is the correct distribution channel in the meantime,
 and your existing `Remotes:` field makes it work today.
 
 > Aligns with the existing memory: CRAN not currently pursued; GitHub-only,
-> latest tag `v0.1.1`. r-universe is the natural next distribution step.
+> latest tag `v0.2.0`. r-universe distributes it on its next rebuild.
 
 ---
 
@@ -217,10 +218,11 @@ Manual checklist:
 - **Quarto vignettes** require `quarto` on the build farm; it is declared in
   both `Suggests` and `Config/Needs/website`, so r-universe will install it.
   Confirm the Quarto CLI version assumption holds (r-universe pins its own).
-- **`feature/dgm-interface` (WS-F pending)** adds `mice`/`missingmed`/
-  `rmediation` to `Suggests`. Keep them in `Suggests` (not `Imports`) and
-  ensure `Remotes` covers `missingmed`/`rmediation` — already present. This
-  preserves both the r-universe build *and* the estimator-agnostic boundary.
+- **Missing-data DGM (shipped in v0.2.0)** added `mice`/`mitml` to `Suggests`
+  (`RMediation` was already present). The validated D4-MBCO estimator uses
+  `mice` + base R, so `missingmed`/`rmediation` were **dropped** from both
+  `Suggests` and `Remotes` — leaving `Remotes: Data-Wise/medfit` only. Keeping
+  these in `Suggests` (not `Imports`) preserves the estimator-agnostic boundary.
 - **CI ≈ r-universe.** Your `R-CMD-check.yaml` already mirrors the r-universe
   matrix (macOS/Windows/Ubuntu release + oldrel). Green CI is a strong
   predictor of green r-universe.

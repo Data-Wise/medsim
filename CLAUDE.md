@@ -6,11 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## About This Package
 
-**medsim** provides standardized infrastructure for conducting Monte Carlo simulation studies in mediation analysis. It is part of the mediationverse ecosystem.
-
-### Core Mission
-
-Provide a complete, reusable simulation framework that eliminates the need to repeatedly implement parallel processing, progress reporting, result analysis, and visualization across different mediation research projects.
+**medsim** is the mediationverse's standardized infrastructure for Monte Carlo simulation studies in mediation analysis — a reusable framework so parallel processing, progress reporting, result analysis, and visualization don't get reimplemented per project.
 
 ### Key Features
 
@@ -21,7 +17,7 @@ Provide a complete, reusable simulation framework that eliminates the need to re
 - Automated analysis and visualization
 - Publication-ready output (figures and LaTeX tables)
 - Missing-data + nonnormality DGM generators + missing-data mediation estimator adapters
-  (*in progress* on `feature/dgm-interface`; see Code Architecture below)
+  (shipped in **v0.2.0**; see Code Architecture below)
 
 ---
 
@@ -63,7 +59,7 @@ devtools::test()
 | `local` | 100 | Development |
 | `cluster` | 1000+ | Production |
 
-### Missing-data DGM generators (in progress — `feature/dgm-interface`)
+### Missing-data DGM generators (shipped in v0.2.0)
 
 Reusable data-generating utilities + missing-data mediation estimator adapters, added for the
 **Missing Effect** study (MBCO-MI vs Monte-Carlo CI under missingness × nonnormality) and reusable by
@@ -78,10 +74,14 @@ Reusable data-generating utilities + missing-data mediation estimator adapters, 
 | `medsim_summarize_branch_switch()` | Summarize the MBCO union-null branch-switch rate per scenario |
 
 Design rules: estimator-agnostic boundary preserved (these are `data_generator`/`method` helpers);
-heavy deps (`mice`, `missingmed`, `rmediation`) stay in **Suggests** (loaded via `requireNamespace`);
 the `method()` contract returns the 6-field list `{indirect, indirect_ci_lower/_upper, indirect_p,
-branch_switch, converged}`. Status: WS-A..E implemented; **WS-F integration pending** (DESCRIPTION
-Suggests + roxygen + `R CMD check`). See `WORKSTREAM-KICKOFFS.md` on the branch.
+branch_switch, converged}`. `medsim_method_mbco_mi()` implements the validated **D4-stacked MBCO**
+(`mice` multiple imputation + Reiter/Chan–Meng D4 pooling + union-null LRT; reproduces
+`mitml::testModels(method = "D4")` exactly), degrading to a complete-case MBCO chi-square test without
+`mice`. Suggests used: `mice` (MI), `RMediation` (MC CI via `medci`), `mitml` (D4 validation).
+Status: **complete**, released in **v0.2.0** — PR #17 (generators) + PR #18 (D4-MBCO port, which
+dropped the now-unused `missingmed`/`rmediation` from Suggests/Remotes — the validated method uses
+neither). All 8 functions exported, documented, and in the pkgdown reference index.
 
 ---
 
@@ -102,9 +102,7 @@ medsim tests and validates methods from other mediationverse packages:
 
 ### Central Planning
 
-Ecosystem coordination managed in `/Users/dt/mediation-planning/`:
-- `ECOSYSTEM-COORDINATION.md` - Version matrix, change propagation
-- `MONTHLY-CHECKLIST.md` - Recurring ecosystem health checks
+Ecosystem coordination lives in `/Users/dt/mediation-planning/`:
 
 | Document | Purpose |
 |----------|---------|
@@ -146,19 +144,19 @@ results <- medsim_run(pmed_method, scenarios, config)
 
 ### GitHub-only Sibling Dependencies
 
-Sibling packages medfit, medrobust, and probmed are NOT on CRAN. DESCRIPTION
-must include a `Remotes:` field so pak can resolve them during R-CMD-check:
+medsim's GitHub-only dependencies need a `Remotes:` field so pak can resolve
+them during R-CMD-check (without it, pak treats them as missing and the check
+fails). Keep it in lockstep with `Suggests` — as of v0.2.0 the only GitHub-only
+dep is `medfit` (PR #18's validated D4-MBCO uses `mice`/`mitml`/`RMediation`,
+all on CRAN, so `missingmed`/`rmediation` were dropped):
 
 ```
 Remotes:
-    Data-Wise/medfit,
-    Data-Wise/medrobust,
-    Data-Wise/probmed
+    Data-Wise/medfit
 ```
 
-RMediation IS on CRAN — do not list it under Remotes. Without this hint, pak
-treats these as missing packages and R-CMD-check fails. Added in PR #1
-(2026-05-09).
+RMediation is on CRAN — never list it under Remotes. `Remotes:` first added in
+PR #1 (2026-05-09).
 
 ---
 
@@ -219,7 +217,25 @@ treats these as missing packages and R-CMD-check fails. Added in PR #1
 - **`R-hub` workflow** (`.github/workflows/rhub.yaml`, restored from main
   via the dev/main reconciliation) is registered with GitHub but
   scheduled-only / dispatch-only. Use for multi-platform pre-CRAN testing.
+- **r-universe distribution**: medsim is published (green, all platforms) at
+  the live `data-wise` universe — `install.packages("medsim", repos =
+  "https://data-wise.r-universe.dev")`. This is a separate service from GitHub
+  CI (rebuilds on its own ~hourly cron, not on push). Registry repo:
+  `Data-Wise/data-wise.r-universe.dev` (`packages.json`) — the registry key
+  MUST match the DESCRIPTION `Package:` field case-sensitively (the
+  `rmediation`→`RMediation` mismatch fail-stopped the whole org sync). Full
+  philosophy + readiness checklist: `R-UNIVERSE-STANDARDS.md` at repo root.
+  - **No r-universe step belongs in any GitHub workflow** — it's external; you
+    don't create CI for it. The universe rebuilds the **default branch** (`main`),
+    so a release reaches it only via the dev→main merge (not pushes to `dev`,
+    not tags).
+  - **Release checklist — add a post-merge VERIFY step**: after dev→main merges,
+    the universe lags ~hours behind `main`. Confirm it actually rebuilt before
+    calling the release done:
+    `curl -s https://data-wise.r-universe.dev/api/packages/medsim | python3 -c "import sys,json;print(json.load(sys.stdin)['Version'])"`
+    — poll until it matches the released version. Same lag gate applies when a
+    dependency must land first (e.g. medfit before missingmed's IPW build).
 
 ---
 
-**Last Updated**: 2026-05-10
+**Last Updated**: 2026-06-11
