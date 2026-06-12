@@ -225,6 +225,16 @@ PR #1 (2026-05-09).
   MUST match the DESCRIPTION `Package:` field case-sensitively (the
   `rmediation`→`RMediation` mismatch fail-stopped the whole org sync). Full
   philosophy + readiness checklist: `R-UNIVERSE-STANDARDS.md` at repo root.
+  - **No r-universe step belongs in any GitHub workflow** — it's external; you
+    don't create CI for it. The universe rebuilds the **default branch** (`main`),
+    so a release reaches it only via the dev→main merge (not pushes to `dev`,
+    not tags).
+  - **Release checklist — add a post-merge VERIFY step**: after dev→main merges,
+    the universe lags ~hours behind `main`. Confirm it actually rebuilt before
+    calling the release done:
+    `curl -s https://data-wise.r-universe.dev/api/packages/medsim | python3 -c "import sys,json;print(json.load(sys.stdin)['Version'])"`
+    — poll until it matches the released version. Same lag gate applies when a
+    dependency must land first (e.g. medfit before missingmed's IPW build).
 
 ---
 
