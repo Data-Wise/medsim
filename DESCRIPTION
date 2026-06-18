@@ -25,7 +25,7 @@ Imports:
     ggplot2,
     dplyr
 Suggests:
-    medfit (>= 0.1.0),
+    medfit (>= 0.2.0),
     RMediation,
     mice,
     mitml,
@@ -44,8 +44,6 @@ Suggests:
     gridExtra,
     patchwork,
     RColorBrewer
-Remotes:
-    Data-Wise/medfit
 Config/Needs/website:
     pkgdown,
     quarto
