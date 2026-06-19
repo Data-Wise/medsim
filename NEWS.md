@@ -1,3 +1,17 @@
+# medsim 0.3.1 (2026-06-19)
+
+## Test coverage
+
+* Expanded test coverage from 93.2% to 95.1%, meeting the >80% target.
+* New tests cover: `pbapply` progress path in `medsim_run_sequential` (via
+  `with_mocked_bindings`), format-helper branches in `.format_time_latex`,
+  `.format_pvalue_latex`, `.format_speedup_latex`, error-boxplot single- and
+  multi-method branches in `medsim_plot_error_boxplot` (including the
+  `parameter = NULL` all-columns path and RColorBrewer palette), timing warning
+  path in `medsim_plot_timing`, coverage-plot stop in `medsim_plot_coverage`,
+  combined-panel paths in `medsim_plot_combined_panel`, and `medsim_tables_workflow`
+  tryCatch success and error-handler paths.
+
 # medsim 0.3.0 (2026-06-19)
 
 ## New features
