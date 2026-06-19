@@ -401,3 +401,228 @@ test_that("tables handle zero values", {
   # Zero should not be in scientific notation
   expect_true(any(grepl("\\$0\\.000\\$", table)))
 })
+
+# ==============================================================================
+# Format helper branches (tables.R lines 56-124)
+# ==============================================================================
+
+test_that(".format_time_latex formats microseconds (< 0.001 s)", {
+  # tables.R:58 — microseconds branch
+  result <- medsim:::.format_time_latex(5e-4)  # 0.0005 s = 500 µs
+  expect_match(result, "mu")  # contains \mu in LaTeX
+  expect_match(result, "500")
+})
+
+test_that(".format_pvalue_latex formats p between 0.001 and 0.01", {
+  # tables.R:107 — sprintf("$%.3f$", p) branch
+  result <- medsim:::.format_pvalue_latex(0.005)
+  expect_match(result, "0\\.005")
+  expect_false(grepl("< 0\\.001", result))
+})
+
+test_that(".format_speedup_latex returns '---' for NA", {
+  # tables.R:121 — NA/non-finite branch
+  expect_equal(medsim:::.format_speedup_latex(NA_real_), "---")
+  expect_equal(medsim:::.format_speedup_latex(Inf), "---")
+})
+
+# ==============================================================================
+# medsim_table_accuracy branches (lines 247, 254)
+# ==============================================================================
+
+test_that("medsim_table_accuracy formats relative_bias with .format_number_latex", {
+  # tables.R:247 — metric == "relative_bias" branch
+  analysis <- create_mock_analysis()
+  table <- medsim_table_accuracy(analysis, metrics = "relative_bias", by_scenario = FALSE)
+  expect_s3_class(table, "medsim_table")
+  # relative_bias values in mock: 1.2, 2.5, -1.5 — formatted as $1.2$, $2.5$, $-1.5$
+  expect_true(any(grepl("1\\.2|2\\.5", table)))
+})
+
+test_that("medsim_table_accuracy shows '---' when metric column missing from data", {
+  # tables.R:254 — metric %in% valid_metrics but NOT in names(data)
+  analysis <- create_mock_analysis()
+  analysis$accuracy$relative_bias <- NULL   # remove the column
+  analysis$by_scenario$relative_bias <- NULL
+  table <- medsim_table_accuracy(analysis, metrics = "relative_bias", by_scenario = FALSE)
+  expect_s3_class(table, "medsim_table")
+  expect_true(any(grepl("---", table)))
+})
+
+# ==============================================================================
+# medsim_table_timing branches (lines 315-367)
+# ==============================================================================
+
+test_that("medsim_table_timing errors on non-list input", {
+  # tables.R:315
+  expect_error(medsim_table_timing(42), "named list")
+})
+
+test_that("medsim_table_timing errors on unnamed list", {
+  # tables.R:320
+  res <- create_mock_results()
+  expect_error(medsim_table_timing(list(res, res)), "All results must be named")
+})
+
+test_that("medsim_table_timing errors when list element is not medsim_results", {
+  # tables.R:332
+  expect_error(
+    medsim_table_timing(list(m1 = "not_results")),
+    "is not a medsim_results"
+  )
+})
+
+test_that("medsim_table_timing warns when results has no elapsed column", {
+  # tables.R:336-338
+  res <- create_mock_results()
+  res$results$elapsed <- NULL
+  expect_warning(
+    medsim_table_timing(list(m1 = res)),
+    "no timing data"
+  )
+})
+
+test_that("medsim_table_timing handles all-NA elapsed values", {
+  # tables.R:345 — length(elapsed[!is.na]) == 0 path
+  res <- create_mock_results()
+  res$results$elapsed <- NA_real_
+  table <- suppressWarnings(medsim_table_timing(list(m1 = res)))
+  expect_s3_class(table, "medsim_table")
+})
+
+test_that("medsim_table_timing uses median metric", {
+  # tables.R:348-349
+  res <- create_mock_results()
+  table <- medsim_table_timing(list(m1 = res), metric = "median")
+  expect_s3_class(table, "medsim_table")
+  expect_true(any(grepl("Median", table, ignore.case = TRUE)))
+})
+
+test_that("medsim_table_timing uses total metric", {
+  # tables.R:351
+  res <- create_mock_results()
+  table <- medsim_table_timing(list(m1 = res), metric = "total")
+  expect_s3_class(table, "medsim_table")
+  expect_true(any(grepl("Total", table, ignore.case = TRUE)))
+})
+
+test_that("medsim_table_timing errors when reference_method not found", {
+  # tables.R:364-365
+  res <- create_mock_results()
+  expect_error(
+    medsim_table_timing(list(m1 = res, m2 = res), reference_method = "nonexistent"),
+    "not found"
+  )
+})
+
+test_that("medsim_table_timing uses explicit reference_method", {
+  # tables.R:367 — reference_time <- times[reference_method]
+  res1 <- create_mock_results("r1")
+  res2 <- create_mock_results("r2")
+  table <- medsim_table_timing(list(m1 = res1, m2 = res2), reference_method = "m1")
+  expect_s3_class(table, "medsim_table")
+})
+
+# ==============================================================================
+# medsim_table_coverage branches (lines 449, 456)
+# ==============================================================================
+
+test_that("medsim_table_coverage errors on non-coverage input", {
+  # tables.R:449
+  expect_error(medsim_table_coverage("not_coverage"), "medsim_coverage")
+})
+
+test_that("medsim_table_coverage uses overall coverage when by_scenario=FALSE", {
+  # tables.R:456 — data <- coverage$coverage (the non-scenario branch)
+  cov <- create_mock_coverage()
+  table <- medsim_table_coverage(cov, by_scenario = FALSE)
+  expect_s3_class(table, "medsim_table")
+  expect_false(any(grepl("^Scenario", table)))
+})
+
+# ==============================================================================
+# medsim_table_power branches (lines 537, 544)
+# ==============================================================================
+
+test_that("medsim_table_power errors on non-power input", {
+  # tables.R:537
+  expect_error(medsim_table_power("not_power"), "medsim_power")
+})
+
+test_that("medsim_table_power uses overall power when by_scenario=FALSE", {
+  # tables.R:544 — data <- power$power
+  pwr <- create_mock_power()
+  table <- medsim_table_power(pwr, by_scenario = FALSE)
+  expect_s3_class(table, "medsim_table")
+})
+
+# ==============================================================================
+# medsim_table_comparison branches (lines 628, 652-710)
+# ==============================================================================
+
+test_that("medsim_table_comparison errors on non-comparison input", {
+  # tables.R:628
+  expect_error(medsim_table_comparison("not_comparison"), "medsim_comparison")
+})
+
+test_that("medsim_table_comparison includes coverage column when requested", {
+  # tables.R:652-653 — col_parts gets "Coverage"; lines 703-710 — coverage rows
+  comp <- create_mock_comparison()
+  table <- medsim_table_comparison(comp, metrics = c("accuracy", "timing", "coverage"))
+  expect_s3_class(table, "medsim_table")
+  expect_true(any(grepl("Coverage", table)))
+  # Coverage values from mock: 0.95 and 0.92 — rendered as percentages
+  expect_true(any(grepl("95\\.0|92\\.0", table)))
+})
+
+# ==============================================================================
+# medsim_write_table (line 764)
+# ==============================================================================
+
+test_that("medsim_write_table errors on non-table input", {
+  # tables.R:764
+  expect_error(medsim_write_table("not_table", tempfile()), "medsim_table")
+})
+
+# ==============================================================================
+# medsim_tables_workflow (lines 844, 862-895)
+# ==============================================================================
+
+test_that("medsim_tables_workflow errors on non-results input", {
+  # tables.R:844
+  expect_error(medsim_tables_workflow("not_results", tempdir()), "medsim_results")
+})
+
+test_that("medsim_tables_workflow generates accuracy table from valid results", {
+  # tables.R:861-870 — tryCatch success path
+  res <- create_mock_results()
+  tmpdir <- tempfile()
+  files <- suppressWarnings(suppressMessages(
+    medsim_tables_workflow(res, tmpdir, tables = "accuracy")
+  ))
+  expect_type(files, "list")
+})
+
+test_that("medsim_tables_workflow generates power table from valid results", {
+  # tables.R:890-893 — power table tryCatch success path
+  res <- create_mock_results()
+  tmpdir <- tempfile()
+  files <- suppressWarnings(suppressMessages(
+    medsim_tables_workflow(res, tmpdir, tables = "power")
+  ))
+  expect_type(files, "list")
+})
+
+test_that("medsim_tables_workflow warns when coverage table fails (no CI columns)", {
+  # tables.R:882 — tryCatch error handler for coverage table
+  # Results without CI columns cause medsim_analyze_coverage() to throw,
+  # which is caught and converted to a warning at line 882
+  res <- create_mock_results()
+  res$results$indirect_ci_lower <- NULL  # strip CI columns
+  res$results$indirect_ci_upper <- NULL
+  tmpdir <- tempfile()
+  expect_warning(
+    suppressMessages(medsim_tables_workflow(res, tmpdir, tables = "coverage")),
+    "Could not generate coverage table"
+  )
+})

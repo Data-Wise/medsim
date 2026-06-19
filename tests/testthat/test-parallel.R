@@ -522,3 +522,21 @@ test_that("medsim_run_parallel with packages loads package on PSOCK workers", {
   expect_length(result, 3L)
   expect_equal(sort(unlist(result)), 2L:4L)
 })
+
+test_that("medsim_run_sequential uses pbapply progress path when not a batch job", {
+  # parallel.R:253-269: pbapply::pblapply path only reached when
+  # medsim_is_batch_job() returns FALSE (normally TRUE in non-interactive envs)
+  skip_if_not_installed("pbapply")
+  fun <- function(x) x^2
+  results <- testthat::with_mocked_bindings(
+    {
+      suppressMessages(
+        medsim:::medsim_run_sequential(as.list(1:3), fun, progress = TRUE)
+      )
+    },
+    medsim_is_batch_job = function() FALSE,
+    .package = "medsim"
+  )
+  expect_length(results, 3L)
+  expect_equal(sort(unlist(results)), c(1, 4, 9))
+})
