@@ -125,7 +125,7 @@ medsim_run_chunk <- function(scenarios, method, config, verbose = TRUE) {
   chunk_config$n_replications <- length(indices)
   chunk_config$rep_offset     <- indices[1L] - 1L
 
-  results <- medsim_run(scenarios, method, chunk_config)
+  results <- medsim_run(method, scenarios, chunk_config)
 
   output_dir  <- config$output_dir %||% "simulation_results"
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
@@ -179,9 +179,12 @@ medsim_combine_chunks <- function(output_dir, pattern = "chunk_*.rds",
 
   # Truth is scenario-level (same across chunks) -- use the first chunk's
   truth <- chunks[[1L]]$truth
-  for (ch in chunks[-1L]) {
-    new_rows <- ch$truth[!ch$truth$scenario %in% truth$scenario, ]
-    if (nrow(new_rows) > 0L) truth <- rbind(truth, new_rows)
+  if (!is.null(truth)) {
+    for (ch in chunks[-1L]) {
+      if (is.null(ch$truth)) next
+      new_rows <- ch$truth[!ch$truth$scenario %in% truth$scenario, , drop = FALSE]
+      if (nrow(new_rows) > 0L) truth <- rbind(truth, new_rows)
+    }
   }
 
   # Build combined medsim_results preserving first chunk's metadata

@@ -407,3 +407,138 @@ test_that("medsim_plot_combined_panel errors when no plots generated", {
     "No plots could be generated"
   )
 })
+
+# ==============================================================================
+# medsim_plot_error_boxplot — additional branch coverage
+# ==============================================================================
+
+test_that("medsim_plot_error_boxplot errors on non-results input", {
+  # visualize.R:122 — single-method else branch, non-medsim_results input
+  skip_if_not_installed("ggplot2")
+  expect_error(medsim_plot_error_boxplot(42), "medsim_results")
+})
+
+test_that("medsim_plot_error_boxplot warns for parameters with no ground truth", {
+  # visualize.R:138-139 — single-method: param exists in results but not truth
+  skip_if_not_installed("ggplot2")
+  set.seed(1)
+  res <- make_mock_results()
+  res$results$a_path <- rnorm(20, 0.5, 0.1)  # extra column absent from truth
+  # parameter = NULL iterates all non-metadata columns, including a_path
+  expect_warning(
+    medsim_plot_error_boxplot(res, parameter = NULL),
+    "No ground truth for parameter 'a_path'"
+  )
+})
+
+test_that("medsim_plot_error_boxplot applies RColorBrewer palette for non-viridis", {
+  # visualize.R:184-185 — requireNamespace("RColorBrewer") branch
+  skip_if_not_installed("ggplot2")
+  skip_if_not_installed("RColorBrewer")
+  res <- make_mock_results()
+  p <- suppressWarnings(medsim_plot_error_boxplot(res, color_palette = "Set1"))
+  expect_s3_class(p, "ggplot")
+})
+
+test_that("medsim_plot_error_boxplot facets by parameter when multiple params present", {
+  # visualize.R:191 — facet_wrap triggered when >1 unique parameter in plot_data
+  skip_if_not_installed("ggplot2")
+  set.seed(42)
+  results_data <- data.frame(
+    scenario    = rep("Test", 20),
+    replication = seq_len(20),
+    indirect    = rnorm(20, 0.09, 0.02),
+    a_path      = rnorm(20, 0.50, 0.10),
+    elapsed     = runif(20, 0.01, 0.1),
+    stringsAsFactors = FALSE
+  )
+  truth_data <- data.frame(
+    scenario = "Test",
+    indirect = 0.09,
+    a_path   = 0.50,
+    stringsAsFactors = FALSE
+  )
+  res <- list(
+    results = results_data, summary = NULL,
+    truth = truth_data, config = medsim_config("test"),
+    scenarios = list(), method_name = "mock", timestamp = Sys.time()
+  )
+  class(res) <- c("medsim_results", "list")
+  # parameter = NULL iterates all columns so both indirect and a_path are plotted
+  p <- suppressWarnings(medsim_plot_error_boxplot(res, parameter = NULL))
+  expect_s3_class(p, "ggplot")
+  # facet_wrap adds a non-null, non-FacetNull facet
+  expect_false(inherits(p$facet, "FacetNull"))
+})
+
+test_that("medsim_plot_error_boxplot skips params without truth in multi-method mode", {
+  # visualize.R:105 — multi-method inner loop: next when truth_col missing
+  skip_if_not_installed("ggplot2")
+  set.seed(7)
+  res1 <- make_mock_results(seed = 1)
+  res1$results$a_path <- rnorm(20, 0.5, 0.1)
+  res2 <- make_mock_results(seed = 2)
+  res2$results$a_path <- rnorm(20, 0.5, 0.1)
+  # Both results have a_path in results but NOT in truth — skipped via next
+  p <- suppressWarnings(
+    medsim_plot_error_boxplot(list(m1 = res1, m2 = res2))
+  )
+  expect_s3_class(p, "ggplot")
+})
+
+# ==============================================================================
+# medsim_plot_timing — branch coverage (lines 247-248)
+# ==============================================================================
+
+test_that("medsim_plot_timing warns when a method has no elapsed column", {
+  # visualize.R:247-248 — warning + next when elapsed missing
+  skip_if_not_installed("ggplot2")
+  skip_if_not_installed("dplyr")
+  res_good <- make_mock_results()
+  res_no_elapsed <- make_mock_results(seed = 99)
+  res_no_elapsed$results$elapsed <- NULL
+  expect_warning(
+    medsim_plot_timing(list(ok = res_good, bad = res_no_elapsed)),
+    "no timing data"
+  )
+})
+
+# ==============================================================================
+# medsim_plot_coverage — branch coverage (line 359)
+# ==============================================================================
+
+test_that("medsim_plot_coverage errors on non-coverage input", {
+  # visualize.R:359
+  skip_if_not_installed("ggplot2")
+  expect_error(medsim_plot_coverage("not_coverage"), "medsim_coverage")
+})
+
+# ==============================================================================
+# medsim_plot_combined_panel — coverage panel paths (lines 467-483)
+# ==============================================================================
+
+test_that("medsim_plot_combined_panel generates coverage panel for named list of results", {
+  # visualize.R:467-475 — named list path: lapply over results, analyze_coverage each
+  skip_if_not_installed("ggplot2")
+  skip_if_not_installed("patchwork")
+  res_ci1 <- make_mock_results_ci(seed = 10)
+  res_ci2 <- make_mock_results_ci(seed = 20)
+  p <- suppressWarnings(
+    medsim_plot_combined_panel(
+      list(A = res_ci1, B = res_ci2),
+      panels = "coverage"
+    )
+  )
+  expect_false(is.null(p))
+})
+
+test_that("medsim_plot_combined_panel generates coverage panel for single results with CI", {
+  # visualize.R:480-483 — single results else path: tryCatch(analyze_coverage(results))
+  skip_if_not_installed("ggplot2")
+  skip_if_not_installed("patchwork")
+  res_ci <- make_mock_results_ci()
+  p <- suppressWarnings(
+    medsim_plot_combined_panel(res_ci, panels = c("error", "coverage"))
+  )
+  expect_false(is.null(p))
+})

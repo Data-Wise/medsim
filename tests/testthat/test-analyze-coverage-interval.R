@@ -247,3 +247,48 @@ test_that("medsim_method_bounds() works with M_star column", {
   res <- medsim_method_bounds(d, list(NDE = 0.2, NIE = 0.3))
   expect_true(all(c("NDE_lower", "NIE_lower") %in% names(res)))
 })
+
+# ── Additional interval coverage edge-case tests ──────────────────────────────
+
+test_that("interval coverage auto-detects params when estimand$params is empty", {
+  # Lines 490-491: else branch auto-detects from _lower/_upper column names
+  est <- medsim_estimand("interval", params = character(0))
+  res <- make_interval_medsim_results()
+  out <- medsim_analyze_coverage(res, estimand = est, by_scenario = FALSE)
+  expect_s3_class(out, "medsim_coverage")
+  expect_true("NDE" %in% out$coverage$parameter)
+  expect_true("NIE" %in% out$coverage$parameter)
+})
+
+test_that("interval coverage handles _truth suffix collision when results has same-named column", {
+  # Line 504 TRUE branch: when results also has a plain "NDE" column,
+  # merge() appends "_truth" suffix to truth's NDE to avoid collision.
+  res <- make_interval_medsim_results()
+  res$results$NDE <- 0.25
+  est <- make_dm_estimand()
+  out <- medsim_analyze_coverage(res, estimand = est, by_scenario = FALSE)
+  expect_s3_class(out, "medsim_coverage")
+  expect_true("NDE" %in% out$coverage$parameter)
+})
+
+test_that("interval coverage warns and skips when truth is missing for a param", {
+  # Lines 511-514: no truth column for param → warning + next
+  res <- make_interval_medsim_results()
+  res$truth <- res$truth[, setdiff(names(res$truth), "NIE"), drop = FALSE]
+  est <- make_dm_estimand()
+  expect_warning(
+    medsim_analyze_coverage(res, estimand = est, by_scenario = FALSE),
+    "No ground truth"
+  )
+})
+
+test_that("interval coverage skips params where all bound values are NA", {
+  # Line 522: length(lo) == 0L after NA filtering → next
+  res <- make_interval_medsim_results()
+  res$results$NDE_lower <- NA_real_
+  res$results$NDE_upper <- NA_real_
+  est <- make_dm_estimand()
+  out <- medsim_analyze_coverage(res, estimand = est, by_scenario = FALSE)
+  expect_false("NDE" %in% out$coverage$parameter)
+  expect_true("NIE" %in% out$coverage$parameter)
+})
