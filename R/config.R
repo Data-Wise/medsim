@@ -21,7 +21,27 @@
 #' @param scenarios Character: "all" or "test". Use "test" for single challenging
 #'   scenario during development
 #' @param output_dir Character: Directory for saving results
-#' @param seed Integer: Random seed for reproducibility
+#' @param seed Integer: Random seed for reproducibility (base seed for
+#'   single-process runs; see `seed_stream` for chunked array jobs).
+#' @param chunk_id Integer: SLURM array task index (1-based) for this chunk.
+#'   Auto-detected from `SLURM_ARRAY_TASK_ID` when running inside a SLURM
+#'   array job and not supplied explicitly.  `NULL` = no chunking.
+#' @param n_chunks Integer: Total number of chunks (SLURM array size).
+#'   Used by `medsim_run_chunk()` to slice the replication index.
+#' @param array_size Integer: Alias for `n_chunks` (matches SLURM terminology).
+#'   When both are supplied, `n_chunks` wins.
+#' @param seed_stream Integer: Master seed for L'Ecuyer-CMRG reproducible
+#'   per-chunk RNG streams.  Passed to
+#'   `parallel::clusterSetRNGStream(cl, seed_stream)` so each chunk gets a
+#'   deterministic sub-stream.  Defaults to `seed` when `NULL`.
+#' @param partition Character: SLURM partition (queue) name.  Defaults to
+#'   `"general"` in cluster mode; `NULL` otherwise.
+#' @param walltime Character: SLURM wall-time limit (HH:MM:SS).  Defaults to
+#'   `"08:00:00"` in cluster mode.
+#' @param mem_per_cpu Character: SLURM memory per CPU.  Defaults to `"4G"` in
+#'   cluster mode.
+#' @param r_module Character: Environment module string for `module load`.
+#'   Defaults to `"r/4.4.0-ytj2"` (UNM CARC Hopper) in cluster mode.
 #' @param ... Additional custom parameters
 #'
 #' @return A list with simulation configuration parameters
@@ -91,6 +111,14 @@ medsim_config <- function(mode = "auto",
                           scenarios = NULL,
                           output_dir = NULL,
                           seed = 12345,
+                          chunk_id = NULL,
+                          n_chunks = NULL,
+                          array_size = NULL,
+                          seed_stream = NULL,
+                          partition = NULL,
+                          walltime = NULL,
+                          mem_per_cpu = NULL,
+                          r_module = NULL,
                           ...) {
 
   # Detect environment if auto mode
@@ -134,15 +162,33 @@ medsim_config <- function(mode = "auto",
   # Get defaults for this mode
   defaults <- mode_defaults[[mode]]
 
+  # Auto-detect chunk_id from SLURM array env var when not supplied
+  if (is.null(chunk_id)) {
+    slurm_task <- Sys.getenv("SLURM_ARRAY_TASK_ID", unset = "")
+    if (nchar(slurm_task) > 0L) {
+      chunk_id <- as.integer(slurm_task)
+    }
+  }
+
   # Override defaults with user-specified values
   config <- list(
-    mode = mode,
-    name = defaults$name,
+    mode           = mode,
+    name           = defaults$name,
     n_replications = n_replications %||% defaults$n_replications,
-    n_cores = n_cores %||% defaults$n_cores,
-    scenarios = scenarios %||% defaults$scenarios,
-    output_dir = output_dir %||% defaults$output_dir,
-    seed = seed
+    n_cores        = n_cores %||% defaults$n_cores,
+    scenarios      = scenarios %||% defaults$scenarios,
+    output_dir     = output_dir %||% defaults$output_dir,
+    seed           = seed,
+    # Chunked array-job parameters (all NULL by default = no chunking)
+    chunk_id       = chunk_id,
+    n_chunks       = n_chunks,
+    array_size     = array_size,
+    seed_stream    = seed_stream,
+    # Hopper/SLURM submission parameters (NULL = system defaults)
+    partition      = partition %||% if (mode == "cluster") "general" else NULL,
+    walltime       = walltime  %||% if (mode == "cluster") "08:00:00" else NULL,
+    mem_per_cpu    = mem_per_cpu %||% if (mode == "cluster") "4G" else NULL,
+    r_module       = r_module  %||% if (mode == "cluster") "r/4.4.0-ytj2" else NULL
   )
 
   # Determine number of cores if NULL

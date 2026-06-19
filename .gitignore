@@ -15,3 +15,6 @@ simulation_results*/
 .STATUS
 .STATUS.backup
 BRAINSTORM-*.md
+
+# testthat failure snapshots (transient; regenerated on test runs)
+tests/testthat/_problems/

@@ -11,7 +11,8 @@ medsim_run_parallel(
   progress = TRUE,
   export = NULL,
   packages = NULL,
-  cluster_type = NULL
+  cluster_type = NULL,
+  seed = NULL
 )
 }
 \arguments{
@@ -34,6 +35,13 @@ Use this if \code{fun} requires specific packages.}
 
 \item{cluster_type}{Character: Type of cluster ("PSOCK" or "FORK"). FORK
 is more efficient but only works on Unix. Auto-detected by default.}
+
+\item{seed}{Integer or \code{NULL}: Master seed for L'Ecuyer-CMRG reproducible
+per-worker RNG streams.  When supplied, calls \code{RNGkind("L'Ecuyer-CMRG")}
+and \code{parallel::clusterSetRNGStream(cl, seed)} immediately after cluster
+creation so each worker gets a distinct, deterministic sub-stream.
+Pass \code{config$seed_stream} here for chunked SLURM array reproducibility.
+Default \code{NULL} leaves each worker's RNG seeded by the OS (non-reproducible).}
 }
 \value{
 List: Results from applying \code{fun} to each task (same length as tasks)
