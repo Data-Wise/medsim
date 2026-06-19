@@ -44,6 +44,8 @@ Suggests:
     gridExtra,
     patchwork,
     RColorBrewer
+Remotes:
+    Data-Wise/medrobust
 Config/Needs/website:
     pkgdown,
     quarto
