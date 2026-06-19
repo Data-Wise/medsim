@@ -5,7 +5,8 @@
 .DS_Store
 medsim.code-workspace
 docs
-inst/doc
+# inst/doc is committed for pre-built quarto vignettes (CRAN requirement)
+# inst/doc
 
 # medsim simulation output dirs (regenerable test/local/cluster runs; never commit)
 simulation_results*/

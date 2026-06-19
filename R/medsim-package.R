@@ -87,8 +87,7 @@
 #' - Getting Started: `vignette("getting-started", package = "medsim")`
 #' - Custom Scenarios: `vignette("custom-scenarios", package = "medsim")`
 #' - HPC Clusters: `vignette("parallel-computing", package = "medsim")`
-#' - GitHub: <https://github.com/data-wise/medsim>
-#' - Website: <https://data-wise.github.io/medsim/>
+#' - GitHub: <https://github.com/Data-Wise/medsim>
 #'
 #' @keywords internal
 "_PACKAGE"
