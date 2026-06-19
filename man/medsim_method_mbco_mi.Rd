@@ -28,5 +28,5 @@ the Reiter/Chan-Meng D4 rule (Grund et al. 2021) into an F reference.
 The point estimate is the Rubin-pooled \code{a*b}; the CI is a Monte-Carlo product
 interval on the pooled paths; the p-value is the D4-pooled MBCO test. With no
 missingness (or without \code{mice}) it degrades to the complete-case MBCO LRT with
-a chi-square reference — never to a Sobel normal approximation for the test.
+a chi-square reference -- never to a Sobel normal approximation for the test.
 }

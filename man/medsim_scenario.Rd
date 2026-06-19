@@ -4,7 +4,13 @@
 \alias{medsim_scenario}
 \title{Create Custom Simulation Scenario}
 \usage{
-medsim_scenario(name, description = "", data_generator, params = list())
+medsim_scenario(
+  name,
+  description = "",
+  data_generator,
+  params = list(),
+  estimand = NULL
+)
 }
 \arguments{
 \item{name}{Character: Descriptive name for the scenario}
@@ -14,6 +20,11 @@ medsim_scenario(name, description = "", data_generator, params = list())
 \item{data_generator}{Function: Takes n (sample size) and returns data.frame}
 
 \item{params}{List: Known population parameters for validation}
+
+\item{estimand}{Optional \code{\link[=medsim_estimand]{medsim_estimand()}} object declaring the estimand kind
+(\code{"point"}, \code{"interval"}, \code{"probabilistic"}, \code{"numeric"}).  \code{NULL} (the
+default) is treated as \code{kind = "point"} throughout the package -- full
+back-compatibility with existing scenarios.}
 }
 \value{
 A scenario object (list with class "medsim_scenario")

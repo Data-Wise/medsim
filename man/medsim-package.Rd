@@ -106,8 +106,7 @@ medsim is designed to work with:
 \item Getting Started: \code{vignette("getting-started", package = "medsim")}
 \item Custom Scenarios: \code{vignette("custom-scenarios", package = "medsim")}
 \item HPC Clusters: \code{vignette("parallel-computing", package = "medsim")}
-\item GitHub: \url{https://github.com/data-wise/medsim}
-\item Website: \url{https://data-wise.github.io/medsim/}
+\item GitHub: \url{https://github.com/Data-Wise/medsim}
 }
 }
 }
@@ -115,7 +114,6 @@ medsim is designed to work with:
 Useful links:
 \itemize{
   \item \url{https://github.com/Data-Wise/medsim}
-  \item \url{https://data-wise.github.io/medsim/}
   \item Report bugs at \url{https://github.com/Data-Wise/medsim/issues}
 }
 

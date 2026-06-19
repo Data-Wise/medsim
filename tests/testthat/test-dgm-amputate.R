@@ -12,7 +12,7 @@ make_complete <- function(n = 4000) {
 test_that("realized missingness rate is close to `prop` and only in `target`", {
   d <- make_complete()
   out <- medsim_amputate(d, target = "M", mechanism = "MCAR", prop = 0.25)
-  expect_equal(mean(is.na(out$M)), 0.25, tolerance = 0.03)
+  expect_true(abs(mean(is.na(out$M)) - 0.25) < 0.03)
   expect_false(any(is.na(out$X)))
   expect_false(any(is.na(out$Y)))
 })
@@ -77,19 +77,20 @@ test_that("prop = 0 and zero-row input are structure-preserving no-ops", {
 })
 
 test_that("MAR honors tail `type` and named `weights`", {
+  set.seed(42)
   d <- make_complete(4000)
   for (ty in c("LEFT", "MID", "TAIL")) {
     out <- medsim_amputate(d,
       target = "M", mechanism = "MAR", prop = 0.25,
       predictors = "X", type = ty
     )
-    expect_equal(mean(is.na(out$M)), 0.25, tolerance = 0.04)
+    expect_true(abs(mean(is.na(out$M)) - 0.25) < 0.04)
   }
   w <- medsim_amputate(d,
     target = "M", mechanism = "MAR", prop = 0.2,
     predictors = "X", weights = c(X = 2)
   )
-  expect_equal(mean(is.na(w$M)), 0.2, tolerance = 0.04)
+  expect_true(abs(mean(is.na(w$M)) - 0.2) < 0.04)
 })
 
 test_that("non-numeric (factor/logical) predictors are coerced for the model", {
@@ -100,7 +101,7 @@ test_that("non-numeric (factor/logical) predictors are coerced for the model", {
     target = "M", mechanism = "MAR", prop = 0.2,
     predictors = c("G", "L")
   )
-  expect_equal(mean(is.na(out$M)), 0.2, tolerance = 0.05)
+  expect_true(abs(mean(is.na(out$M)) - 0.2) < 0.05)
   expect_identical(names(out), names(d))
 })
 
@@ -110,5 +111,5 @@ test_that("MAR with no usable predictor falls back to a constant-rate draw", {
     target = "M", mechanism = "MAR", prop = 0.2,
     predictors = character(0)
   )
-  expect_equal(mean(is.na(out$M)), 0.2, tolerance = 0.05)
+  expect_true(abs(mean(is.na(out$M)) - 0.2) < 0.05)
 })

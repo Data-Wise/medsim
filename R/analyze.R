@@ -266,6 +266,9 @@ medsim_analyze <- function(results,
 #'   "indirect_ci_upper"
 #' @param by_scenario Logical: Compute coverage separately for each scenario
 #'   (default TRUE)
+#' @param estimand Optional [medsim_estimand()] descriptor. When supplied with
+#'   kind `"interval"`, dispatches to interval-aware coverage computation.
+#'   Default NULL uses standard CI-column-based coverage.
 #'
 #' @return A list with class "medsim_coverage" containing:
 #'   - `coverage`: data.frame with coverage rates
@@ -279,7 +282,7 @@ medsim_analyze <- function(results,
 #' true parameter value. For a 95% CI, expect ~95% coverage in large samples.
 #'
 #' - Coverage < nominal: CI too narrow (anti-conservative)
-#' - Coverage ≈ nominal: CI has correct width
+#' - Coverage ? nominal: CI has correct width
 #' - Coverage > nominal: CI too wide (conservative)
 #'
 #' ## Column Naming Conventions
@@ -316,7 +319,8 @@ medsim_analyze <- function(results,
 medsim_analyze_coverage <- function(results,
                                     ci_levels = c(0.90, 0.95, 0.99),
                                     ci_suffix = "_ci",
-                                    by_scenario = TRUE) {
+                                    by_scenario = TRUE,
+                                    estimand = NULL) {
 
   # --- Input Validation ---
   if (!inherits(results, "medsim_results")) {
@@ -330,6 +334,12 @@ medsim_analyze_coverage <- function(results,
 
   if (!is.numeric(ci_levels) || any(ci_levels <= 0) || any(ci_levels >= 1)) {
     stop("ci_levels must be numeric values between 0 and 1")
+  }
+
+  # --- Dispatch on estimand kind ---
+  kind <- .medsim_estimand_kind(list(estimand = estimand))
+  if (kind == "interval") {
+    return(.medsim_analyze_coverage_interval(results, by_scenario, estimand))
   }
 
   # --- Merge Results with Ground Truth ---
@@ -464,6 +474,128 @@ medsim_analyze_coverage <- function(results,
   class(coverage) <- c("medsim_coverage", "list")
 
   return(coverage)
+}
+
+# --- Interval coverage (partial-ID bounds) ------------------------------------
+
+#' @noRd
+.medsim_analyze_coverage_interval <- function(results, by_scenario, estimand) {
+  merged <- merge(results$results, results$truth, by = "scenario",
+                  suffixes = c("_estimate", "_truth"))
+
+  params <- if (!is.null(estimand) && length(estimand$params) > 0L) {
+    estimand$params
+  } else {
+    # Auto-detect: look for {p}_lower / {p}_upper columns
+    lower_cols <- grep("_lower$", names(merged), value = TRUE)
+    gsub("_lower$", "", lower_cols)
+  }
+
+  cov_list <- list()
+  for (param in params) {
+    lower_col <- paste0(param, "_lower")
+    upper_col <- paste0(param, "_upper")
+    # After merge(by="scenario"), truth columns have "_truth" suffix only when
+    # there is a name collision (i.e. the same param name exists in both
+    # results$results and results$truth).  For interval kind the results carry
+    # {param}_lower/_upper, not {param} itself, so no collision occurs and the
+    # truth column keeps its original name.
+    truth_col <- if (paste0(param, "_truth") %in% names(merged)) {
+      paste0(param, "_truth")
+    } else {
+      param
+    }
+    im_lo_col <- paste0(param, "_im_lower")
+    im_hi_col <- paste0(param, "_im_upper")
+
+    if (!all(c(lower_col, upper_col) %in% names(merged))) next
+    if (!truth_col %in% names(merged)) {
+      warning(sprintf("No ground truth for parameter '%s', skipping", param))
+      next
+    }
+
+    lo    <- merged[[lower_col]]
+    hi    <- merged[[upper_col]]
+    truth <- merged[[truth_col]]
+    valid <- !is.na(lo) & !is.na(hi) & !is.na(truth)
+    lo <- lo[valid]; hi <- hi[valid]; truth <- truth[valid]
+    if (length(lo) == 0L) next
+
+    # Partial-ID interval contains truth
+    in_bounds <- (truth >= lo) & (truth <= hi)
+
+    row <- data.frame(
+      parameter       = param,
+      coverage        = mean(in_bounds),
+      n_valid         = length(in_bounds),
+      stringsAsFactors = FALSE
+    )
+
+    # Imbens-Manski CI coverage (if columns present)
+    if (all(c(im_lo_col, im_hi_col) %in% names(merged))) {
+      im_lo <- merged[[im_lo_col]][valid]
+      im_hi <- merged[[im_hi_col]][valid]
+      row$im_coverage <- mean((truth >= im_lo) & (truth <= im_hi))
+    }
+
+    # Mean interval width
+    row$mean_width <- mean(hi - lo)
+
+    cov_list[[param]] <- row
+  }
+
+  coverage_df <- do.call(rbind, cov_list)
+  rownames(coverage_df) <- NULL
+
+  # Feasibility / falsification summaries if columns present
+  extra_df <- NULL
+  if ("feasible" %in% names(merged)) {
+    extra_df <- data.frame(
+      feasible_rate  = mean(merged$feasible,  na.rm = TRUE),
+      falsified_rate = if ("falsified" %in% names(merged)) mean(merged$falsified, na.rm = TRUE) else NA_real_,
+      stringsAsFactors = FALSE
+    )
+  }
+
+  # By-scenario breakdown
+  by_sc <- NULL
+  if (by_scenario) {
+    sc_list <- list()
+    for (sc in unique(merged$scenario)) {
+      d <- merged[merged$scenario == sc, ]
+      for (param in params) {
+        lower_col <- paste0(param, "_lower"); upper_col <- paste0(param, "_upper")
+        truth_col <- if (paste0(param, "_truth") %in% names(d)) paste0(param, "_truth") else param
+        if (!all(c(lower_col, upper_col, truth_col) %in% names(d))) next
+        lo <- d[[lower_col]]; hi <- d[[upper_col]]; truth <- d[[truth_col]]
+        valid <- !is.na(lo) & !is.na(hi) & !is.na(truth)
+        if (!any(valid)) next
+        lo <- lo[valid]; hi <- hi[valid]; truth <- truth[valid]
+        in_bounds <- (truth >= lo) & (truth <= hi)
+        sc_list[[paste(sc, param, sep = "_")]] <- data.frame(
+          scenario = sc, parameter = param,
+          coverage = mean(in_bounds), n_valid = length(in_bounds),
+          mean_width = mean(hi - lo), stringsAsFactors = FALSE
+        )
+      }
+    }
+    by_sc <- do.call(rbind, sc_list)
+    rownames(by_sc) <- NULL
+  }
+
+  summary_stats <- data.frame(
+    n_scenarios = length(unique(merged$scenario)),
+    n_parameters = nrow(coverage_df),
+    overall_coverage = if (nrow(coverage_df) > 0L) mean(coverage_df$coverage) else NA_real_,
+    stringsAsFactors = FALSE
+  )
+
+  structure(
+    list(coverage = coverage_df, by_scenario = by_sc,
+         summary = summary_stats, extra = extra_df,
+         estimand_kind = "interval"),
+    class = c("medsim_coverage", "list")
+  )
 }
 
 #' Analyze Statistical Power

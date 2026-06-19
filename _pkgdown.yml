@@ -95,11 +95,44 @@ reference:
 - title: Simulation Scenarios
   desc: >
     Functions for defining and validating simulation scenarios with ground
-    truth parameters.
+    truth parameters, and the estimand-kind descriptor used by downstream
+    analysis commands.
   contents:
+  - medsim_estimand
   - medsim_scenario
   - medsim_scenarios_mediation
   - medsim_validate_scenario
+
+- title: Numeric Accuracy Scenarios
+  desc: >
+    Scenario factory for numerical accuracy and timing studies (e.g., the
+    product-of-three CI comparison).  Uses `estimand$kind = "numeric"` —
+    no DGM, no coverage/power analysis; only `error`, `abs_error`,
+    `elapsed_sec` result columns and timing tables.
+  contents:
+  - medsim_scenario_numeric
+
+- title: P_med Probabilistic Mediation (pmed)
+  desc: >
+    Scenario factory and MBCO estimator adapter for the P_med probabilistic
+    estimand `P(Y1 > Y0) + 0.5·P(Y1 == Y0)`.  Uses `estimand$kind = "probabilistic"`
+    so `medsim_analyze_coverage()` dispatches the MBCO-CI coverage branch.
+    Ground truth is computed via a cross-world potential-outcome draw at
+    scenario construction time.
+  contents:
+  - medsim_scenario_pmed
+  - medsim_method_pmed_mbco
+
+- title: Differential-Misclassification Bounds (DM)
+  desc: >
+    Scenario factory and estimator adapter for partial-identification bounds
+    studies (me-mediator-bounds / me-exposure-recall).  Uses the
+    `interval`-kind estimand so that `medsim_analyze_coverage()` dispatches
+    the Imbens-Manski / partial-ID coverage branch automatically.
+    Requires **medrobust** (Suggests); synthetic fallback used when absent.
+  contents:
+  - medsim_scenario_dm
+  - medsim_method_bounds
 
 - title: Running Simulations
   desc: >
@@ -108,6 +141,16 @@ reference:
   contents:
   - medsim_run
   - medsim_run_parallel
+
+- title: Hopper / SLURM Cluster Harness
+  desc: >
+    Three-piece pattern for chunked SLURM array jobs on UNM CARC Hopper.
+    Write a submit script, run one chunk per array task, then combine the
+    resulting RDS files into a single `medsim_results` object for analysis.
+  contents:
+  - medsim_write_submit_script
+  - medsim_run_chunk
+  - medsim_combine_chunks
 
 - title: Result Analysis
   desc: >

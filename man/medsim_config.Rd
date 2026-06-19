@@ -11,6 +11,14 @@ medsim_config(
   scenarios = NULL,
   output_dir = NULL,
   seed = 12345,
+  chunk_id = NULL,
+  n_chunks = NULL,
+  array_size = NULL,
+  seed_stream = NULL,
+  partition = NULL,
+  walltime = NULL,
+  mem_per_cpu = NULL,
+  r_module = NULL,
   ...
 )
 }
@@ -34,7 +42,35 @@ scenario during development}
 
 \item{output_dir}{Character: Directory for saving results}
 
-\item{seed}{Integer: Random seed for reproducibility}
+\item{seed}{Integer: Random seed for reproducibility (base seed for
+single-process runs; see \code{seed_stream} for chunked array jobs).}
+
+\item{chunk_id}{Integer: SLURM array task index (1-based) for this chunk.
+Auto-detected from \code{SLURM_ARRAY_TASK_ID} when running inside a SLURM
+array job and not supplied explicitly.  \code{NULL} = no chunking.}
+
+\item{n_chunks}{Integer: Total number of chunks (SLURM array size).
+Used by \code{medsim_run_chunk()} to slice the replication index.}
+
+\item{array_size}{Integer: Alias for \code{n_chunks} (matches SLURM terminology).
+When both are supplied, \code{n_chunks} wins.}
+
+\item{seed_stream}{Integer: Master seed for L'Ecuyer-CMRG reproducible
+per-chunk RNG streams.  Passed to
+\code{parallel::clusterSetRNGStream(cl, seed_stream)} so each chunk gets a
+deterministic sub-stream.  Defaults to \code{seed} when \code{NULL}.}
+
+\item{partition}{Character: SLURM partition (queue) name.  Defaults to
+\code{"general"} in cluster mode; \code{NULL} otherwise.}
+
+\item{walltime}{Character: SLURM wall-time limit (HH:MM:SS).  Defaults to
+\code{"08:00:00"} in cluster mode.}
+
+\item{mem_per_cpu}{Character: SLURM memory per CPU.  Defaults to \code{"4G"} in
+cluster mode.}
+
+\item{r_module}{Character: Environment module string for \verb{module load}.
+Defaults to \code{"r/4.4.0-ytj2"} (UNM CARC Hopper) in cluster mode.}
 
 \item{...}{Additional custom parameters}
 }

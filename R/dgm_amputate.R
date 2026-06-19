@@ -1,5 +1,5 @@
-# INTERFACE FREEZE (Step 0) — signature stub for WS-B.
-# Spec: SPEC-medsim-missingdata-generators-2026-06-11.md  (§"2. Missingness amputation")
+# INTERFACE FREEZE (Step 0) -- signature stub for WS-B.
+# Spec: SPEC-medsim-missingdata-generators-2026-06-11.md  (?"2. Missingness amputation")
 
 #' Insert missing values under MCAR / MAR / MNAR
 #'
@@ -44,7 +44,7 @@ medsim_amputate <- function(data, target, mechanism = c("MCAR", "MAR", "MNAR"),
   orig_names <- names(data)
   n <- nrow(data)
 
-  # Nothing to do (degenerate but valid) — return unchanged with structure preserved.
+  # Nothing to do (degenerate but valid) -- return unchanged with structure preserved.
   if (n == 0L || prop == 0) {
     return(data[orig_names])
   }

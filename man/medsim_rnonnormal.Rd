@@ -19,6 +19,6 @@ medsim_rnonnormal(n, mean = 0, sd = 1, skew = 0, kurtosis = 0)
 Numeric vector of length \code{n} with the requested marginal moments.
 }
 \description{
-Fleishman / Vale–Maurelli power-method draws. Pure base R; no hard dependency.
+Fleishman / Vale?Maurelli power-method draws. Pure base R; no hard dependency.
 Warns/errors on (skew, kurtosis) outside the Fleishman-feasible region.
 }

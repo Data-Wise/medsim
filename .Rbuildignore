@@ -21,3 +21,7 @@
 ^\.STATUS\.backup$
 ^\.claude$
 ^cran-comments\.md$
+^PROPOSAL-.*\.md$
+^SPEC-.*\.md$
+^R-UNIVERSE-STANDARDS\.md$
+^WORKSTREAM-KICKOFFS\.md$

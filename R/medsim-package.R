@@ -87,14 +87,13 @@
 #' - Getting Started: `vignette("getting-started", package = "medsim")`
 #' - Custom Scenarios: `vignette("custom-scenarios", package = "medsim")`
 #' - HPC Clusters: `vignette("parallel-computing", package = "medsim")`
-#' - GitHub: <https://github.com/data-wise/medsim>
-#' - Website: <https://data-wise.github.io/medsim/>
+#' - GitHub: <https://github.com/Data-Wise/medsim>
 #'
 #' @keywords internal
 "_PACKAGE"
 
 ## usethis namespace: start
-#' @importFrom stats aggregate median quantile rnorm sd
+#' @importFrom stats aggregate coef dnorm lm median pnorm quantile qnorm rbinom rnorm sd sigma
 #' @importFrom utils glob2rx write.csv
 #' @importFrom pbapply pboptions
 #' @importFrom dplyr %>%

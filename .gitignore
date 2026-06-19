@@ -5,7 +5,8 @@
 .DS_Store
 medsim.code-workspace
 docs
-inst/doc
+# inst/doc is committed for pre-built quarto vignettes (CRAN requirement)
+# inst/doc
 
 # medsim simulation output dirs (regenerable test/local/cluster runs; never commit)
 simulation_results*/
@@ -15,3 +16,6 @@ simulation_results*/
 .STATUS
 .STATUS.backup
 BRAINSTORM-*.md
+
+# testthat failure snapshots (transient; regenerated on test runs)
+tests/testthat/_problems/
