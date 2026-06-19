@@ -103,6 +103,26 @@ reference:
   - medsim_scenarios_mediation
   - medsim_validate_scenario
 
+- title: Numeric Accuracy Scenarios
+  desc: >
+    Scenario factory for numerical accuracy and timing studies (e.g., the
+    product-of-three CI comparison).  Uses `estimand$kind = "numeric"` —
+    no DGM, no coverage/power analysis; only `error`, `abs_error`,
+    `elapsed_sec` result columns and timing tables.
+  contents:
+  - medsim_scenario_numeric
+
+- title: P_med Probabilistic Mediation (pmed)
+  desc: >
+    Scenario factory and MBCO estimator adapter for the P_med probabilistic
+    estimand `P(Y1 > Y0) + 0.5·P(Y1 == Y0)`.  Uses `estimand$kind = "probabilistic"`
+    so `medsim_analyze_coverage()` dispatches the MBCO-CI coverage branch.
+    Ground truth is computed via a cross-world potential-outcome draw at
+    scenario construction time.
+  contents:
+  - medsim_scenario_pmed
+  - medsim_method_pmed_mbco
+
 - title: Differential-Misclassification Bounds (DM)
   desc: >
     Scenario factory and estimator adapter for partial-identification bounds
