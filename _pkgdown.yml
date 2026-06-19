@@ -95,11 +95,24 @@ reference:
 - title: Simulation Scenarios
   desc: >
     Functions for defining and validating simulation scenarios with ground
-    truth parameters.
+    truth parameters, and the estimand-kind descriptor used by downstream
+    analysis commands.
   contents:
+  - medsim_estimand
   - medsim_scenario
   - medsim_scenarios_mediation
   - medsim_validate_scenario
+
+- title: Differential-Misclassification Bounds (DM)
+  desc: >
+    Scenario factory and estimator adapter for partial-identification bounds
+    studies (me-mediator-bounds / me-exposure-recall).  Uses the
+    `interval`-kind estimand so that `medsim_analyze_coverage()` dispatches
+    the Imbens-Manski / partial-ID coverage branch automatically.
+    Requires **medrobust** (Suggests); synthetic fallback used when absent.
+  contents:
+  - medsim_scenario_dm
+  - medsim_method_bounds
 
 - title: Running Simulations
   desc: >

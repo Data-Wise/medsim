@@ -8,7 +8,8 @@ medsim_analyze_coverage(
   results,
   ci_levels = c(0.9, 0.95, 0.99),
   ci_suffix = "_ci",
-  by_scenario = TRUE
+  by_scenario = TRUE,
+  estimand = NULL
 )
 }
 \arguments{
