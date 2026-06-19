@@ -1,4 +1,15 @@
-# medsim (development version)
+# medsim 0.3.0 (2026-06-19)
+
+## New features
+
+* `medsim_estimand()` — first-class estimand descriptor that tags a scenario with
+  a kind (`"point"`, `"interval"`, `"pmed"`, `"numeric"`, `"cluster"`). Enables
+  kind-aware dispatch across the simulation pipeline (Phases 0–5).
+* `medsim_scenario()` gains an `estimand=` argument (default `NULL` for full
+  backward compatibility); `medsim_validate_scenario()` skips hardcoded column
+  checks for non-mediation kinds.
+* `medsim_analyze_coverage()` dispatches on estimand kind for interval-type studies.
+* Medfit dependency upgraded from `Remotes:` to CRAN (`>= 0.2.0`).
 
 # medsim 0.2.1 (2026-06-11)
 
