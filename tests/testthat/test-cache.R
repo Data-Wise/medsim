@@ -194,3 +194,67 @@ test_that("cache expiry check works", {
   # Cleanup
   unlink(cache_file)
 })
+
+# ---------------------------------------------------------------------------
+# Additional coverage: overwrite=FALSE, legacy format, verbose=FALSE, max_age
+# ---------------------------------------------------------------------------
+
+test_that("medsim_cache_save with overwrite=FALSE does not replace existing file", {
+  cache_file <- tempfile(fileext = ".rds")
+  original <- list(v = 1)
+  replacement <- list(v = 999)
+
+  medsim_cache_save(original, cache_file)
+
+  # overwrite=FALSE: should emit message and leave file unchanged
+  expect_message(
+    medsim_cache_save(replacement, cache_file, overwrite = FALSE),
+    "already exists"
+  )
+
+  # file still contains original
+  loaded <- medsim_cache_load(cache_file, verbose = FALSE)
+  expect_equal(loaded$v, 1)
+
+  unlink(cache_file)
+})
+
+test_that("medsim_cache_load handles legacy-format RDS (bare object, no $data)", {
+  cache_file <- tempfile(fileext = ".rds")
+  # Save as a raw numeric — no medsim wrapper list
+  saveRDS(42.0, file = cache_file)
+
+  # Should return the raw value, not NULL
+  result <- suppressMessages(medsim_cache_load(cache_file, verbose = TRUE))
+  expect_equal(result, 42.0)
+
+  unlink(cache_file)
+})
+
+test_that("medsim_cache_load verbose=FALSE emits no message on miss", {
+  missing_file <- tempfile(fileext = ".rds")
+  expect_no_message(medsim_cache_load(missing_file, verbose = FALSE))
+})
+
+test_that("medsim_cache_clear with max_age skips files younger than threshold", {
+  cache_dir <- tempfile()
+  dir.create(cache_dir)
+
+  # Write two fresh files (age ~ 0 days)
+  for (i in 1:2) {
+    medsim_cache_save(list(i = i),
+                      file.path(cache_dir, sprintf("fresh_%d.rds", i)))
+  }
+
+  # max_age = 30: all files are younger, so nothing deleted
+  expect_message(
+    deleted <- medsim_cache_clear(cache_dir, max_age = 30, confirm = FALSE),
+    "No cache files older than"
+  )
+  expect_equal(deleted, 0)
+
+  # files still there
+  expect_equal(length(list.files(cache_dir, pattern = "*.rds")), 2)
+
+  unlink(cache_dir, recursive = TRUE)
+})
