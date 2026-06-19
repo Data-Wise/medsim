@@ -275,3 +275,77 @@ test_that("medsim_run_chunk errors without n_chunks", {
     "n_chunks"
   )
 })
+
+test_that("medsim_run_chunk runs successfully and writes chunk RDS", {
+  sc <- medsim_scenario(
+    name = "chunk_run_test",
+    data_generator = function(n = 100) {
+      data.frame(X = rnorm(n), M = rnorm(n), Y = rnorm(n))
+    },
+    params = list(indirect = 0.0)
+  )
+  method <- function(data, params) {
+    list(indirect = 0.1, indirect_ci_lower = 0, indirect_ci_upper = 0.3,
+         indirect_p = 0.2, branch_switch = NA, converged = 1L)
+  }
+  tmp_dir <- tempfile()
+  dir.create(tmp_dir)
+  on.exit(unlink(tmp_dir, recursive = TRUE))
+
+  cfg <- medsim_config("test", chunk_id = 1L, n_chunks = 2L, output_dir = tmp_dir)
+  out_path <- medsim_run_chunk(list(sc), method, cfg, verbose = FALSE)
+
+  expect_true(file.exists(out_path))
+  result <- readRDS(out_path)
+  expect_s3_class(result, "medsim_results")
+})
+
+test_that("medsim_run_chunk emits verbose messages", {
+  sc <- medsim_scenario(
+    name = "chunk_verbose_test",
+    data_generator = function(n = 100) {
+      data.frame(X = rnorm(n), M = rnorm(n), Y = rnorm(n))
+    },
+    params = list(indirect = 0.0)
+  )
+  method <- function(data, params) {
+    list(indirect = 0.1, indirect_ci_lower = 0, indirect_ci_upper = 0.3,
+         indirect_p = 0.2, branch_switch = NA, converged = 1L)
+  }
+  tmp_dir <- tempfile()
+  dir.create(tmp_dir)
+  on.exit(unlink(tmp_dir, recursive = TRUE))
+
+  cfg <- medsim_config("test", chunk_id = 1L, n_chunks = 2L, output_dir = tmp_dir)
+  expect_message(
+    medsim_run_chunk(list(sc), method, cfg, verbose = TRUE),
+    "chunk"
+  )
+})
+
+test_that("medsim_combine_chunks verbose=TRUE prints file count", {
+  sc <- medsim_scenario(
+    name = "combine_verbose_test",
+    data_generator = function(n = 100) {
+      data.frame(X = rnorm(n), M = rnorm(n), Y = rnorm(n))
+    },
+    params = list(indirect = 0.0)
+  )
+  method <- function(data, params) {
+    list(indirect = 0.1, indirect_ci_lower = 0, indirect_ci_upper = 0.3,
+         indirect_p = 0.2, branch_switch = NA, converged = 1L)
+  }
+  tmp_dir <- tempfile()
+  dir.create(tmp_dir)
+  on.exit(unlink(tmp_dir, recursive = TRUE))
+
+  for (k in 1:2) {
+    cfg <- medsim_config("test", chunk_id = k, n_chunks = 2L, output_dir = tmp_dir)
+    medsim_run_chunk(list(sc), method, cfg, verbose = FALSE)
+  }
+
+  expect_message(
+    medsim_combine_chunks(tmp_dir, verbose = TRUE),
+    "reading 2 files"
+  )
+})

@@ -234,7 +234,7 @@ medsim_analyze <- function(results,
   summary_stats <- data.frame(
     n_scenarios = length(unique(results$results$scenario)),
     n_replications = max(results$results$replication),
-    n_parameters = nrow(accuracy),
+    n_parameters = if (is.null(accuracy)) 0L else nrow(accuracy),
     stringsAsFactors = FALSE
   )
 
@@ -752,8 +752,8 @@ medsim_analyze_power <- function(results,
   # --- Summary ---
   summary_stats <- data.frame(
     n_scenarios = length(unique(results$results$scenario)),
-    n_parameters = nrow(power_df),
-    overall_power = mean(power_df$power),
+    n_parameters = if (is.null(power_df)) 0L else nrow(power_df),
+    overall_power = if (is.null(power_df)) NA_real_ else mean(power_df$power),
     alpha = alpha,
     stringsAsFactors = FALSE
   )
