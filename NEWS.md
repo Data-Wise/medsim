@@ -11,6 +11,8 @@
   path in `medsim_plot_timing`, coverage-plot stop in `medsim_plot_coverage`,
   combined-panel paths in `medsim_plot_combined_panel`, and `medsim_tables_workflow`
   tryCatch success and error-handler paths.
+* Fix: `seed=` argument now honored in sequential fallback paths (R CMD check
+  environment and single-core/few-task cases).
 
 # medsim 0.3.0 (2026-06-19)
 
