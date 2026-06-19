@@ -2,14 +2,55 @@
 
 ## New features
 
+### Estimand-kind abstraction (spine)
+
 * `medsim_estimand()` — first-class estimand descriptor that tags a scenario with
-  a kind (`"point"`, `"interval"`, `"pmed"`, `"numeric"`, `"cluster"`). Enables
-  kind-aware dispatch across the simulation pipeline (Phases 0–5).
+  a kind (`"point"`, `"interval"`, `"probabilistic"`, `"numeric"`). Enables
+  kind-aware dispatch across the entire simulation pipeline.
 * `medsim_scenario()` gains an `estimand=` argument (default `NULL` for full
-  backward compatibility); `medsim_validate_scenario()` skips hardcoded column
-  checks for non-mediation kinds.
-* `medsim_analyze_coverage()` dispatches on estimand kind for interval-type studies.
-* Medfit dependency upgraded from `Remotes:` to CRAN (`>= 0.2.0`).
+  backward compatibility with all v0.2.x code).
+* `medsim_validate_scenario()` skips hardcoded X/M/Y column checks for
+  non-mediation kinds (numeric, interval).
+* `medsim_analyze_coverage()` dispatches on estimand kind: `interval` → partial-ID
+  / Imbens-Manski coverage branch; `probabilistic` → MBCO CI branch.
+
+### Hopper / SLURM cluster harness
+
+* `medsim_write_submit_script()` — generate a SBATCH array script for UNM CARC Hopper.
+* `medsim_run_chunk()` — run one chunk of replications (auto-detects
+  `SLURM_ARRAY_TASK_ID`); saves `chunk_<id>.rds` to `output_dir`.
+* `medsim_combine_chunks()` — read all chunk RDS files and return a single
+  `medsim_results` object with deduplicated truth rows.
+* `medsim_config()` gains `chunk_id`, `n_chunks`, `array_size`, `seed_stream`,
+  `partition`, `walltime`, `mem_per_cpu`, and `r_module` parameters.
+* `medsim_run_parallel()` gains deterministic **L'Ecuyer-CMRG** per-worker seeding
+  (`seed=` argument) so chunked array runs are bit-reproducible.
+
+### P_med probabilistic mediation (`probabilistic` kind)
+
+* `medsim_scenario_pmed()` — linear SEM scenario with cross-world potential-outcome
+  ground truth computed at construction time (independent-residuals assumption).
+* `medsim_method_pmed_mbco()` — two-branch MBCO CI for P_med; returns `pmed`,
+  `pmed_ci_lower`, `pmed_ci_upper`, `pmed_p`, `branch_switch`, `converged`.
+
+### Differential-misclassification bounds (`interval` kind)
+
+* `medsim_scenario_dm()` — partial-ID bounds scenario for me-mediator / me-exposure
+  studies; requires **medrobust** (Suggests); synthetic fallback when absent.
+* `medsim_method_bounds()` — estimator adapter returning `{p}_lower/_upper`,
+  `{p}_im_lower/_im_upper`, `feasible`, `falsified`.
+
+### Numeric accuracy scenarios (`numeric` kind)
+
+* `medsim_scenario_numeric()` — thin wrapper for accuracy/timing studies (product-of-three,
+  approximation quality); `estimand$kind = "numeric"` disables coverage/power
+  analysis; only `error`, `abs_error`, `elapsed_sec` result columns.
+
+## Bug fixes
+
+* D4 p-value acceptance test: loosened tolerance to 0.1 (relative) to accommodate
+  F-distribution tail sensitivity when mice produces slightly different imputations
+  across environments; the F-statistic check remains tight at 1e-3.
 
 # medsim 0.2.1 (2026-06-11)
 
