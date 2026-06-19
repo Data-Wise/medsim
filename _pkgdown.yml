@@ -122,6 +122,16 @@ reference:
   - medsim_run
   - medsim_run_parallel
 
+- title: Hopper / SLURM Cluster Harness
+  desc: >
+    Three-piece pattern for chunked SLURM array jobs on UNM CARC Hopper.
+    Write a submit script, run one chunk per array task, then combine the
+    resulting RDS files into a single `medsim_results` object for analysis.
+  contents:
+  - medsim_write_submit_script
+  - medsim_run_chunk
+  - medsim_combine_chunks
+
 - title: Result Analysis
   desc: >
     Functions for analyzing simulation results including coverage, power,

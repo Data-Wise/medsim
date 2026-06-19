@@ -21,6 +21,12 @@
 #'   Use this if `fun` requires specific packages.
 #' @param cluster_type Character: Type of cluster ("PSOCK" or "FORK"). FORK
 #'   is more efficient but only works on Unix. Auto-detected by default.
+#' @param seed Integer or `NULL`: Master seed for L'Ecuyer-CMRG reproducible
+#'   per-worker RNG streams.  When supplied, calls `RNGkind("L'Ecuyer-CMRG")`
+#'   and `parallel::clusterSetRNGStream(cl, seed)` immediately after cluster
+#'   creation so each worker gets a distinct, deterministic sub-stream.
+#'   Pass `config$seed_stream` here for chunked SLURM array reproducibility.
+#'   Default `NULL` leaves each worker's RNG seeded by the OS (non-reproducible).
 #'
 #' @return List: Results from applying `fun` to each task (same length as tasks)
 #'
@@ -99,7 +105,8 @@ medsim_run_parallel <- function(tasks,
                                 progress = TRUE,
                                 export = NULL,
                                 packages = NULL,
-                                cluster_type = NULL) {
+                                cluster_type = NULL,
+                                seed = NULL) {
 
   # Validate inputs
   if (!is.function(fun)) {
@@ -139,6 +146,16 @@ medsim_run_parallel <- function(tasks,
 
   # Ensure cluster is stopped on exit
   on.exit(parallel::stopCluster(cl), add = TRUE)
+
+  # Reproducible per-worker RNG via L'Ecuyer-CMRG substreams.
+  # Each worker gets a distinct, deterministic stream derived from `seed`.
+  # This is the only pattern that survives chunk-based SLURM array jobs:
+  # worker k in chunk c always draws from the same substream regardless of
+  # how many other chunks ran before or after it.
+  if (!is.null(seed)) {
+    RNGkind("L'Ecuyer-CMRG")
+    parallel::clusterSetRNGStream(cl, seed)
+  }
 
   # Export objects to workers (PSOCK only)
   if (cluster_type == "PSOCK" && !is.null(export)) {
