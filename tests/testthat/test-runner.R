@@ -495,3 +495,125 @@ test_that("medsim_compute_all_truth caches result on disk", {
 
   expect_true(file.exists(file.path(out, "truth_scenario_1.rds")))
 })
+
+# ── Non-list scalar return from method ────────────────────────────────────────
+
+test_that("medsim_run handles method that returns a scalar (non-list) value", {
+  # runner.R:341-343: if (!is.list(result)) { result <- list(result = result) }
+  sc <- medsim_scenario(
+    name = "scalar_return_test",
+    data_generator = function(n = 50L) {
+      data.frame(X = rnorm(n), M = rnorm(n), Y = rnorm(n))
+    },
+    params = list(indirect = 0.1)
+  )
+  scalar_method <- function(data, params) 0.42  # returns a plain number, not a list
+
+  cfg <- medsim_config("test")
+  results <- suppressWarnings(medsim_run(scalar_method, list(sc), cfg))
+  expect_s3_class(results, "medsim_results")
+  expect_true("result" %in% names(results$results))
+})
+
+# ── verbose + compute_truth cat messages ──────────────────────────────────────
+
+test_that("medsim_run emits cat messages for Step 1 when compute_truth supplied and verbose=TRUE", {
+  # runner.R:151-167: cat("[STEP 1]...") fires when verbose + compute_truth
+  # runner.R:407, 428: inner verbose cats in medsim_compute_all_truth (cache-miss path)
+  out_dir <- withr::local_tempdir()
+  sc <- medsim_scenario(
+    name = "verbose_truth_isolated",
+    data_generator = function(n = 50L) {
+      data.frame(X = rnorm(n), M = rnorm(n), Y = rnorm(n))
+    },
+    params = list(indirect = 0.1)
+  )
+  method <- function(data, params) {
+    list(indirect = 0.1, indirect_ci_lower = 0, indirect_ci_upper = 0.3,
+         indirect_p = 0.2, branch_switch = NA, converged = 1L)
+  }
+  truth_fn <- function(data, params) list(indirect = params$indirect)
+
+  cfg <- medsim_config("test", output_dir = out_dir)
+  # cat() goes to stdout → expect_output captures it
+  expect_output(
+    suppressMessages(
+      medsim_run(method, list(sc), cfg,
+                 compute_truth = truth_fn, verbose = TRUE)
+    ),
+    "STEP 1"
+  )
+})
+
+test_that("print.medsim_results includes truth.csv line when truth is non-NULL", {
+  # runner.R:547-549: cat("  - truth.csv\n") only fires when x$truth is non-NULL
+  out_dir <- withr::local_tempdir()
+  sc <- medsim_scenario(
+    name = "print_truth_test",
+    data_generator = function(n = 50L) {
+      data.frame(X = rnorm(n), M = rnorm(n), Y = rnorm(n))
+    },
+    params = list(indirect = 0.1)
+  )
+  method <- function(data, params) {
+    list(indirect = 0.1, indirect_ci_lower = 0, indirect_ci_upper = 0.3,
+         indirect_p = 0.2, branch_switch = NA, converged = 1L)
+  }
+  truth_fn <- function(data, params) list(indirect = params$indirect)
+  cfg <- medsim_config("test", output_dir = out_dir)
+  results <- suppressMessages(
+    medsim_run(method, list(sc), cfg, compute_truth = truth_fn, verbose = FALSE)
+  )
+  expect_false(is.null(results$truth))
+  expect_output(print(results), "truth.csv")
+})
+
+test_that("medsim_compute_all_truth uses cache on second call (cache-hit path)", {
+  # runner.R:431-432: verbose 'Loaded from cache' only fires on a cache hit
+  out_dir <- withr::local_tempdir()
+  sc <- medsim_scenario(
+    name = "cache_hit_test",
+    data_generator = function(n = 50L) {
+      data.frame(X = rnorm(n), M = rnorm(n), Y = rnorm(n))
+    },
+    params = list(indirect = 0.1)
+  )
+  truth_fn <- function(data, params) list(indirect = params$indirect)
+  cfg <- medsim_config("test", output_dir = out_dir)
+
+  # First call writes to cache
+  suppressMessages(
+    medsim_compute_all_truth(list(sc), truth_function = truth_fn,
+                             config = cfg, parallel = FALSE, verbose = FALSE)
+  )
+  # Second call finds cache — verbose message on line 431-432
+  expect_output(
+    suppressMessages(
+      medsim_compute_all_truth(list(sc), truth_function = truth_fn,
+                               config = cfg, parallel = FALSE, verbose = TRUE)
+    ),
+    "Loaded from cache"
+  )
+})
+
+test_that("medsim_compute_all_truth warns and records error when truth_fn fails", {
+  # runner.R:417-419: tryCatch error branch → warning + list(error = e$message)
+  out_dir <- withr::local_tempdir()
+  sc <- medsim_scenario(
+    name = "truth_error_test",
+    data_generator = function(n = 50L) {
+      data.frame(X = rnorm(n), M = rnorm(n), Y = rnorm(n))
+    },
+    params = list(indirect = 0.1)
+  )
+  failing_truth <- function(data, params) stop("deliberate truth failure")
+  cfg <- medsim_config("test", output_dir = out_dir)
+
+  expect_warning(
+    suppressMessages(
+      medsim_compute_all_truth(list(sc), truth_function = failing_truth,
+                               config = cfg, parallel = FALSE, verbose = FALSE)
+    ),
+    "Truth computation failed"
+  )
+})

@@ -458,8 +458,8 @@ medsim_analyze_coverage <- function(results,
   # --- Summary ---
   summary_stats <- data.frame(
     n_scenarios = length(unique(merged$scenario)),
-    n_parameters = nrow(coverage_df),
-    overall_coverage = mean(coverage_df$coverage),
+    n_parameters = if (is.null(coverage_df)) 0L else nrow(coverage_df),
+    overall_coverage = if (is.null(coverage_df)) NA_real_ else mean(coverage_df$coverage),
     stringsAsFactors = FALSE
   )
 

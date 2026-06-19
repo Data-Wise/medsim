@@ -470,3 +470,80 @@ test_that("print.medsim_comparison shows coverage comparison when CI data is ava
   comparison <- medsim_compare_methods(method1 = results1, method2 = results2)
   expect_output(print(comparison), "Coverage Comparison")
 })
+
+# ── analyze.R point-CI coverage edge cases ────────────────────────────────────
+
+test_that("medsim_analyze_coverage warns when truth column missing for a CI param", {
+  # results has indirect_ci_lower/_upper but truth has no 'indirect' column
+  results <- create_mock_results(include_ci = TRUE)
+  results$truth <- data.frame(
+    scenario = "Test",
+    other_param = 0.5,
+    stringsAsFactors = FALSE
+  )
+  expect_warning(
+    medsim_analyze_coverage(results),
+    "No ground truth"
+  )
+})
+
+test_that("medsim_analyze_coverage warns when all CIs are NA for a param", {
+  results <- create_mock_results(include_ci = TRUE)
+  results$results$indirect_ci_lower <- NA_real_
+  results$results$indirect_ci_upper <- NA_real_
+  expect_warning(
+    medsim_analyze_coverage(results),
+    "No valid CIs"
+  )
+})
+
+# ── medsim_compare_methods edge cases ─────────────────────────────────────────
+
+test_that("medsim_compare_methods errors when a non-results object is passed", {
+  results1 <- create_mock_results()
+  expect_error(
+    medsim_compare_methods(method1 = results1, method2 = list()),
+    "medsim_results"
+  )
+})
+
+test_that("medsim_compare_methods errors with invalid metric name", {
+  results1 <- create_mock_results()
+  results2 <- create_mock_results()
+  expect_error(
+    medsim_compare_methods(method1 = results1, method2 = results2, metrics = "invalid"),
+    "Invalid metrics"
+  )
+})
+
+test_that("medsim_compare_methods warns when methods run on different scenarios", {
+  results1 <- create_mock_results()
+  results2 <- create_mock_results()
+  results2$results$scenario <- "Other"
+  results2$truth$scenario   <- "Other"
+  expect_warning(
+    medsim_compare_methods(method1 = results1, method2 = results2, metrics = "timing"),
+    "different scenarios"
+  )
+})
+
+test_that("medsim_compare_methods skips accuracy when method has no truth", {
+  results1 <- create_mock_results()
+  results2 <- create_mock_results()
+  results2$truth <- NULL
+  comparison <- suppressWarnings(
+    medsim_compare_methods(method1 = results1, method2 = results2, metrics = "accuracy")
+  )
+  # only method1 should appear in accuracy
+  expect_equal(nrow(comparison$accuracy_comparison), 1L)
+})
+
+test_that("medsim_compare_methods warns and skips timing when elapsed column missing", {
+  results1 <- create_mock_results()
+  results2 <- create_mock_results()
+  results2$results$elapsed <- NULL
+  expect_warning(
+    medsim_compare_methods(method1 = results1, method2 = results2, metrics = "timing"),
+    "no timing data"
+  )
+})

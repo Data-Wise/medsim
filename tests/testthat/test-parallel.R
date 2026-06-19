@@ -462,3 +462,63 @@ test_that("medsim_run_parallel with progress = TRUE uses pbapply on cluster", {
   )
   expect_length(result, 5)
 })
+
+# ── CRAN policy guard (_R_CHECK_LIMIT_CORES_) ─────────────────────────────────
+
+test_that("medsim_run_parallel returns sequential result under _R_CHECK_LIMIT_CORES_=TRUE", {
+  # line 128: CRAN check environment forces early-return to sequential path
+  withr::with_envvar(c("_R_CHECK_LIMIT_CORES_" = "TRUE"), {
+    result <- medsim_run_parallel(
+      tasks   = 1:5,
+      fun     = function(i) i * 3L,
+      n_cores = 4L
+    )
+  })
+  expect_length(result, 5L)
+  expect_equal(sort(unlist(result)), c(3L, 6L, 9L, 12L, 15L))
+})
+
+# ── medsim_check_results — more-than-3-errors + stop_on_error ────────────────
+
+test_that("medsim_check_results prints '... and N more errors' when >3 errors", {
+  # line 521-522: message fires only when n_errors > n_show (3)
+  make_err <- function(msg) {
+    structure(list(message = msg), class = c("medsim_error", "list"))
+  }
+  results <- c(
+    list(1L, 2L),   # 2 good results
+    lapply(paste0("error_", 1:4), make_err)  # 4 errors → n_show=3 → prints "and 1 more"
+  )
+  expect_message(
+    suppressWarnings(medsim_check_results(results)),
+    "and 1 more errors"
+  )
+})
+
+test_that("medsim_check_results stops when stop_on_error = TRUE", {
+  # line 525-526: stop() fires when stop_on_error=TRUE
+  make_err <- function(msg) {
+    structure(list(message = msg), class = c("medsim_error", "list"))
+  }
+  results <- list(lapply(paste0("err_", 1:2), make_err))[[1L]]
+  expect_error(
+    suppressWarnings(medsim_check_results(results, stop_on_error = TRUE)),
+    "tasks failed"
+  )
+})
+
+test_that("medsim_run_parallel with packages loads package on PSOCK workers", {
+  skip_on_cran()
+  skip_on_os("windows")
+  # parallel.R:183-188: packages arg passes a library() call to each worker
+  result <- medsim_run_parallel(
+    tasks        = 1:3,
+    fun          = function(i) i + 1L,
+    n_cores      = 2L,
+    cluster_type = "PSOCK",
+    packages     = "stats",
+    progress     = FALSE
+  )
+  expect_length(result, 3L)
+  expect_equal(sort(unlist(result)), 2L:4L)
+})
