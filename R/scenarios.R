@@ -196,6 +196,10 @@ medsim_scenarios_mediation <- function() {
 #' @param description Character: Detailed description (optional)
 #' @param data_generator Function: Takes n (sample size) and returns data.frame
 #' @param params List: Known population parameters for validation
+#' @param estimand Optional [medsim_estimand()] object declaring the estimand kind
+#'   (`"point"`, `"interval"`, `"probabilistic"`, `"numeric"`).  `NULL` (the
+#'   default) is treated as `kind = "point"` throughout the package — full
+#'   back-compatibility with existing scenarios.
 #'
 #' @return A scenario object (list with class "medsim_scenario")
 #'
@@ -263,7 +267,8 @@ medsim_scenarios_mediation <- function() {
 medsim_scenario <- function(name,
                             description = "",
                             data_generator,
-                            params = list()) {
+                            params = list(),
+                            estimand = NULL) {
 
   # Validate inputs
   if (!is.character(name) || length(name) != 1) {
@@ -283,12 +288,17 @@ medsim_scenario <- function(name,
     stop("params must be a list")
   }
 
+  if (!is.null(estimand) && !inherits(estimand, "medsim_estimand")) {
+    stop("estimand must be NULL or a medsim_estimand object (see medsim_estimand())")
+  }
+
   # Create scenario object
   scenario <- list(
     name = name,
     description = description,
     data_generator = data_generator,
-    params = params
+    params = params,
+    estimand = estimand
   )
 
   class(scenario) <- c("medsim_scenario", "list")
@@ -361,14 +371,16 @@ medsim_validate_scenario <- function(scenario, n = 10) {
     stop("data_generator must return a data.frame")
   }
 
-  # Check for required columns
-  required_cols <- c("X", "M", "Y")
-  missing_cols <- setdiff(required_cols, names(data))
-
-  if (length(missing_cols) > 0) {
-    stop(sprintf("data_generator must return columns: %s (missing: %s)",
-                 paste(required_cols, collapse = ", "),
-                 paste(missing_cols, collapse = ", ")))
+  # Check for required columns — only for mediation estimand kinds
+  kind <- .medsim_estimand_kind(scenario)
+  if (kind %in% c("point", "probabilistic")) {
+    required_cols <- c("X", "M", "Y")
+    missing_cols <- setdiff(required_cols, names(data))
+    if (length(missing_cols) > 0) {
+      stop(sprintf("data_generator must return columns: %s (missing: %s)",
+                   paste(required_cols, collapse = ", "),
+                   paste(missing_cols, collapse = ", ")))
+    }
   }
 
   # Check that data has correct number of rows
