@@ -1,4 +1,4 @@
-# Estimand-kind abstraction — the spine of the broad overhaul.
+# Estimand-kind abstraction -- the spine of the broad overhaul.
 # Spec: ~/.claude/plans/max-d-s-check-velvet-moth.md (Phase 0)
 
 #' Declare the estimand kind for a simulation scenario
@@ -13,18 +13,18 @@
 #'
 #' | kind | what `method()` returns | coverage notion |
 #' |------|-------------------------|-----------------|
-#' | `"point"` | `{p}`, `{p}_ci_lower/_upper`, `{p}_p` | truth ∈ CI |
-#' | `"interval"` | `{p}_lower/_upper`, `{p}_im_lower/_im_upper`, `feasible`, `falsified` | truth ∈ \[lower, upper\]; IM-CI coverage |
-#' | `"probabilistic"` | `pmed`, `pmed_ci_lower/_upper`, `pmed_p`, `branch_switch` | truth ∈ CI (truth from potential outcomes) |
+#' | `"point"` | `{p}`, `{p}_ci_lower/_upper`, `{p}_p` | truth ? CI |
+#' | `"interval"` | `{p}_lower/_upper`, `{p}_im_lower/_im_upper`, `feasible`, `falsified` | truth ? \[lower, upper\]; IM-CI coverage |
+#' | `"probabilistic"` | `pmed`, `pmed_ci_lower/_upper`, `pmed_p`, `branch_switch` | truth ? CI (truth from potential outcomes) |
 #' | `"numeric"` | `error`, `abs_error`, `elapsed_sec` | none |
 #'
 #' Scenarios with `estimand = NULL` (the default in [medsim_scenario()]) are
-#' treated as `kind = "point"` throughout the package — full back-compatibility
+#' treated as `kind = "point"` throughout the package -- full back-compatibility
 #' with all existing code.
 #'
 #' @param kind Estimand kind: `"point"` (default), `"interval"`,
 #'   `"probabilistic"`, or `"numeric"`.
-#' @param params Character vector of estimand parameter names — e.g.
+#' @param params Character vector of estimand parameter names -- e.g.
 #'   `c("indirect")` for point, `c("NDE", "NIE")` for interval,
 #'   `c("pmed")` for probabilistic.  Defaults to `character()` (auto-inferred
 #'   downstream).
@@ -34,12 +34,12 @@
 #' @param ci CI method: `"standard"` (Wald/bootstrap), `"imbens_manski"`
 #'   (partial-ID dual CI), `"mbco"` (constrained optimisation), or `"none"`.
 #' @param extra Character vector of additional result columns beyond `params`
-#'   that `method()` returns — e.g. `c("feasible", "branch_switch", "timing")`.
+#'   that `method()` returns -- e.g. `c("feasible", "branch_switch", "timing")`.
 #'
 #' @return An object of class `c("medsim_estimand", "list")`.
 #'
 #' @examples
-#' # Point estimand (the historic default — back-compat)
+#' # Point estimand (the historic default -- back-compat)
 #' medsim_estimand("point")
 #'
 #' # Interval (partial-ID bounds)

@@ -266,6 +266,9 @@ medsim_analyze <- function(results,
 #'   "indirect_ci_upper"
 #' @param by_scenario Logical: Compute coverage separately for each scenario
 #'   (default TRUE)
+#' @param estimand Optional [medsim_estimand()] descriptor. When supplied with
+#'   kind `"interval"`, dispatches to interval-aware coverage computation.
+#'   Default NULL uses standard CI-column-based coverage.
 #'
 #' @return A list with class "medsim_coverage" containing:
 #'   - `coverage`: data.frame with coverage rates
@@ -279,7 +282,7 @@ medsim_analyze <- function(results,
 #' true parameter value. For a 95% CI, expect ~95% coverage in large samples.
 #'
 #' - Coverage < nominal: CI too narrow (anti-conservative)
-#' - Coverage ≈ nominal: CI has correct width
+#' - Coverage ? nominal: CI has correct width
 #' - Coverage > nominal: CI too wide (conservative)
 #'
 #' ## Column Naming Conventions

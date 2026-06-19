@@ -11,9 +11,9 @@ medsim_scenario_pmed(name, true_params = list(), n_po = 50000L)
 
 \item{true_params}{Named list with entries:
 \itemize{
-\item \code{alpha_ax}: path coefficient A → M (default 0.5)
-\item \code{beta_my}: path coefficient M → Y (default 0.5)
-\item \code{beta_ay}: direct path A → Y (default 0.0; set 0 for perfect mediation)
+\item \code{alpha_ax}: path coefficient A -> M (default 0.5)
+\item \code{beta_my}: path coefficient M -> Y (default 0.5)
+\item \code{beta_ay}: direct path A -> Y (default 0.0; set 0 for perfect mediation)
 \item \code{sigma_m}: residual SD for M (default 1.0)
 \item \code{sigma_y}: residual SD for Y (default 1.0)
 }}
@@ -28,14 +28,14 @@ A \code{medsim_scenario} object with \code{estimand$kind = "probabilistic"}.
 Thin wrapper over \code{\link[=medsim_scenario]{medsim_scenario()}} that bakes in:
 \itemize{
 \item A linear structural equation model (SEM) data generator for the
-\verb{A → M → Y} causal chain.
+\code{A -> M -> Y} causal chain.
 \item An \code{estimand = medsim_estimand("probabilistic", params = "pmed", ci = "mbco", extra = "branch_switch")} descriptor so that
 \code{\link[=medsim_analyze_coverage]{medsim_analyze_coverage()}} dispatches the MBCO-CI coverage branch.
 \item A \code{truth} function that draws potential outcomes under the SEM to
 compute the ground-truth P_med (not analytically tractable in general).
 }
 
-The estimand \verb{P_med = P(Y_a=1(M_a=1) > Y_a=0(M_a=1)) + 0.5 * P(Y_a=1(M_a=1) == Y_a=0(M_a=1))} uses the cross-world assumption —
+The estimand \verb{P_med = P(Y_a=1(M_a=1) > Y_a=0(M_a=1)) + 0.5 * P(Y_a=1(M_a=1) == Y_a=0(M_a=1))} uses the cross-world assumption --
 it is a \emph{probabilistic} mediation effect, not a difference in expectations.
 }
 \examples{

@@ -16,7 +16,7 @@ medsim_estimand(
 \item{kind}{Estimand kind: \code{"point"} (default), \code{"interval"},
 \code{"probabilistic"}, or \code{"numeric"}.}
 
-\item{params}{Character vector of estimand parameter names — e.g.
+\item{params}{Character vector of estimand parameter names -- e.g.
 \code{c("indirect")} for point, \code{c("NDE", "NIE")} for interval,
 \code{c("pmed")} for probabilistic.  Defaults to \code{character()} (auto-inferred
 downstream).}
@@ -29,7 +29,7 @@ downstream).}
 (partial-ID dual CI), \code{"mbco"} (constrained optimisation), or \code{"none"}.}
 
 \item{extra}{Character vector of additional result columns beyond \code{params}
-that \code{method()} returns — e.g. \code{c("feasible", "branch_switch", "timing")}.}
+that \code{method()} returns -- e.g. \code{c("feasible", "branch_switch", "timing")}.}
 }
 \value{
 An object of class \code{c("medsim_estimand", "list")}.
@@ -42,19 +42,19 @@ downstream command (\code{medsim_run}, \code{medsim_analyze_coverage},
 
 Four kinds are recognised:\tabular{lll}{
    kind \tab what \code{method()} returns \tab coverage notion \cr
-   \code{"point"} \tab \code{{p}}, \verb{\{p\}_ci_lower/_upper}, \verb{\{p\}_p} \tab truth ∈ CI \cr
-   \code{"interval"} \tab \verb{\{p\}_lower/_upper}, \verb{\{p\}_im_lower/_im_upper}, \code{feasible}, \code{falsified} \tab truth ∈ [lower, upper]; IM-CI coverage \cr
-   \code{"probabilistic"} \tab \code{pmed}, \verb{pmed_ci_lower/_upper}, \code{pmed_p}, \code{branch_switch} \tab truth ∈ CI (truth from potential outcomes) \cr
+   \code{"point"} \tab \code{{p}}, \verb{\{p\}_ci_lower/_upper}, \verb{\{p\}_p} \tab truth ? CI \cr
+   \code{"interval"} \tab \verb{\{p\}_lower/_upper}, \verb{\{p\}_im_lower/_im_upper}, \code{feasible}, \code{falsified} \tab truth ? [lower, upper]; IM-CI coverage \cr
+   \code{"probabilistic"} \tab \code{pmed}, \verb{pmed_ci_lower/_upper}, \code{pmed_p}, \code{branch_switch} \tab truth ? CI (truth from potential outcomes) \cr
    \code{"numeric"} \tab \code{error}, \code{abs_error}, \code{elapsed_sec} \tab none \cr
 }
 
 
 Scenarios with \code{estimand = NULL} (the default in \code{\link[=medsim_scenario]{medsim_scenario()}}) are
-treated as \code{kind = "point"} throughout the package — full back-compatibility
+treated as \code{kind = "point"} throughout the package -- full back-compatibility
 with all existing code.
 }
 \examples{
-# Point estimand (the historic default — back-compat)
+# Point estimand (the historic default -- back-compat)
 medsim_estimand("point")
 
 # Interval (partial-ID bounds)

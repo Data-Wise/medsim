@@ -1,5 +1,5 @@
-# INTERFACE FREEZE (Step 0) — signature stub for WS-E.
-# Spec: SPEC-medsim-missingdata-generators-2026-06-11.md  (§"5. Coverage/metrics")
+# INTERFACE FREEZE (Step 0) -- signature stub for WS-E.
+# Spec: SPEC-medsim-missingdata-generators-2026-06-11.md  (?"5. Coverage/metrics")
 # NEW file (NOT editing analyze.R) so WS-E builds beside the DM proposal's interval-coverage work.
 
 #' Summarize the MBCO branch-switch rate per scenario

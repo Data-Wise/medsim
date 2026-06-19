@@ -25,6 +25,7 @@ Imports:
     dplyr
 Suggests:
     medfit (>= 0.2.0),
+    medrobust,
     RMediation,
     mice,
     mitml,

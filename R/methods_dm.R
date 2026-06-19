@@ -6,7 +6,7 @@
 # This file delivers the interval-kind result CONTRACT so the analysis machinery
 # (medsim_analyze_coverage interval branch, coverage table, pkgdown docs) can be
 # tested and shipped independently.  The medrobust wiring is a one-line swap once
-# the package stabilises — replace the synthetic compute block with bound_ne().
+# the package stabilises -- replace the synthetic compute block with bound_ne().
 
 #' Bounds estimator adapter for differential-misclassification (DM) studies
 #'
@@ -22,12 +22,12 @@
 #'
 #' Result columns returned (flat named list):
 #' \itemize{
-#'   \item `NDE_lower`, `NDE_upper` — bounds on natural direct effect
-#'   \item `NDE_im_lower`, `NDE_im_upper` — Imbens-Manski CI for NDE
-#'   \item `NIE_lower`, `NIE_upper` — bounds on natural indirect effect
-#'   \item `NIE_im_lower`, `NIE_im_upper` — Imbens-Manski CI for NIE
-#'   \item `feasible` — logical: bounds are non-empty / consistent
-#'   \item `falsified` — logical: data rejects identifying assumptions
+#'   \item `NDE_lower`, `NDE_upper` -- bounds on natural direct effect
+#'   \item `NDE_im_lower`, `NDE_im_upper` -- Imbens-Manski CI for NDE
+#'   \item `NIE_lower`, `NIE_upper` -- bounds on natural indirect effect
+#'   \item `NIE_im_lower`, `NIE_im_upper` -- Imbens-Manski CI for NIE
+#'   \item `feasible` -- logical: bounds are non-empty / consistent
+#'   \item `falsified` -- logical: data rejects identifying assumptions
 #' }
 #'
 #' @param data A data.frame produced by the scenario's `data_generator`.

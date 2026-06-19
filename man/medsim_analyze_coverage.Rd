@@ -24,6 +24,10 @@ E.g., if parameter is "indirect", looks for "indirect_ci_lower" and
 
 \item{by_scenario}{Logical: Compute coverage separately for each scenario
 (default TRUE)}
+
+\item{estimand}{Optional \code{\link[=medsim_estimand]{medsim_estimand()}} descriptor. When supplied with
+kind \code{"interval"}, dispatches to interval-aware coverage computation.
+Default NULL uses standard CI-column-based coverage.}
 }
 \value{
 A list with class "medsim_coverage" containing:
@@ -45,7 +49,7 @@ Coverage rate is the proportion of confidence intervals that contain the
 true parameter value. For a 95\% CI, expect ~95\% coverage in large samples.
 \itemize{
 \item Coverage < nominal: CI too narrow (anti-conservative)
-\item Coverage ≈ nominal: CI has correct width
+\item Coverage ? nominal: CI has correct width
 \item Coverage > nominal: CI too wide (conservative)
 }
 }

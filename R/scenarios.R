@@ -198,7 +198,7 @@ medsim_scenarios_mediation <- function() {
 #' @param params List: Known population parameters for validation
 #' @param estimand Optional [medsim_estimand()] object declaring the estimand kind
 #'   (`"point"`, `"interval"`, `"probabilistic"`, `"numeric"`).  `NULL` (the
-#'   default) is treated as `kind = "point"` throughout the package — full
+#'   default) is treated as `kind = "point"` throughout the package -- full
 #'   back-compatibility with existing scenarios.
 #'
 #' @return A scenario object (list with class "medsim_scenario")
@@ -371,7 +371,7 @@ medsim_validate_scenario <- function(scenario, n = 10) {
     stop("data_generator must return a data.frame")
   }
 
-  # Check for required columns — only for mediation estimand kinds
+  # Check for required columns -- only for mediation estimand kinds
   kind <- .medsim_estimand_kind(scenario)
   if (kind %in% c("point", "probabilistic")) {
     required_cols <- c("X", "M", "Y")

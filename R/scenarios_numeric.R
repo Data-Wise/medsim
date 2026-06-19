@@ -1,4 +1,4 @@
-# Numeric accuracy scenario factory — numeric estimand kind
+# Numeric accuracy scenario factory -- numeric estimand kind
 # Designed for the product-of-three study: CI method timing and abs-error
 # comparisons where there is no DGM, no coverage, and no power analysis.
 
@@ -6,7 +6,7 @@
 #'
 #' @description
 #' Thin wrapper over [medsim_scenario()] for studies that evaluate numerical
-#' **accuracy** or **timing** of a computation — not coverage or power.  The
+#' **accuracy** or **timing** of a computation -- not coverage or power.  The
 #' estimand kind is `"numeric"`, which signals downstream commands to skip
 #' coverage/power analysis and produce accuracy/timing tables instead.
 #'
@@ -54,7 +54,7 @@ medsim_scenario_numeric <- function(name,
     stop("true_params must be a named list")
   }
 
-  # Default no-op data generator — returns a zero-row data frame
+  # Default no-op data generator -- returns a zero-row data frame
   if (is.null(data_generator)) {
     data_generator <- function(n) {
       data.frame(placeholder = rep(NA_real_, n))

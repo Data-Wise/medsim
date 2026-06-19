@@ -1,9 +1,9 @@
 # Hopper / SLURM chunk harness
 # Provides medsim_write_submit_script(), medsim_run_chunk(),
-# medsim_combine_chunks() — the three-piece pattern used by the Tofighi lab's
+# medsim_combine_chunks() -- the three-piece pattern used by the Tofighi lab's
 # chunked SLURM array jobs (UNM CARC Hopper partition).
 
-# ── medsim_write_submit_script ─────────────────────────────────────────────
+# -- medsim_write_submit_script ---------------------------------------------
 
 #' Write a SLURM array submit script for chunked simulation jobs
 #'
@@ -72,7 +72,7 @@ medsim_write_submit_script <- function(config,
     "# Load R module (UNM CARC Hopper)",
     sprintf("module load %s", r_module),
     "",
-    "# Run the chunk script — $SLURM_ARRAY_TASK_ID is passed via environment",
+    "# Run the chunk script -- $SLURM_ARRAY_TASK_ID is passed via environment",
     sprintf("Rscript %s", run_script)
   )
 
@@ -80,7 +80,7 @@ medsim_write_submit_script <- function(config,
   invisible(output_file)
 }
 
-# ── medsim_run_chunk ───────────────────────────────────────────────────────
+# -- medsim_run_chunk -------------------------------------------------------
 
 #' Run one chunk of a chunked SLURM array simulation
 #'
@@ -116,7 +116,7 @@ medsim_run_chunk <- function(scenarios, method, config, verbose = TRUE) {
   indices <- .medsim_chunk_indices(n_rep, n_chunks, chunk_id)
 
   if (verbose) {
-    message(sprintf("[medsim_run_chunk] chunk %d/%d — reps %d:%d",
+    message(sprintf("[medsim_run_chunk] chunk %d/%d -- reps %d:%d",
                     chunk_id, n_chunks, indices[1L], indices[length(indices)]))
   }
 
@@ -132,11 +132,11 @@ medsim_run_chunk <- function(scenarios, method, config, verbose = TRUE) {
   out_path <- file.path(output_dir, sprintf("chunk_%04d.rds", chunk_id))
   saveRDS(results, out_path)
 
-  if (verbose) message(sprintf("[medsim_run_chunk] saved → %s", out_path))
+  if (verbose) message(sprintf("[medsim_run_chunk] saved -> %s", out_path))
   invisible(out_path)
 }
 
-# ── medsim_combine_chunks ─────────────────────────────────────────────────
+# -- medsim_combine_chunks -------------------------------------------------
 
 #' Combine chunk RDS files produced by medsim_run_chunk()
 #'
@@ -177,7 +177,7 @@ medsim_combine_chunks <- function(output_dir, pattern = "chunk_*.rds",
   # Merge results data frames
   all_results <- do.call(rbind, lapply(chunks, function(ch) ch$results))
 
-  # Truth is scenario-level (same across chunks) — use the first chunk's
+  # Truth is scenario-level (same across chunks) -- use the first chunk's
   truth <- chunks[[1L]]$truth
   for (ch in chunks[-1L]) {
     new_rows <- ch$truth[!ch$truth$scenario %in% truth$scenario, ]
@@ -194,7 +194,7 @@ medsim_combine_chunks <- function(output_dir, pattern = "chunk_*.rds",
   combined
 }
 
-# ── internal ──────────────────────────────────────────────────────────────
+# -- internal --------------------------------------------------------------
 
 # Split n_rep into n_chunks even-ish groups; return indices for chunk_id.
 .medsim_chunk_indices <- function(n_rep, n_chunks, chunk_id) {

@@ -23,7 +23,7 @@ medsim_scenario(
 
 \item{estimand}{Optional \code{\link[=medsim_estimand]{medsim_estimand()}} object declaring the estimand kind
 (\code{"point"}, \code{"interval"}, \code{"probabilistic"}, \code{"numeric"}).  \code{NULL} (the
-default) is treated as \code{kind = "point"} throughout the package — full
+default) is treated as \code{kind = "point"} throughout the package -- full
 back-compatibility with existing scenarios.}
 }
 \value{

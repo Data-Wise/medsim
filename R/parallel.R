@@ -123,6 +123,11 @@ medsim_run_parallel <- function(tasks,
     n_cores <- max(1, n_cores)
   }
 
+  # CRAN policy: use sequential execution in check environments
+  if (isTRUE(as.logical(Sys.getenv("_R_CHECK_LIMIT_CORES_", "FALSE")))) {
+    return(medsim_run_sequential(tasks, fun, progress))
+  }
+
   # Don't use more cores than tasks
   n_cores <- min(n_cores, length(tasks))
 

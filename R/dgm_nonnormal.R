@@ -1,9 +1,9 @@
-# INTERFACE FREEZE (Step 0) — signature stub for WS-A.
-# Spec: SPEC-medsim-missingdata-generators-2026-06-11.md  (§"1. Nonnormality generator")
+# INTERFACE FREEZE (Step 0) -- signature stub for WS-A.
+# Spec: SPEC-medsim-missingdata-generators-2026-06-11.md  (?"1. Nonnormality generator")
 
 #' Draw nonnormal values with a target marginal skew/kurtosis
 #'
-#' Fleishman / Vale–Maurelli power-method draws. Pure base R; no hard dependency.
+#' Fleishman / Vale?Maurelli power-method draws. Pure base R; no hard dependency.
 #' Warns/errors on (skew, kurtosis) outside the Fleishman-feasible region.
 #'
 #' @param n Integer sample size.

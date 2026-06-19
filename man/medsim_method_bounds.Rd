@@ -40,12 +40,12 @@ bounds for unit-testing the harness).  A future version will call
 
 Result columns returned (flat named list):
 \itemize{
-\item \code{NDE_lower}, \code{NDE_upper} — bounds on natural direct effect
-\item \code{NDE_im_lower}, \code{NDE_im_upper} — Imbens-Manski CI for NDE
-\item \code{NIE_lower}, \code{NIE_upper} — bounds on natural indirect effect
-\item \code{NIE_im_lower}, \code{NIE_im_upper} — Imbens-Manski CI for NIE
-\item \code{feasible} — logical: bounds are non-empty / consistent
-\item \code{falsified} — logical: data rejects identifying assumptions
+\item \code{NDE_lower}, \code{NDE_upper} -- bounds on natural direct effect
+\item \code{NDE_im_lower}, \code{NDE_im_upper} -- Imbens-Manski CI for NDE
+\item \code{NIE_lower}, \code{NIE_upper} -- bounds on natural indirect effect
+\item \code{NIE_im_lower}, \code{NIE_im_upper} -- Imbens-Manski CI for NIE
+\item \code{feasible} -- logical: bounds are non-empty / consistent
+\item \code{falsified} -- logical: data rejects identifying assumptions
 }
 }
 \examples{

@@ -93,7 +93,7 @@
 "_PACKAGE"
 
 ## usethis namespace: start
-#' @importFrom stats aggregate median quantile rnorm sd
+#' @importFrom stats aggregate coef dnorm lm median pnorm quantile qnorm rbinom rnorm sd sigma
 #' @importFrom utils glob2rx write.csv
 #' @importFrom pbapply pboptions
 #' @importFrom dplyr %>%

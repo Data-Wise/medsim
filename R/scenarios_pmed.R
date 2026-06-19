@@ -1,4 +1,4 @@
-# P_med scenario factory — probabilistic estimand kind
+# P_med scenario factory -- probabilistic estimand kind
 # P_med = P(Y1 > Y0) + 0.5 * P(Y1 == Y0), computed via cross-world PO draw.
 
 #' Create a P_med simulation scenario
@@ -6,7 +6,7 @@
 #' @description
 #' Thin wrapper over [medsim_scenario()] that bakes in:
 #' - A linear structural equation model (SEM) data generator for the
-#'   `A → M → Y` causal chain.
+#'   `A -> M -> Y` causal chain.
 #' - An `estimand = medsim_estimand("probabilistic", params = "pmed",
 #'   ci = "mbco", extra = "branch_switch")` descriptor so that
 #'   [medsim_analyze_coverage()] dispatches the MBCO-CI coverage branch.
@@ -14,14 +14,14 @@
 #'   compute the ground-truth P_med (not analytically tractable in general).
 #'
 #' The estimand `P_med = P(Y_a=1(M_a=1) > Y_a=0(M_a=1)) +
-#' 0.5 * P(Y_a=1(M_a=1) == Y_a=0(M_a=1))` uses the cross-world assumption —
+#' 0.5 * P(Y_a=1(M_a=1) == Y_a=0(M_a=1))` uses the cross-world assumption --
 #' it is a *probabilistic* mediation effect, not a difference in expectations.
 #'
 #' @param name Character: scenario name passed to [medsim_scenario()].
 #' @param true_params Named list with entries:
-#'   - `alpha_ax`: path coefficient A → M (default 0.5)
-#'   - `beta_my`: path coefficient M → Y (default 0.5)
-#'   - `beta_ay`: direct path A → Y (default 0.0; set 0 for perfect mediation)
+#'   - `alpha_ax`: path coefficient A -> M (default 0.5)
+#'   - `beta_my`: path coefficient M -> Y (default 0.5)
+#'   - `beta_ay`: direct path A -> Y (default 0.0; set 0 for perfect mediation)
 #'   - `sigma_m`: residual SD for M (default 1.0)
 #'   - `sigma_y`: residual SD for Y (default 1.0)
 #' @param n_po Integer: number of potential-outcome draws for truth estimation
@@ -79,13 +79,13 @@ medsim_scenario_pmed <- function(name,
   sc
 }
 
-# ── Internal helpers ───────────────────────────────────────────────────────
+# -- Internal helpers -------------------------------------------------------
 
 # Compute ground-truth P_med via cross-world potential outcomes under the SEM.
 # P_med = P(Y1 > Y0) where Y1 = Y(A=1, M(1)) and Y0 = Y(A=0, M(0)).
-# Each person's potential outcomes are drawn with INDEPENDENT residuals —
+# Each person's potential outcomes are drawn with INDEPENDENT residuals --
 # the standard "random-effects" cross-world assumption in the P_med literature.
-# Using SHARED residuals would make Y1 - Y0 = constant, giving P_med ∈ {0,1}.
+# Using SHARED residuals would make Y1 - Y0 = constant, giving P_med ? {0,1}.
 .medsim_pmed_truth <- function(tp, n_po = 50000L) {
   n <- n_po
   # Independent residuals for each potential outcome world
@@ -99,7 +99,7 @@ medsim_scenario_pmed <- function(name,
   y1 <- tp$beta_ay * 1 + tp$beta_my * m1 + eps_y1
   y0 <- tp$beta_ay * 0 + tp$beta_my * m0 + eps_y0
 
-  # For continuous Y, P(Y1 == Y0) ≈ 0; P_med ≈ P(Y1 > Y0)
+  # For continuous Y, P(Y1 == Y0) ? 0; P_med ? P(Y1 > Y0)
   # Analytic: Phi(alpha*beta / sqrt(2*(beta^2*sigma_m^2 + sigma_y^2)))
   mean(y1 > y0)
 }

@@ -32,7 +32,7 @@ A \code{medsim_scenario} object with \code{estimand$kind = "numeric"}.
 }
 \description{
 Thin wrapper over \code{\link[=medsim_scenario]{medsim_scenario()}} for studies that evaluate numerical
-\strong{accuracy} or \strong{timing} of a computation — not coverage or power.  The
+\strong{accuracy} or \strong{timing} of a computation -- not coverage or power.  The
 estimand kind is \code{"numeric"}, which signals downstream commands to skip
 coverage/power analysis and produce accuracy/timing tables instead.
 

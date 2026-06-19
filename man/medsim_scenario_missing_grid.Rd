@@ -22,6 +22,6 @@ medsim_scenario_missing_grid(
 A list of \code{medsim_scenario} objects.
 }
 \description{
-Convenience: expand \code{SPEC-simulation-design} cells (mechanism × prop × n × effect ×
+Convenience: expand \code{SPEC-simulation-design} cells (mechanism ? prop ? n ? effect ?
 nonnormality) into a list of \code{\link[=medsim_scenario_missing]{medsim_scenario_missing()}} objects in one call.
 }

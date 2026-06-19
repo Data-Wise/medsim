@@ -1,4 +1,4 @@
-# P_med MBCO estimator adapter — probabilistic estimand kind
+# P_med MBCO estimator adapter -- probabilistic estimand kind
 # Implements the two-branch MBCO CI for P_med under the cross-world SEM.
 
 #' MBCO confidence interval for P_med (two-branch method)
@@ -13,17 +13,17 @@
 #' | `pmed` | Point estimate of P_med |
 #' | `pmed_ci_lower` | Lower bound of MBCO CI |
 #' | `pmed_ci_upper` | Upper bound of MBCO CI |
-#' | `pmed_p` | Two-sided p-value (H0: P_med ≤ 0.5) |
+#' | `pmed_p` | Two-sided p-value (H0: P_med ? 0.5) |
 #' | `branch_switch` | 1 if the MBCO union-null LRT switched branches |
 #' | `converged` | 1 if optimisation converged |
 #'
 #' **Algorithm:**
 #' 1. Fit linear SEM: `M ~ A` and `Y ~ A + M`.
-#' 2. Estimate path coefficients α (A→M) and β (M→Y).
+#' 2. Estimate path coefficients ? (A->M) and ? (M->Y).
 #' 3. Estimate P_med via a parametric bootstrap PO draw under the estimated SEM.
 #' 4. Build a delta-method normal CI and clamp to \[0, 1\].
 #' 5. The "branch_switch" flag records whether the union-null test selected the
-#'    constrained branch (α·β ≤ 0) over the unconstrained branch (α·β > 0).
+#'    constrained branch (??? ? 0) over the unconstrained branch (??? > 0).
 #'
 #' @param data A `data.frame` with columns `A`, `M`, `Y`.
 #' @param params Named list from [medsim_scenario_pmed()]; must contain at
@@ -62,9 +62,9 @@ medsim_method_pmed_mbco <- function(data, params,
                                   sigma_m, sigma_y, n_po = n_boot)
 
   # Step 3: delta-method SE for pmed_hat (approximate, via Normal assumption
-  # on path coefficients).  SE ≈ |∂P_med/∂(α·β)| * se(α·β)
-  # For continuous Y: P_med ≈ Φ(α·β / sqrt(2·(β²σ_m² + σ_y²)))
-  # ∂P_med/∂(αβ) = φ(z) / sqrt(2(β²σ_m² + σ_y²))  where z = αβ / denom
+  # on path coefficients).  SE ? |?P_med/?(???)| * se(???)
+  # For continuous Y: P_med ? ?(??? / sqrt(2?(???_m? + ?_y?)))
+  # ?P_med/?(??) = ?(z) / sqrt(2(???_m? + ?_y?))  where z = ?? / denom
   ab  <- alpha_hat * beta_hat
   denom_sq <- 2 * (beta_hat^2 * sigma_m^2 + sigma_y^2)
   denom    <- sqrt(max(denom_sq, 1e-10))
@@ -77,8 +77,8 @@ medsim_method_pmed_mbco <- function(data, params,
   se_pmed  <- dphi / denom * se_ab
 
   # MBCO two-branch union-null CI
-  # Branch 1 (unconstrained, α·β > 0): Wald CI on pmed_hat
-  # Branch 2 (constrained, α·β ≤ 0): CI = [0, pmed_hat + z*se]
+  # Branch 1 (unconstrained, ??? > 0): Wald CI on pmed_hat
+  # Branch 2 (constrained, ??? ? 0): CI = [0, pmed_hat + z*se]
   z_alpha   <- qnorm(1 - alpha / 2)
   branch_switch <- as.integer(ab <= 0)
 
@@ -105,7 +105,7 @@ medsim_method_pmed_mbco <- function(data, params,
 }
 
 # Parametric bootstrap PO draw for P_med under estimated linear SEM.
-# Uses INDEPENDENT residuals for each potential outcome world — the same
+# Uses INDEPENDENT residuals for each potential outcome world -- the same
 # "random-effects" cross-world assumption as .medsim_pmed_truth().
 # Shared residuals would make Y1 - Y0 constant and collapse P_med to {0,1}.
 .medsim_pmed_boot <- function(alpha_hat, beta_hat, gamma_hat,

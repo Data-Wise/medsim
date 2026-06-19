@@ -1,4 +1,4 @@
-# ── Missing-data mediation estimator adapters (WS-D) ──────────────────────────
+# -- Missing-data mediation estimator adapters (WS-D) --------------------------
 # Spec: SPEC-medsim-missingdata-generators-2026-06-11.md
 #
 # SHARED method() RETURN CONTRACT (consumed by medsim_analyze_coverage/_power):
@@ -14,7 +14,7 @@
 #
 # VERIFIED 2026-06-11 (R/runner.R:329): method is invoked as `method(data, scenario$params)`,
 #   i.e. the contract is `function(data, params)` where `params` IS the scenario's params list.
-# ──────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------------------------
 
 #' MBCO-MI estimator adapter
 #'
@@ -27,7 +27,7 @@
 #' The point estimate is the Rubin-pooled `a*b`; the CI is a Monte-Carlo product
 #' interval on the pooled paths; the p-value is the D4-pooled MBCO test. With no
 #' missingness (or without `mice`) it degrades to the complete-case MBCO LRT with
-#' a chi-square reference — never to a Sobel normal approximation for the test.
+#' a chi-square reference -- never to a Sobel normal approximation for the test.
 #'
 #' @param model Mediation model spec (accepted for API symmetry; the estimator
 #'   reads the `X`, `M`, `Y` (+ optional `C*`) columns of `data`).
@@ -214,7 +214,7 @@ medsim_method_ipw <- function(model, ...) {
   }
 }
 
-# ── Internal helpers ──────────────────────────────────────────────────────────
+# -- Internal helpers ----------------------------------------------------------
 
 # Detect optional covariate columns (C, C1, C2, ...) in a DGM frame.
 .medsim_md_covariates <- function(data) {

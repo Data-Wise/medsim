@@ -1,5 +1,5 @@
-# INTERFACE FREEZE (Step 0) — signature stubs for WS-C.
-# Spec: SPEC-medsim-missingdata-generators-2026-06-11.md  (§"3. Missing-data scenario constructor")
+# INTERFACE FREEZE (Step 0) -- signature stubs for WS-C.
+# Spec: SPEC-medsim-missingdata-generators-2026-06-11.md  (?"3. Missing-data scenario constructor")
 # Builds on the WS-A (medsim_rnonnormal) and WS-B (medsim_amputate) interfaces.
 
 #' Construct a missing-data mediation scenario
@@ -100,7 +100,7 @@ medsim_scenario_missing <- function(name, true_params, mechanism, prop = 0.2,
 
 #' Build the full factorial of missing-data scenarios
 #'
-#' Convenience: expand `SPEC-simulation-design` cells (mechanism × prop × n × effect ×
+#' Convenience: expand `SPEC-simulation-design` cells (mechanism ? prop ? n ? effect ?
 #' nonnormality) into a list of [medsim_scenario_missing()] objects in one call.
 #'
 #' @param true_params_list List of `true_params` lists (one per effect-size cell).
