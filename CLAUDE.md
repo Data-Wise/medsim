@@ -8,6 +8,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **medsim** is the mediationverse's standardized infrastructure for Monte Carlo simulation studies in mediation analysis — a reusable framework so parallel processing, progress reporting, result analysis, and visualization don't get reimplemented per project.
 
+> ⚠️ **In-flight (2026-06-19, see `.STATUS`):** `feature/estimand-spine` adds a Sobol `"variance_share"` estimand kind + `medsim_scenario_sobol()`/`medsim_method_sobol()` (PR-ready, 887/0, check 0/0/0). **Hold the PR until pmed-modern is ready to integrate.** Downstream: pmed-modern Paper-3 `run_grid.R` uses `estimand=NULL` today; re-point it to `medsim_estimand("variance_share", ...)` after this merges + medsim reinstalls.
+
 ### Key Features
 
 - Environment-aware execution (local vs HPC cluster)
