@@ -160,6 +160,11 @@ medsim_run_parallel <- function(tasks,
   # worker k in chunk c always draws from the same substream regardless of
   # how many other chunks ran before or after it.
   if (!is.null(seed)) {
+    # Restore the caller's RNG kind on exit: setting L'Ecuyer-CMRG here would
+    # otherwise leak into the global session and perturb downstream draws
+    # (e.g. flaking the D4-pooling near-tie test under full-suite runs).
+    old_kind <- RNGkind()[1L]
+    on.exit(RNGkind(old_kind), add = TRUE)
     RNGkind("L'Ecuyer-CMRG")
     parallel::clusterSetRNGStream(cl, seed)
   }
