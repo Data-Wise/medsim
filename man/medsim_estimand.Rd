@@ -16,7 +16,7 @@ medsim_estimand(
 \item{kind}{Estimand kind: \code{"point"} (default), \code{"interval"},
 \code{"probabilistic"}, \code{"variance_share"}, or \code{"numeric"}.}
 
-\item{params}{Character vector of estimand parameter names — e.g.
+\item{params}{Character vector of estimand parameter names -- e.g.
 \code{c("indirect")} for point, \code{c("NDE", "NIE")} for interval,
 \code{c("pmed")} for probabilistic.  Defaults to \code{character()} (auto-inferred
 downstream).}
@@ -29,7 +29,7 @@ downstream).}
 (partial-ID dual CI), \code{"mbco"} (constrained optimisation), or \code{"none"}.}
 
 \item{extra}{Character vector of additional result columns beyond \code{params}
-that \code{method()} returns — e.g. \code{c("feasible", "branch_switch", "timing")}.}
+that \code{method()} returns -- e.g. \code{c("feasible", "branch_switch", "timing")}.}
 }
 \value{
 An object of class \code{c("medsim_estimand", "list")}.
@@ -59,11 +59,11 @@ so \code{\link[=medsim_validate_scenario]{medsim_validate_scenario()}} checks th
 the Sobol estimator requires (rather than the legacy \code{X/M/Y} of \code{"point"}).
 
 Scenarios with \code{estimand = NULL} (the default in \code{\link[=medsim_scenario]{medsim_scenario()}}) are
-treated as \code{kind = "point"} throughout the package — full back-compatibility
+treated as \code{kind = "point"} throughout the package -- full back-compatibility
 with all existing code.
 }
 \examples{
-# Point estimand (the historic default — back-compat)
+# Point estimand (the historic default -- back-compat)
 medsim_estimand("point")
 
 # Interval (partial-ID bounds)
