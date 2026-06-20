@@ -1,7 +1,8 @@
 status: active
 priority: P1
 progress: 99
-next: ⏳ v0.3.1 RELEASED (2026-06-19) — GitHub tag + release created; r-universe rebuild pending (~hourly cron, currently shows 0.3.0). Poll: curl -s https://data-wise.r-universe.dev/api/packages/medsim | python3 -c "import sys,json;print(json.load(sys.stdin)['Version'])". CRAN BLOCKED ON medrobust (not in mainstream repos). Submission sequence: (1) wait for medrobust acceptance; (2) devtools::submit_cran().
+next: ⏳ CRAN BLOCKED on medrobust (not in mainstream repos). Sequence: (1) await medrobust CRAN acceptance; (2) devtools::submit_cran(). v0.3.1 r-universe rebuild still pending (~hourly cron).
+done: v0.3.1 RELEASED 2026-06-19 (GitHub tag + release). Poll r-universe version: curl -s https://data-wise.r-universe.dev/api/packages/medsim | python3 -c "import sys,json;print(json.load(sys.stdin)['Version'])".
 type: r
 last_updated: 2026-06-19
 deferred: PROPOSAL-medsim-dm-integration.md — register differential-misclassification
