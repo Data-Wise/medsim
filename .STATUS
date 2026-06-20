@@ -1,0 +1,56 @@
+status: active
+priority: P1
+progress: 99
+next: ⏳ v0.3.1 RELEASED (2026-06-19) — GitHub tag + release created; r-universe rebuild pending (~hourly cron, currently shows 0.3.0). Poll: curl -s https://data-wise.r-universe.dev/api/packages/medsim | python3 -c "import sys,json;print(json.load(sys.stdin)['Version'])". CRAN BLOCKED ON medrobust (not in mainstream repos). Submission sequence: (1) wait for medrobust acceptance; (2) devtools::submit_cran().
+type: r
+last_updated: 2026-06-19
+deferred: PROPOSAL-medsim-dm-integration.md — register differential-misclassification
+  scenarios (wrap medrobust::simulate_dm_data + bound_ne) so M2a/M2b sims run via medsim_run
+  instead of bespoke scripts. SPEC ONLY; build post-medrobust-CRAN. One real code change:
+  interval-coverage branch in medsim_analyze_coverage(). Keep medrobust in Suggests.
+built: SPEC-medsim-missingdata-generators-2026-06-11.md — BUILT (deferral overridden 2026-06-11)
+  on feature/dgm-interface @ 13ca032 (impl d5bcf92). WS-A..F green: devtools::test 532/0/3,
+  R CMD check Status OK (0/0/0). Functions: medsim_rnonnormal, medsim_amputate,
+  medsim_scenario_missing(_grid), medsim_method_{mbco_mi,mc_ci,ipw}, medsim_summarize_branch_switch.
+  MERGED to dev @ 7b3245e (PR #17, squash; all 6 CI gates green; tests 596/0/2; new-file cov ~94%). Deferred #3 =
+  port the validated prototype (mice + D4 + MBCO), NOT missingmed/rmediation — the validated method
+  uses neither (see spec "Deferred #3 — corrected scope"). base-R fallback ships meanwhile.
+worktree: feature/estimand-spine @ ~/.git-worktrees/medsim/feature-estimand-spine (pushed)
+  Phases 0-4 of the estimand-kind overhaul ALREADY LANDED on dev via v0.3.0 (#22).
+  2026-06-19 REBUILT clean: branch reset to dev (a2d66ae) + 4 NEW commits only
+  (dropped 5 redundant Phase 0-4 commits). Delivered on top of dev:
+    - "variance_share" estimand kind for the Sobol P_med^σ² (R/estimand.R)
+    - medsim_scenario_sobol() + medsim_method_sobol() (estimator injected, not vendored)
+    - tests/testthat/test-sobol.R (+29 tests)
+    - fix(parallel): restore caller RNGkind on exit (stops L'Ecuyer leak; D4 flake)
+  Full suite 887/0; R CMD check 0/0/0. Force-pushed origin/feature/estimand-spine.
+  PR-READY to dev. ⚠️ HOLD the PR until pmed-modern is ready to integrate.
+  DOWNSTREAM DEP: pmed-modern Paper-3 sims (03-sobol-pmed/sims/run_grid.R) currently
+  pass estimand=NULL; AFTER this merges + medsim reinstalls, re-point run_grid.R to
+  medsim_estimand("variance_share", ...) so coverage analysis is first-class.
+
+# ═══════════════════════════════════════════════════════════════════
+
+📦 medsim - Simulation Infrastructure for the Mediationverse
+────────────────────────────────────────────────
+
+📍 LOCATION
+~/projects/r-packages/active/medsim/
+
+📋 DESCRIPTION
+Monte Carlo simulation infrastructure for mediation methods across the
+mediationverse (medfit, probmed, RMediation, medrobust). Version 0.1.1.
+
+🔗 medfit dependency: **Suggests** `medfit (>= 0.1.0)` + `Remotes: Data-Wise/medfit`.
+Soft (optional) dependency — not part of the hard post-CRAN cascade; drop the
+Remotes line whenever convenient after medfit reaches CRAN.
+
+🩺 HEALTH (audited 2026-06-03)
+- Tests: ~193 `test_that` blocks (healthy).
+- NEWS.md present (dev-version header), README present, pkgdown configured.
+
+🎯 NEXT
+- Merge feature/dgm-interface → dev (DGM generators built + green: 532/0/3, R CMD check OK).
+- Then gated #3: install missingmed+rmediation, validate the Missing Effect prototype, swap
+  real estimators in under test.
+- Routine: align Remotes post-medfit-CRAN (low priority).

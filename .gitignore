@@ -13,7 +13,6 @@ simulation_results*/
 
 # Local Claude Code artifacts
 .claude/
-.STATUS
 .STATUS.backup
 BRAINSTORM-*.md
 
