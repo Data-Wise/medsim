@@ -400,10 +400,14 @@ medsim_analyze_coverage <- function(results,
     coverage_rate <- mean(in_ci)
 
     # Store result
+    n_total <- length(merged[[lower_col]])
     coverage_list[[param]] <- data.frame(
-      parameter = param,
-      coverage = coverage_rate,
-      n_valid = length(in_ci),
+      parameter     = param,
+      coverage      = coverage_rate,
+      coverage_mcse = sqrt(coverage_rate * (1 - coverage_rate) / length(in_ci)),
+      n_valid       = length(in_ci),
+      n_failed      = n_total - length(in_ci),
+      failure_rate  = (n_total - length(in_ci)) / n_total,
       stringsAsFactors = FALSE
     )
   }
@@ -441,11 +445,16 @@ medsim_analyze_coverage <- function(results,
 
         in_ci <- (truth >= ci_lower) & (truth <= ci_upper)
 
+        n_total_s <- length(scenario_data[[lower_col]])
+        cov_s     <- mean(in_ci)
         scenario_list[[paste(scenario_name, param, sep = "_")]] <- data.frame(
-          scenario = scenario_name,
-          parameter = param,
-          coverage = mean(in_ci),
-          n_valid = length(in_ci),
+          scenario      = scenario_name,
+          parameter     = param,
+          coverage      = cov_s,
+          coverage_mcse = sqrt(cov_s * (1 - cov_s) / length(in_ci)),
+          n_valid       = length(in_ci),
+          n_failed      = n_total_s - length(in_ci),
+          failure_rate  = (n_total_s - length(in_ci)) / n_total_s,
           stringsAsFactors = FALSE
         )
       }
