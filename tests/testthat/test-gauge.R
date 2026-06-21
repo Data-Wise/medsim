@@ -17,3 +17,26 @@ test_that("gauge truth matches the verified decomposition", {
   expect_equal(sc1$params$w,    R/OE)
   expect_equal(sc1$estimand$kind, "variance_share")
 })
+
+test_that("gauge method maps estimator output to flat fields (stub)", {
+  stub <- function(data, ...) list(
+    p_med = 0.4, p_med_ci = c(0.30, 0.50),
+    W = 0.1,     W_ci = c(0.02, 0.18)
+  )
+  d <- data.frame(A = c(0,1,0,1), M = rnorm(4), Y = rnorm(4), C = rnorm(4))
+  out <- medsim_method_gauge(d, params = list(), estimator = stub)
+  expect_equal(out$pmed, 0.4)
+  expect_equal(out$pmed_ci_lower, 0.30)
+  expect_equal(out$pmed_ci_upper, 0.50)
+  expect_equal(out$w, 0.1)
+  expect_equal(out$w_ci_lower, 0.02)
+  expect_equal(out$w_ci_upper, 0.18)
+})
+
+test_that("gauge method errors on missing columns and bad estimator", {
+  d <- data.frame(A = 0:1, M = 0:1, Y = 0:1)  # no C
+  expect_error(medsim_method_gauge(d, estimator = function(...) NULL),
+               "A, M, Y, C")
+  d2 <- data.frame(A = 0:1, M = 0:1, Y = 0:1, C = 0:1)
+  expect_error(medsim_method_gauge(d2, estimator = "notafn"), "function")
+})
