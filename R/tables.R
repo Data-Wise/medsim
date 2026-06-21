@@ -469,7 +469,7 @@ medsim_table_coverage <- function(coverage,
   lines <- c(lines, sprintf("\\label{%s}", label))
 
   # Column specification
-  col_spec <- if (by_scenario && "scenario" %in% names(data)) "llcc" else "lcc"
+  col_spec <- if (by_scenario && "scenario" %in% names(data)) "llcccc" else "lcccc"
   lines <- c(lines, sprintf("\\begin{tabular}{%s}", col_spec))
   lines <- c(lines, "\\toprule")
 
@@ -478,7 +478,7 @@ medsim_table_coverage <- function(coverage,
   if (by_scenario && "scenario" %in% names(data)) {
     header_parts <- c(header_parts, "Scenario")
   }
-  header_parts <- c(header_parts, "Parameter", "Coverage", "$n$")
+  header_parts <- c(header_parts, "Parameter", "Coverage", "Coverage MCSE", "$n$", "$n_{fail}$")
   lines <- c(lines, paste0(paste(header_parts, collapse = " & "), " \\\\"))
   lines <- c(lines, "\\midrule")
 
@@ -492,7 +492,9 @@ medsim_table_coverage <- function(coverage,
 
     row_parts <- c(row_parts, data$parameter[i])
     row_parts <- c(row_parts, .format_percentage_latex(data$coverage[i], digits = 1))
+    row_parts <- c(row_parts, sprintf("%.3f", data$coverage_mcse[i]))
     row_parts <- c(row_parts, sprintf("$%d$", data$n_valid[i]))
+    row_parts <- c(row_parts, as.character(data$n_failed[i]))
 
     lines <- c(lines, paste0(paste(row_parts, collapse = " & "), " \\\\"))
   }
