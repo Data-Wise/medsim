@@ -267,17 +267,26 @@ pmed_method <- function(data, params) {
     treatment = "X", mediator = "M"
   )
 
-  p_med <- probmed::compute_pmed(med_data)
+  p_med <- probmed::pmed(med_data)
 
-  # Bootstrap CI
+  # Bootstrap CI: outer nonparametric bootstrap resamples the data; the
+  # statistic refits the models and returns the P_med plugin point estimate
+  # (a scalar), as bootstrap_mediation() requires.
   boot <- medfit::bootstrap_mediation(
-    med_data,
-    statistic = probmed::compute_pmed,
+    statistic_fn = function(d) {
+      md <- medfit::extract_mediation(
+        lm(M ~ X, data = d), model_y = lm(Y ~ X + M, data = d),
+        treatment = "X", mediator = "M"
+      )
+      probmed::pmed(md, method = "plugin")@estimate
+    },
+    method = "nonparametric",
+    data = data,
     n_boot = 1000
   )
 
   list(
-    estimate = p_med,
+    estimate = p_med@estimate,
     ci_lower = boot@ci_lower,
     ci_upper = boot@ci_upper,
     truth = params$true_pmed

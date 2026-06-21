@@ -131,7 +131,7 @@ pmed_method <- function(data, params) {
     treatment = "X", mediator = "M"
   )
 
-  p_med <- probmed::compute_pmed(med_data)
+  p_med <- probmed::pmed(med_data)
 
   list(estimate = p_med, truth = params$true_pmed)
 }
