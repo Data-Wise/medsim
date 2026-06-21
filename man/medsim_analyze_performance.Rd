@@ -19,3 +19,8 @@ A data.frame, one row per scenario.
 Per scenario, computes bias, empirical SE, mean model SE, and RMSE for a
 parameter, each with its Monte Carlo SE (Morris, White & Crowther 2019).
 }
+\details{
+Truth is taken as the first converged row's \verb{<param>_truth} value
+and assumed constant within scenario. Rows with NA estimates are excluded
+from computations; if all estimates are NA, numeric columns return NA.
+}
