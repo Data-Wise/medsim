@@ -492,9 +492,11 @@ medsim_table_coverage <- function(coverage,
 
     row_parts <- c(row_parts, data$parameter[i])
     row_parts <- c(row_parts, .format_percentage_latex(data$coverage[i], digits = 1))
-    row_parts <- c(row_parts, sprintf("%.3f", data$coverage_mcse[i]))
+    mcse_val  <- if (!is.null(data$coverage_mcse)) sprintf("%.3f", data$coverage_mcse[i]) else "NA"
+    nfail_val <- if (!is.null(data$n_failed))      as.character(data$n_failed[i])         else "NA"
+    row_parts <- c(row_parts, mcse_val)
     row_parts <- c(row_parts, sprintf("$%d$", data$n_valid[i]))
-    row_parts <- c(row_parts, as.character(data$n_failed[i]))
+    row_parts <- c(row_parts, nfail_val)
 
     lines <- c(lines, paste0(paste(row_parts, collapse = " & "), " \\\\"))
   }
