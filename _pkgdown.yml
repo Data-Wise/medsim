@@ -163,6 +163,19 @@ reference:
   - medsim_compare_methods
   - medsim_check_results
 
+- title: ADEMP / Performance Reporting
+  desc: >
+    Functions for ADEMP-compliant performance reporting: sizing replications
+    to a target coverage Monte Carlo SE, SE-vs-estimate diagnostics, and
+    full performance summaries (bias, empirical SE, model SE, RMSE + MCSEs).
+    Coverage output from `medsim_analyze_coverage()` also gains `coverage_mcse`,
+    `n_failed`, and `failure_rate` columns in v0.4.0.
+  contents:
+  - medsim_nsim_for_mcse
+  - medsim_plot_se_vs_estimate
+  - medsim_analyze_performance
+  - medsim_table_performance
+
 - title: Missing-Data & Nonnormality (DGM)
   desc: >
     Data-generating utilities and missing-data mediation estimator adapters for
