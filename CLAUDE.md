@@ -148,19 +148,27 @@ results <- medsim_run(pmed_method, scenarios, config)
 
 medsim's GitHub-only dependencies need a `Remotes:` field so pak can resolve
 them during R-CMD-check (without it, pak treats them as missing and the check
-fails). Keep it in lockstep with `Suggests`. As of dev the only GitHub-only dep
-is `medrobust` (CRAN-blocked — not in mainstream repos; see `.STATUS`); `medfit`
+fails). Keep it in lockstep with `Suggests`. The permanent GitHub-only dep is
+`medrobust` (CRAN-blocked — not in mainstream repos; see `.STATUS`); `medfit`
 reached mainstream distribution and was dropped from Remotes (it stays in
-`Suggests` at `>= 0.2.0`):
+`Suggests` at `>= 0.2.0`). The `feature/gauge-estimand` branch (#24) adds a
+second, **temporary** feature-branch pin of `probmed` for the gauge bootstrap
+arm:
 
 ```
 Remotes:
-    Data-Wise/medrobust
+    Data-Wise/medrobust,
+    Data-Wise/probmed@feature/gauge-bootstrap-se
 ```
 
-In-flight: the `feature/gauge-estimand` branch (#24) adds a second, **temporary**
-pin `Data-Wise/probmed@feature/gauge-bootstrap-se` for the gauge bootstrap arm —
-remove it once that probmed branch merges + releases.
+**Branch pin removal condition:** the `probmed` pin exists solely because
+`ward_residual()` + `se_method = "bootstrap"` lives on that branch and is not yet
+in probmed's `main`. Once `probmed`'s `feature/gauge-bootstrap-se` merges and a
+release lands on `probmed`'s `main`, replace the pin with plain
+`Data-Wise/probmed` (if probmed stays GitHub-only) or drop it entirely once
+probmed ships to CRAN — and in that last case remove `probmed` from `Remotes:`
+while keeping it in `Suggests:` (it is still a soft dependency). `medrobust`
+stays in `Remotes:` until it itself reaches mainstream distribution.
 
 RMediation is on CRAN — never list it under Remotes. `Remotes:` first added in
 PR #1 (2026-05-09).

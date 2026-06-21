@@ -149,6 +149,16 @@ reference:
   - medsim_scenario_sobol
   - medsim_method_sobol
 
+- title: Gauge Residual (P_med + W)
+  desc: >
+    Scenario factory and estimator adapter for the gauge-residual estimand
+    (`P_med = IIE/OE`, `W = R/OE`).  Uses `variance_share`-kind with exact
+    closed-form corner-mean ground truth; wraps `probmed::ward_residual()`
+    (analytic or bootstrap percentile CI); estimator is injected, not vendored.
+  contents:
+  - medsim_scenario_gauge
+  - medsim_method_gauge
+
 - title: Running Simulations
   desc: >
     Core functions for executing Monte Carlo simulations with progress
