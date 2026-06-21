@@ -40,3 +40,25 @@ test_that("gauge method errors on missing columns and bad estimator", {
   d2 <- data.frame(A = 0:1, M = 0:1, Y = 0:1, C = 0:1)
   expect_error(medsim_method_gauge(d2, estimator = "notafn"), "function")
 })
+
+.gauge_bootstrap_available <- function() {
+  if (!requireNamespace("probmed", quietly = TRUE)) return(FALSE)
+  fn <- tryCatch(get("ward_residual", envir = asNamespace("probmed")),
+                 error = function(e) NULL)
+  is.function(fn) || inherits(fn, "S7_generic")
+}
+
+test_that("bootstrap arm actually fires (not a silent se_method no-op)", {
+  skip_if_not(.gauge_bootstrap_available(), "probmed ward_residual unavailable")
+  set.seed(1)
+  sc <- medsim_scenario_gauge("smoke", list(kappa = 0.3))
+  d  <- sc$data_generator(400)
+  est <- get("ward_residual", envir = asNamespace("probmed"))
+  a <- medsim_method_gauge(d, estimator = est, se_method = "analytic",  K = 2L)
+  b <- medsim_method_gauge(d, estimator = est, se_method = "bootstrap", K = 2L, B = 50L)
+  wa <- a$pmed_ci_upper - a$pmed_ci_lower
+  wb <- b$pmed_ci_upper - b$pmed_ci_lower
+  # bootstrap percentile width must differ from analytic Wald width — proves
+  # se_method was honored, not silently ignored (issue #24's headline risk).
+  expect_false(isTRUE(all.equal(wa, wb)))
+})

@@ -26,6 +26,8 @@ Imports:
 Suggests:
     medfit (>= 0.2.0),
     medrobust,
+    probmed,
+    S7,
     RMediation,
     mice,
     mitml,
@@ -45,7 +47,8 @@ Suggests:
     patchwork,
     RColorBrewer
 Remotes:
-    Data-Wise/medrobust
+    Data-Wise/medrobust,
+    Data-Wise/probmed@feature/gauge-bootstrap-se
 Config/Needs/website:
     pkgdown,
     quarto
