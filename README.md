@@ -19,6 +19,9 @@
 - **Parallel Processing**: Built-in parallelization with progress bars
 - **Ground Truth Caching**: Avoid expensive recomputation
 - **Automated Analysis**: Summary statistics, accuracy metrics, coverage rates
+- **ADEMP Reporting**: Coverage Monte Carlo SE, failed-run logging, performance
+  tables (bias/empirical SE/model SE/RMSE), and a replications-sizing helper
+  (`medsim_nsim_for_mcse()`) following Morris, White & Crowther (2019)
 - **Publication-Ready Output**: Figures and LaTeX tables with one function call
 - **Missing Data & Nonnormality**: MCAR/MAR/MNAR amputation, target skew/kurtosis
   generators, and validated D4-MBCO multiple-imputation inference

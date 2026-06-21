@@ -1,3 +1,14 @@
+# medsim 0.4.0
+
+## New features
+
+* ADEMP reporting (#25): per-cell coverage Monte Carlo SE (`coverage_mcse`),
+  `medsim_nsim_for_mcse()` for sizing replications to a target coverage MCSE,
+  failed-run logging (`n_failed`, `failure_rate`) in coverage output,
+  `medsim_plot_se_vs_estimate()` for SE-vs-estimate diagnostic scatter plots,
+  and `medsim_analyze_performance()` / `medsim_table_performance()` for full
+  ADEMP performance summaries (bias, empirical SE, model SE, RMSE, and MCSEs).
+
 # medsim 0.3.1 (2026-06-19)
 
 ## Test coverage
