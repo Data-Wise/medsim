@@ -1,10 +1,10 @@
 status: active
 priority: P1
 progress: 99
-next: ⏳ CRAN BLOCKED on medrobust (not in mainstream repos). Sequence: (1) await medrobust CRAN acceptance; (2) devtools::submit_cran(). v0.3.1 r-universe rebuild still pending (~hourly cron).
-done: v0.3.1 RELEASED 2026-06-19 (GitHub tag + release). Poll r-universe version: curl -s https://data-wise.r-universe.dev/api/packages/medsim | python3 -c "import sys,json;print(json.load(sys.stdin)['Version'])".
+next: ⏳ CRAN BLOCKED on medrobust (not in mainstream repos). Sequence: (1) await medrobust CRAN acceptance; (2) devtools::submit_cran(). Unreleased on dev: #25 ADEMP gates (merged) + #24 gauge estimand (held, see worktree). Bump DESCRIPTION → 0.4.0 at the next dev→main release.
+done: #25 ADEMP coverage gates MERGED to dev 2026-06-22 (PR #26; coverage MCSE + failed-run logging + performance table + nsim helper + SE-vs-estimate plot; 913/0, CI green all platforms). Also fixed a pre-existing dev pkgdown failure (Sobol index gap from #22) + CLAUDE.md Remotes drift (medfit→medrobust). v0.3.1 RELEASED 2026-06-19.
 type: r
-last_updated: 2026-06-19
+last_updated: 2026-06-22
 deferred: PROPOSAL-medsim-dm-integration.md — register differential-misclassification
   scenarios (wrap medrobust::simulate_dm_data + bound_ne) so M2a/M2b sims run via medsim_run
   instead of bespoke scripts. SPEC ONLY; build post-medrobust-CRAN. One real code change:
@@ -16,19 +16,20 @@ built: SPEC-medsim-missingdata-generators-2026-06-11.md — BUILT (deferral over
   MERGED to dev @ 7b3245e (PR #17, squash; all 6 CI gates green; tests 596/0/2; new-file cov ~94%). Deferred #3 =
   port the validated prototype (mice + D4 + MBCO), NOT missingmed/rmediation — the validated method
   uses neither (see spec "Deferred #3 — corrected scope"). base-R fallback ships meanwhile.
-worktree: feature/estimand-spine @ ~/.git-worktrees/medsim/feature-estimand-spine (pushed)
-  Phases 0-4 of the estimand-kind overhaul ALREADY LANDED on dev via v0.3.0 (#22).
-  2026-06-19 REBUILT clean: branch reset to dev (a2d66ae) + 4 NEW commits only
-  (dropped 5 redundant Phase 0-4 commits). Delivered on top of dev:
-    - "variance_share" estimand kind for the Sobol P_med^σ² (R/estimand.R)
-    - medsim_scenario_sobol() + medsim_method_sobol() (estimator injected, not vendored)
-    - tests/testthat/test-sobol.R (+29 tests)
-    - fix(parallel): restore caller RNGkind on exit (stops L'Ecuyer leak; D4 flake)
-  Full suite 887/0; R CMD check 0/0/0. Force-pushed origin/feature/estimand-spine.
-  PR-READY to dev. ⚠️ HOLD the PR until pmed-modern is ready to integrate.
-  DOWNSTREAM DEP: pmed-modern Paper-3 sims (03-sobol-pmed/sims/run_grid.R) currently
-  pass estimand=NULL; AFTER this merges + medsim reinstalls, re-point run_grid.R to
-  medsim_estimand("variance_share", ...) so coverage analysis is first-class.
+worktree: feature/gauge-estimand @ ~/.git-worktrees/medsim/feature-gauge-estimand (local only, NOT pushed)
+  #24 gauge-residual estimand — COMPLETE, opus-reviewed READY, rebased onto dev (b25ab65), HELD.
+  5 commits: medsim_scenario_gauge() (closed-form P_med=IIE/OE, W=R/OE truth) +
+  medsim_method_gauge() (wraps probmed::ward_residual; analytic + bootstrap percentile arms;
+  estimator injected, S7-or-list, stub-tested; fieller=FALSE default) + probmed/S7 Suggests +
+  Remotes pin Data-Wise/probmed@feature/gauge-bootstrap-se + NEWS/pkgdown/CLAUDE.md.
+  16 gauge tests pass; full suite 943/0; R CMD check 0/0/1 (.superpowers scratch NOTE, benign).
+  Math verified vs probmed/R/gauge-pmed.R:176-178. Bootstrap-fires probe confirms se_method honored.
+  ⚠️ HOLD the PR until pmed-modern is ready to integrate (per CLAUDE.md). Plan+ledger:
+  docs/superpowers/plans/2026-06-21-gauge-residual-estimand.md (docs/ is gitignored).
+  Remove the probmed Remotes pin once that branch merges + releases.
+  DOWNSTREAM DEP: pmed-modern P1 gauge grid (01-gauge-pmed/sims) + Paper-3 (03-sobol-pmed/run_grid.R)
+  — re-point to medsim_scenario_gauge()/medsim_estimand("variance_share", ...) after this merges + reinstall.
+  NOTE: stale feature/estimand-spine worktree (4dc7e83) still on disk — its work landed in v0.3.0 (#22); prunable.
 
 # ═══════════════════════════════════════════════════════════════════
 
