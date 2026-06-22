@@ -62,3 +62,16 @@ test_that("bootstrap arm actually fires (not a silent se_method no-op)", {
   # se_method was honored, not silently ignored (issue #24's headline risk).
   expect_false(isTRUE(all.equal(wa, wb)))
 })
+
+test_that("gauge method passes fieller = FALSE through by default", {
+  captured <- new.env()
+  spy <- function(data, ..., fieller) {
+    captured$fieller <- fieller
+    list(p_med = 0.4, p_med_ci = c(0.3, 0.5), W = 0.1, W_ci = c(0.0, 0.2))
+  }
+  d <- data.frame(A = c(0,1,0,1), M = rnorm(4), Y = rnorm(4), C = rnorm(4))
+  medsim_method_gauge(d, estimator = spy)
+  expect_false(captured$fieller)
+  medsim_method_gauge(d, estimator = spy, fieller = TRUE)
+  expect_true(captured$fieller)
+})

@@ -14,7 +14,8 @@ medsim_method_gauge(
   seed = 1L,
   reps = 1L,
   se_method = "analytic",
-  B = 200L
+  B = 200L,
+  fieller = FALSE
 )
 }
 \arguments{
@@ -38,6 +39,11 @@ medsim_method_gauge(
 \item{se_method}{\code{"analytic"} (default) or \code{"bootstrap"} (percentile).}
 
 \item{B}{Integer bootstrap resamples when \code{se_method = "bootstrap"} (default 200).}
+
+\item{fieller}{Logical: compute the estimator's Fieller bounds (default
+\code{FALSE}). medsim reports only the Wald/percentile \code{pmed}/\code{w} CIs, so the
+Fieller set is discarded — disabling it avoids wasted compute per
+replication across a large grid.}
 }
 \value{
 Named list \verb{pmed, pmed_ci_lower, pmed_ci_upper, w, w_ci_lower, w_ci_upper}.
