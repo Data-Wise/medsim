@@ -29,8 +29,8 @@ worktree: feature/gauge-estimand @ ~/.git-worktrees/medsim/feature-gauge-estiman
   Remove the probmed Remotes pin once that branch merges + releases.
   DOWNSTREAM DEP: pmed-modern P1 gauge grid (01-gauge-pmed/sims) + Paper-3 (03-sobol-pmed/run_grid.R)
   — re-point to medsim_scenario_gauge()/medsim_estimand("variance_share", ...) after this merges + reinstall.
-  NOTE: feature/estimand-spine worktree + local branch PRUNED 2026-06-22 (work landed in v0.3.0 #22);
-  remote origin/feature/estimand-spine still exists — delete needs explicit authorization.
+  NOTE: feature/estimand-spine FULLY PRUNED 2026-06-22 (worktree + local + remote; work landed in v0.3.0 #22).
+  Other stale remote feature branches remain (cran-readiness, test-*, trim-suggests, etc.) — candidates for later cleanup.
 
 # ═══════════════════════════════════════════════════════════════════
 
