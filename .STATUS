@@ -57,3 +57,8 @@ Remotes line whenever convenient after medfit reaches CRAN.
 - Then gated #3: install missingmed+rmediation, validate the Missing Effect prototype, swap
   real estimators in under test.
 - Routine: align Remotes post-medfit-CRAN (low priority).
+
+
+# 📌 CROSS-SESSION PLAN (2026-06-21, Cowork): BLOCKED on medrobust CRAN acceptance.
+# medrobust is verified ready (0/0/1N) and queued to submit — once accepted, run devtools::submit_cran() here.
+# Full plan: ~/projects/r-packages/PLAN-2026-06-21-cowork.md
