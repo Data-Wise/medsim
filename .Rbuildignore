@@ -20,9 +20,7 @@
 ^\.STATUS$
 ^\.STATUS\.backup$
 ^\.claude$
+^\.remember$
 ^cran-comments\.md$
-^PROPOSAL-.*\.md$
-^SPEC-.*\.md$
-^R-UNIVERSE-STANDARDS\.md$
-^WORKSTREAM-KICKOFFS\.md$
+^internal$
 ^tasks$

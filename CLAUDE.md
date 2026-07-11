@@ -239,7 +239,9 @@ PR #1 (2026-05-09).
   `Data-Wise/data-wise.r-universe.dev` (`packages.json`) — the registry key
   MUST match the DESCRIPTION `Package:` field case-sensitively (the
   `rmediation`→`RMediation` mismatch fail-stopped the whole org sync). Full
-  philosophy + readiness checklist: `R-UNIVERSE-STANDARDS.md` at repo root.
+  philosophy + readiness checklist: `internal/R-UNIVERSE-STANDARDS.md` (moved
+  out of repo root 2026-07-11 — pkgdown renders every root `.md` file with no
+  exclude option, see `[[feedback-local-ci-only]]`-adjacent memory on the leak).
   - **No r-universe step belongs in any GitHub workflow** — it's external; you
     don't create CI for it. The universe rebuilds the **default branch** (`main`),
     so a release reaches it only via the dev→main merge (not pushes to `dev`,
