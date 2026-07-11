@@ -560,6 +560,15 @@ medsim_analyze_coverage <- function(results,
   }
 
   coverage_df <- do.call(rbind, cov_list)
+  # When every parameter was skipped (e.g. a 100%-failure / all-NA run), cov_list
+  # is empty and rbind returns NULL. Coerce to a typed 0-row frame so nrow() is 0
+  # (not NULL) and the summary below does not error on `nrow(NULL) > 0`.
+  if (is.null(coverage_df)) {
+    coverage_df <- data.frame(
+      parameter = character(0), coverage = numeric(0), n_valid = integer(0),
+      n_failed = integer(0), failure_rate = numeric(0), mean_width = numeric(0),
+      stringsAsFactors = FALSE)
+  }
   rownames(coverage_df) <- NULL
 
   # Feasibility / falsification summaries if columns present

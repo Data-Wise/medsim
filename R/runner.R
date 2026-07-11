@@ -188,10 +188,15 @@ medsim_run <- function(method,
                   s_idx, length(scenarios), scenario$name))
     }
 
-    # Create parameter grid
+    # Create parameter grid. seq_len (not 1:n) so an empty chunk
+    # (n_replications == 0, e.g. n_chunks > total reps) yields ZERO rows rather
+    # than the `1:0 == c(1,0)` footgun that fabricates 2 phantom replications.
+    # scenario_idx uses rep() (not a length-1 scalar) so it is length 0 too when
+    # n_replications == 0 -- a length-1 column cannot recycle into a 0-row frame.
+    reps <- seq_len(config$n_replications)
     param_grid <- data.frame(
-      scenario_idx = s_idx,
-      replication = 1:config$n_replications,
+      scenario_idx = rep(s_idx, length(reps)),
+      replication = reps,
       stringsAsFactors = FALSE
     )
 

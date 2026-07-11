@@ -148,6 +148,9 @@ medsim_run_chunk <- function(scenarios, method, config, verbose = TRUE) {
 #' @param output_dir Character: directory containing `chunk_*.rds` files.
 #' @param pattern Character: glob pattern for chunk files.
 #'   Default `"chunk_*.rds"`.
+#' @param expected_chunks Integer or `NULL`: if supplied (e.g. the SLURM array
+#'   size), warn when fewer chunk files are found -- catching a failed/timed-out
+#'   task instead of silently combining a partial grid. Default `NULL` (no check).
 #' @param verbose Logical: print file counts.
 #'
 #' @return A `medsim_results` object with combined `$results` and `$truth`.
@@ -161,13 +164,23 @@ medsim_run_chunk <- function(scenarios, method, config, verbose = TRUE) {
 #'
 #' @export
 medsim_combine_chunks <- function(output_dir, pattern = "chunk_*.rds",
-                                   verbose = TRUE) {
+                                   expected_chunks = NULL, verbose = TRUE) {
   # Convert glob to regex for list.files
   files <- list.files(output_dir, pattern = glob2rx(pattern), full.names = TRUE)
   files <- sort(files)
 
   if (length(files) == 0L) {
     stop(sprintf("No chunk files matching '%s' found in '%s'", pattern, output_dir))
+  }
+
+  # Loudly flag a gap: a timed-out/failed SLURM array task leaves fewer chunk
+  # files than submitted, and silently combining a partial grid as if complete
+  # would bias every downstream number. Pass expected_chunks (= the array size)
+  # to catch this.
+  if (!is.null(expected_chunks) && length(files) < expected_chunks) {
+    warning(sprintf(
+      "medsim_combine_chunks: expected %d chunk files but found %d -- a chunk is missing (failed/timed-out task?); combining the partial grid.",
+      as.integer(expected_chunks), length(files)))
   }
 
   if (verbose) message(sprintf("[medsim_combine_chunks] reading %d files", length(files)))
