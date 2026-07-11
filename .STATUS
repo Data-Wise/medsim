@@ -5,7 +5,17 @@ cran_state: dev
 next: ⏳ CRAN BLOCKED on medrobust (not in mainstream repos). Sequence: (1) await medrobust CRAN acceptance; (2) devtools::submit_cran(). Unreleased on dev: #25 ADEMP gates (merged) + #24 gauge estimand (held, see worktree). Bump DESCRIPTION → 0.4.0 at the next dev→main release.
 done: #25 ADEMP coverage gates MERGED to dev 2026-06-22 (PR #26; coverage MCSE + failed-run logging + performance table + nsim helper + SE-vs-estimate plot; 913/0, CI green all platforms). Also fixed a pre-existing dev pkgdown failure (Sobol index gap from #22) + CLAUDE.md Remotes drift (medfit→medrobust). v0.3.1 RELEASED 2026-06-19.
 type: r
-last_updated: 2026-06-22
+last_updated: 2026-07-10
+test_infra: feature/test-infrastructure @ ~/.git-worktrees/medsim/feature-test-infrastructure
+  (stacked on feature/rng-seed-audit / PR #30). Two-tier sim/parallel test suite —
+  Tier A (CRAN-safe, tests/testthat/) + Tier B (Hopper-only, inst/hopper-tests/, planned).
+  DONE: Phase 0 CRAN-blockers (8f7e096 — ∈ U+2208 fix, seeded flaky MCAR test, seq_len);
+  Phase 1 Tier-A guards (dced161 — T1 discrimination/T2 truth-attach/T3 failure-rate/T4
+  truth-cache; +2 latent-bug fixes: interval-branch failure_rate, stale-truth-cache
+  content-fingerprint). Full suite 425/0; rforge --as-cran clean, no revdep breakage.
+  PENDING: Phase 2 (Tier-B cluster stress/edge, pilot-gated) + Phase 3 (eval:false vignette).
+  Autonomous run kit + full knowledge doc: tasks/{GOALS,plan,todo,TEST-INFRASTRUCTURE}.md.
+  Root-cause postmortem: the chunked-RNG collapse (coverage=1.0) — see PR #30 / TEST-INFRASTRUCTURE.md.
 deferred: PROPOSAL-medsim-dm-integration.md — register differential-misclassification
   scenarios (wrap medrobust::simulate_dm_data + bound_ne) so M2a/M2b sims run via medsim_run
   instead of bespoke scripts. SPEC ONLY; build post-medrobust-CRAN. One real code change:

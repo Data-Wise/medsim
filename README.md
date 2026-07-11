@@ -342,6 +342,26 @@ Inspired by simulation infrastructure in successful R packages and academic proj
 3. **Reproducibility by Design**: Automatic seed management, session tracking
 4. **Publication Ready**: One function generates manuscript-ready output
 
+## Testing
+
+medsim uses a **two-tier** test model for its simulation/parallel code:
+
+- **Tier A — CRAN-safe** (`tests/testthat/`): fast, deterministic,
+  single-core correctness guards that run in `R CMD check` on every commit.
+  These include statistical-correctness invariants — coverage-instrument
+  discrimination, cross-chunk RNG independence, truth-attachment across the
+  combine seam, and failure-rate/NA handling — so a reproducibility regression
+  cannot ship silently.
+- **Tier B — Hopper/cluster** (`inst/hopper-tests/`): real multi-node SLURM
+  stress, edge-case, and full-scale dogfood tests that are **never run by
+  `R CMD check`** and are documented in a non-evaluated vignette. Every cluster
+  run is pilot-gated (a small pilot is examined before scaling up).
+
+The design guideline: any correctness invariant that can run cheaply and
+deterministically is Tier A. The plan, checklist, and an autonomous-run kit live
+in the source repository under `tasks/` (`plan.md`, `todo.md`, `GOALS.md`,
+`TEST-INFRASTRUCTURE.md`).
+
 ## Documentation
 
 - [Getting Started](https://data-wise.github.io/medsim/articles/getting-started.html) - Step-by-step tutorial
