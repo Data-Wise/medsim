@@ -48,7 +48,7 @@ Suggests:
     RColorBrewer
 Remotes:
     Data-Wise/medrobust,
-    Data-Wise/probmed@feature/gauge-bootstrap-se
+    Data-Wise/probmed
 Config/Needs/website:
     pkgdown,
     quarto

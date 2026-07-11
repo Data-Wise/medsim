@@ -152,23 +152,21 @@ fails). Keep it in lockstep with `Suggests`. The permanent GitHub-only dep is
 `medrobust` (CRAN-blocked — not in mainstream repos; see `.STATUS`); `medfit`
 reached mainstream distribution and was dropped from Remotes (it stays in
 `Suggests` at `>= 0.2.0`). The `feature/gauge-estimand` branch (#24) adds a
-second, **temporary** feature-branch pin of `probmed` for the gauge bootstrap
-arm:
+plain `probmed` pin — `ward_residual()` + `se_method = "bootstrap"` (originally
+built on `probmed`'s `feature/gauge-bootstrap-se`) merged to probmed's `main`
+and shipped in probmed v0.3.0 (2026-06-22), so no branch-specific pin is
+needed:
 
 ```
 Remotes:
     Data-Wise/medrobust,
-    Data-Wise/probmed@feature/gauge-bootstrap-se
+    Data-Wise/probmed
 ```
 
-**Branch pin removal condition:** the `probmed` pin exists solely because
-`ward_residual()` + `se_method = "bootstrap"` lives on that branch and is not yet
-in probmed's `main`. Once `probmed`'s `feature/gauge-bootstrap-se` merges and a
-release lands on `probmed`'s `main`, replace the pin with plain
-`Data-Wise/probmed` (if probmed stays GitHub-only) or drop it entirely once
-probmed ships to CRAN — and in that last case remove `probmed` from `Remotes:`
-while keeping it in `Suggests:` (it is still a soft dependency). `medrobust`
-stays in `Remotes:` until it itself reaches mainstream distribution.
+**Pin removal condition:** drop `probmed` from `Remotes:` entirely once it
+ships to CRAN — keep it in `Suggests:` (it is still a soft dependency).
+`medrobust` stays in `Remotes:` until it itself reaches mainstream
+distribution.
 
 RMediation is on CRAN — never list it under Remotes. `Remotes:` first added in
 PR #1 (2026-05-09).
