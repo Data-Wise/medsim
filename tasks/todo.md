@@ -5,6 +5,14 @@ then Tier-B realism + docs). See `tasks/plan.md` for full per-task detail (accep
 criteria, verification, deps, files, scope). **Planning only; no code written yet.**
 Implementation goes on a new `feature/test-infrastructure` branch off `dev`, NOT in PR #30.
 
+## Phase 0 — Make `--as-cran` green (CRAN-blocker cleanup, pre-existing) · AUTO
+
+- [ ] **G0.1** fix ∈ (U+2208) Unicode WARNING in R/estimand.R man page (`\eqn{\in}{in}`), `rforge r:document`, re-check
+- [ ] **G0.2** seed the flaky MCAR/MAR p-value tests (test-dgm-amputate.R); 5 consecutive runs green; do NOT loosen 0.05
+- [ ] **G0.3** (optional) `1:nrow` → `seq_len(nrow())` at runner.R:195,211 (pre-empts the G2.5 empty-chunk edge)
+- [ ] Checkpoint 0: `rforge lib.rcmd --kind check --as-cran` → FAIL 0, no ∈ WARNING, only spurious first-submission NOTE
+- See `tasks/GOALS.md` G0 for the paste-ready `/goal` condition covering this phase.
+
 ## Already done (PR #30 — baseline, do not redo)
 
 - [x] Cross-chunk independence test

@@ -124,6 +124,28 @@ cache save/load/expiry, analyze, tables, visualize); PSOCK cluster paths exercis
 
 ## Task List
 
+> **Autonomous execution:** paste-ready Claude Code `/goal` completion
+> conditions for every phase live in `tasks/GOALS.md`. Phase 0/1/3 goals run
+> fully unsupervised (with Auto mode); the Phase-2 goal is written to auto-halt
+> at the pilot go/no-go (the pilot-before-scale safety gate is baked into the
+> condition, not left to trust).
+
+### Phase 0 — Make `R CMD check --as-cran` green (CRAN-blocker cleanup)
+
+Pre-existing blockers surfaced by rforge at Checkpoint A (none from Phase-1's
+diff); an autonomous "CRAN-ready" run needs them closed first.
+
+- **G0.1** ∈ (U+2208) Unicode WARNING from `R/estimand.R` → `man/medsim_estimand.Rd`
+  fails the PDF manual build. Fix with `\eqn{\in}{in}`/ASCII + `rforge r:document`.
+  Scope: XS.
+- **G0.2** unseeded flaky p-value test `test-dgm-amputate.R:33` (MCAR) — seed it;
+  5 consecutive runs green; do **not** loosen the 0.05 threshold. Scope: XS.
+- **G0.3** (optional) `1:nrow(...)` → `seq_len(nrow(...))` at `runner.R:195,211` —
+  the empty-input footgun that G2.5 stress-tests; fixing here makes it correct,
+  not just detected. Scope: XS.
+- **Checkpoint 0:** `rforge lib.rcmd --kind check --as-cran` → FAIL 0, no ∈
+  WARNING, only the spurious first-submission/Remotes NOTE.
+
 ### Phase 1 — Tier-A correctness guards (build first; the actual protection)
 
 #### Task T1: Positive-control coverage-discrimination test (G1)
