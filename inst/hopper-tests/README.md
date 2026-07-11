@@ -30,6 +30,24 @@ approval** and a clean pilot (all COMPLETED, MaxRSS within the 512M/cpu envelope
 nominal coverage ~0.95, narrow control < 0.80, no collisions). This is the
 `tasks/plan.md` Second principle.
 
+## Pilot results (2026-07-11, Hopper, jobs 4274532/33/34)
+
+All pilots ≤4 tasks, all COMPLETED (~4 s each), current-branch medsim installed.
+
+| Pilot | Check | Result | Verdict |
+|-------|-------|--------|---------|
+| B2 e2e (nominal) | by-scenario coverage, 6 scen × 200 reps | **0.953** | PASS (near-nominal) |
+| B3 dogfood (narrow control) | coverage of a 1/3-width interval | **0.491** | PASS (undercovers as designed → dogfood can fail) |
+| B4 FORK-RNG realism | distinct CI pairs / reproducibility, real FORK | **64/64 distinct, run1==run2** | PASS |
+| B5 grid-collision | distinct (scenario,CI) + `.medsim_det_seed` collisions | **1200/1200 distinct, 0 collisions** | PASS |
+
+MaxRSS was 0 (SLURM's ~30 s sampler can't catch a 4 s job); the synthetic
+workload is memory-light, comfortably within `512M/cpu`. Re-check MaxRSS if a
+full run uses a heavier method or much larger N/reps.
+
+**Go/no-go: GO** for a full run — but that is a **deliberate, human-approved**
+step (pilot-before-scale), not part of this pilot pass.
+
 ## Run
 
 ```bash
