@@ -14,10 +14,9 @@ next: ⏳ NOTHING BLOCKING — dev is clean, v0.4.0 released, gauge estimand mer
       curious, no action needed if not;
   (2) prune `~/.git-worktrees/medsim/feature-gauge-estimand` (worktree) + `git push origin
       --delete feature/gauge-estimand` (remote branch) — both stale, PR #33 already merged;
-  (3) stale remote branches never cleaned up: `feature/cran-readiness`,
-      `feature/fix-cluster-packages`, `feature/speed-up-ci`, `feature/test-parallel`,
-      `feature/test-runner`, `feature/test-visualize`, `feature/trim-suggests` — audit each
-      with `git cherry dev origin/<branch>` before deleting (verify merged, not just old);
+  (3) [DONE 2026-07-11] the 7 stale remote branches (cran-readiness, fix-cluster-packages,
+      speed-up-ci, test-parallel, test-runner, test-visualize, trim-suggests) no longer exist
+      on origin — already gone (likely GitHub auto-delete-on-merge), nothing to prune;
   (4) optional: pmed-modern could re-point its P1 gauge grid + Paper-3 run_grid.R to
       `medsim_scenario_gauge()`/`medsim_estimand("variance_share", ...)` now that both are
       released — not required, pmed-modern already has independently-validated results;
@@ -74,6 +73,13 @@ done: gauge-residual estimand MERGED to dev 2026-07-11 (PR #33, squash `d19ca92`
   can now re-point to medsim_scenario_gauge()/medsim_estimand("variance_share", ...) — optional
   standardization, not blocking (pmed-modern already validated its own gauge grid independently
   on Hopper, 2026-06-24).
+done: pkgdown site audit + fixes 2026-07-11 (commit 8993c8b): DESCRIPTION URL: field fixed
+  (was missing site URL, broke pkgdown::check_pkgdown()); README badges standardized
+  (lifecycle experimental→stable, repo-status wip→active); _pkgdown.yml navbar Status menu
+  added (matches medfit/probmed/medrobust/mediationverse). Vignette gap closed (commit
+  67153a6): vignettes/missing-data-mediation.qmd + vignettes/estimand-kinds.qmd added,
+  registered in navbar articles menu, strict pkgdown build 0 problems. Stale root scratch
+  file BRAINSTORM-ci-timeline-2026-05-09.md removed (was untracked).
 
 # ═══════════════════════════════════════════════════════════════════
 # Everything below this line was superseded by the fields above and removed
