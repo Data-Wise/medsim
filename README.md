@@ -354,7 +354,8 @@ medsim uses a **two-tier** test model for its simulation/parallel code:
   cannot ship silently.
 - **Tier B — Hopper/cluster** (`inst/hopper-tests/`): real multi-node SLURM
   stress, edge-case, and full-scale dogfood tests that are **never run by
-  `R CMD check`** and are documented in a non-evaluated vignette. Every cluster
+  `R CMD check`** and are documented in the non-evaluated `cluster-testing`
+  vignette (`vignette("cluster-testing", package = "medsim")`). Every cluster
   run is pilot-gated (a small pilot is examined before scaling up).
 
 The design guideline: any correctness invariant that can run cheaply and
