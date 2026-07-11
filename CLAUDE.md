@@ -8,8 +8,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **medsim** is the mediationverse's standardized infrastructure for Monte Carlo simulation studies in mediation analysis — a reusable framework so parallel processing, progress reporting, result analysis, and visualization don't get reimplemented per project.
 
-> ⚠️ **In-flight (2026-06-19, see `.STATUS`):** `feature/estimand-spine` adds a Sobol `"variance_share"` estimand kind + `medsim_scenario_sobol()`/`medsim_method_sobol()` (PR-ready, 887/0, check 0/0/0). **Hold the PR until pmed-modern is ready to integrate.** Downstream: pmed-modern Paper-3 `run_grid.R` uses `estimand=NULL` today; re-point it to `medsim_estimand("variance_share", ...)` after this merges + medsim reinstalls.
-
 ### Key Features
 
 - Environment-aware execution (local vs HPC cluster)
@@ -151,11 +149,11 @@ them during R-CMD-check (without it, pak treats them as missing and the check
 fails). Keep it in lockstep with `Suggests`. The permanent GitHub-only dep is
 `medrobust` (CRAN-blocked — not in mainstream repos; see `.STATUS`); `medfit`
 reached mainstream distribution and was dropped from Remotes (it stays in
-`Suggests` at `>= 0.2.0`). The `feature/gauge-estimand` branch (#24) adds a
-plain `probmed` pin — `ward_residual()` + `se_method = "bootstrap"` (originally
-built on `probmed`'s `feature/gauge-bootstrap-se`) merged to probmed's `main`
-and shipped in probmed v0.3.0 (2026-06-22), so no branch-specific pin is
-needed:
+`Suggests` at `>= 0.2.0`). The gauge-residual estimand (PR #33, merged
+2026-07-11) added a plain `probmed` pin — `ward_residual()` +
+`se_method = "bootstrap"` (originally built on `probmed`'s
+`feature/gauge-bootstrap-se`) merged to probmed's `main` and shipped in
+probmed v0.3.0 (2026-06-22), so no branch-specific pin was needed:
 
 ```
 Remotes:
