@@ -197,6 +197,14 @@ PR #1 (2026-05-09).
 
 ## CI / GitHub Actions Notes
 
+- **GitHub CI is release-only (2026-07-11)**: `R-CMD-check.yaml`, `test-coverage.yaml`,
+  and `pkgdown.yaml` trigger only on `push`/`pull_request` to `main`/`master` (the
+  dev→main release PR), `release: published`, and `workflow_dispatch` — no longer on
+  `dev`. Reason: GitHub Actions minutes budget. Use `/craft:code:ci-local` (lint, test,
+  coverage, docs) before pushing to `dev` instead; PRs/pushes to `dev` get no automated
+  remote CI. `R-CMD-check-devel.yaml` (weekly cron) and `rhub.yaml` (dispatch-only) are
+  unaffected — already low-frequency. This supersedes the "R-CMD-check reliably fires on
+  PRs to `dev`" note below, which described the pre-2026-07-11 setup.
 - **Workflow auto-disable**: GitHub auto-disables scheduled workflows that
   fail for 60+ days without a manual successful run. Re-enable via:
   `gh api -X PUT repos/Data-Wise/medsim/actions/workflows/<id>/enable`
