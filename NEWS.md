@@ -36,6 +36,10 @@
 
 ## New features
 
+* Gauge-residual estimand (#24): `medsim_scenario_gauge()` + `medsim_method_gauge()`
+  route the P1 gauge `P_med`/`W` coverage grid through `medsim_run()`, mirroring
+  Sobol; analytic + bootstrap (percentile) CI arms.
+
 * ADEMP reporting (#25): per-cell coverage Monte Carlo SE (`coverage_mcse`),
   `medsim_nsim_for_mcse()` for sizing replications to a target coverage MCSE,
   failed-run logging (`n_failed`, `failure_rate`) in coverage output,
