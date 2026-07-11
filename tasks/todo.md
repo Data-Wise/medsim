@@ -5,13 +5,13 @@ then Tier-B realism + docs). See `tasks/plan.md` for full per-task detail (accep
 criteria, verification, deps, files, scope). **Planning only; no code written yet.**
 Implementation goes on a new `feature/test-infrastructure` branch off `dev`, NOT in PR #30.
 
-## Phase 0 — Make `--as-cran` green (CRAN-blocker cleanup, pre-existing) · AUTO
+## Phase 0 — Make `--as-cran` green (CRAN-blocker cleanup) · ✅ DONE (commit 8f7e096, pre-flighted)
 
-- [ ] **G0.1** fix ∈ (U+2208) Unicode WARNING in R/estimand.R man page (`\eqn{\in}{in}`), `rforge r:document`, re-check
-- [ ] **G0.2** seed the flaky MCAR/MAR p-value tests (test-dgm-amputate.R); 5 consecutive runs green; do NOT loosen 0.05
-- [ ] **G0.3** (optional) `1:nrow` → `seq_len(nrow())` at runner.R:195,211 (pre-empts the G2.5 empty-chunk edge)
-- [ ] Checkpoint 0: `rforge lib.rcmd --kind check --as-cran` → FAIL 0, no ∈ WARNING, only spurious first-submission NOTE
-- See `tasks/GOALS.md` G0 for the paste-ready `/goal` condition covering this phase.
+- [x] **G0.1** ∈ (U+2208) → ASCII "in" in R/estimand.R; man/ regenerated; PDF manual builds with no Unicode LaTeX warning
+- [x] **G0.2** seeded MCAR/MAR/MNAR p-value tests (test-dgm-amputate.R); 5 consecutive runs green; 0.05 threshold unchanged
+- [x] **G0.3** `1:nrow` → `seq_len(nrow())` at runner.R:195,211
+- [x] Checkpoint 0: full testthat 425 pass / 0 fail; PDF manual clean of the ∈ WARNING
+- Pre-flighted manually so the `/goal` G0 run starts from an already-clean base and just verifies.
 
 ## Already done (PR #30 — baseline, do not redo)
 
