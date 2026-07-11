@@ -188,17 +188,22 @@ medsim_run <- function(method,
                   s_idx, length(scenarios), scenario$name))
     }
 
-    # Create parameter grid
+    # Create parameter grid. seq_len (not 1:n) so an empty chunk
+    # (n_replications == 0, e.g. n_chunks > total reps) yields ZERO rows rather
+    # than the `1:0 == c(1,0)` footgun that fabricates 2 phantom replications.
+    # scenario_idx uses rep() (not a length-1 scalar) so it is length 0 too when
+    # n_replications == 0 -- a length-1 column cannot recycle into a 0-row frame.
+    reps <- seq_len(config$n_replications)
     param_grid <- data.frame(
-      scenario_idx = s_idx,
-      replication = 1:config$n_replications,
+      scenario_idx = rep(s_idx, length(reps)),
+      replication = reps,
       stringsAsFactors = FALSE
     )
 
     # Run replications
     if (parallel) {
       scenario_results <- medsim_run_parallel(
-        tasks = 1:nrow(param_grid),
+        tasks = seq_len(nrow(param_grid)),
         fun = function(i) {
           medsim_run_single_replication(
             scenario = scenario,
@@ -214,7 +219,7 @@ medsim_run <- function(method,
         packages = NULL  # Add if method requires specific packages
       )
     } else {
-      scenario_results <- lapply(1:nrow(param_grid), function(i) {
+      scenario_results <- lapply(seq_len(nrow(param_grid)), function(i) {
         medsim_run_single_replication(
           scenario = scenario,
           rep_id = param_grid$replication[i],
@@ -410,6 +415,40 @@ medsim_run_single_replication <- function(scenario, rep_id, method, config) {
   return(result_df)
 }
 
+#' Content fingerprint of a scenario's truth inputs
+#'
+#' @description
+#' Serialized identity of everything that determines a scenario's ground truth:
+#' name, params (by value), and the *deparsed source* of the data-generator and
+#' the truth function. Used by [medsim_compute_all_truth()] to invalidate an
+#' index-keyed truth cache on any content change (guards against stale-truth
+#' reuse when an `output_dir` is reused after a scenario changes).
+#'
+#' Deparse (source text) is used rather than serializing the live closures on
+#' purpose: a closure's `serialize()` includes its whole enclosing environment,
+#' which mutates as the caller adds unrelated bindings -- that would make the
+#' fingerprint unstable across two identical calls and defeat legitimate cache
+#' reuse. Deparse is environment-independent, and the *values* a data-generator
+#' depends on live in `params` (medsim convention), which is fingerprinted by
+#' value. Residual limitation: a generator that closes over a value NOT in
+#' `params` (e.g. `local({ m <- 5; function(n) rnorm(n, m) })`) with an identical
+#' body and identical `params` would not be distinguished by a change to `m`;
+#' put such parameters in `params` for them to be tracked.
+#'
+#' @param scenario A `medsim_scenario`.
+#' @param truth_function The truth function passed to `medsim_run()`.
+#' @return A raw vector (compared with `identical()`).
+#' @keywords internal
+.medsim_truth_fingerprint <- function(scenario, truth_function) {
+  serialize(
+    list(name   = scenario$name,
+         params = scenario$params,
+         dgm    = deparse(scenario$data_generator),
+         truth  = deparse(truth_function)),
+    connection = NULL
+  )
+}
+
 #' Compute Ground Truth for All Scenarios
 #'
 #' @description
@@ -441,14 +480,27 @@ medsim_compute_all_truth <- function(scenarios,
                   s_idx, length(scenarios), scenario$name))
     }
 
-    # Create cache file path
+    # Create cache file path (keyed by index; content validated by fingerprint
+    # below -- the filename alone is NOT a safe key, see fingerprint note).
     cache_file <- file.path(
       config$output_dir,
       sprintf("truth_scenario_%d.rds", s_idx)
     )
 
-    # Try to load from cache
-    truth_value <- medsim_cache_load(cache_file)
+    # Content fingerprint: reusing an output_dir after changing a scenario's
+    # DGM/params must NOT reload stale truth. Serializing name+params+DGM+truth
+    # captures closure values too (e.g. a data_generator that closes over mu via
+    # local()), so an anagram-of-body or a changed closed-over constant both
+    # invalidate. The cached object is list(truth=, fingerprint=); a legacy bare
+    # cache (no $fingerprint) is treated as a miss and recomputed (safe).
+    fingerprint <- .medsim_truth_fingerprint(scenario, truth_function)
+    cached <- medsim_cache_load(cache_file)
+    truth_value <- if (is.list(cached) && !is.null(cached$fingerprint) &&
+                       identical(cached$fingerprint, fingerprint)) {
+      cached$truth
+    } else {
+      NULL
+    }
 
     if (is.null(truth_value)) {
       # Compute truth
@@ -469,8 +521,9 @@ medsim_compute_all_truth <- function(scenarios,
         }
       )
 
-      # Cache result
-      medsim_cache_save(truth_result, cache_file)
+      # Cache result WITH its fingerprint so a later content change invalidates.
+      medsim_cache_save(list(truth = truth_result, fingerprint = fingerprint),
+                        cache_file)
       truth_value <- truth_result
 
       if (verbose) {

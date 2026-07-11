@@ -42,10 +42,10 @@ downstream command (\code{medsim_run}, \code{medsim_analyze_coverage},
 
 Five kinds are recognised:\tabular{lll}{
    kind \tab what \code{method()} returns \tab coverage notion \cr
-   \code{"point"} \tab \code{{p}}, \verb{\{p\}_ci_lower/_upper}, \verb{\{p\}_p} \tab truth ∈ CI \cr
-   \code{"interval"} \tab \verb{\{p\}_lower/_upper}, \verb{\{p\}_im_lower/_im_upper}, \code{feasible}, \code{falsified} \tab truth ∈ [lower, upper]; IM-CI coverage \cr
-   \code{"probabilistic"} \tab \code{pmed}, \verb{pmed_ci_lower/_upper}, \code{pmed_p}, \code{branch_switch} \tab truth ∈ CI (truth from potential outcomes) \cr
-   \code{"variance_share"} \tab \code{{p}}, \verb{\{p\}_ci_lower/_upper} \tab truth ∈ Wald CI (bounded scalar share in [0,1]) \cr
+   \code{"point"} \tab \code{{p}}, \verb{\{p\}_ci_lower/_upper}, \verb{\{p\}_p} \tab truth in CI \cr
+   \code{"interval"} \tab \verb{\{p\}_lower/_upper}, \verb{\{p\}_im_lower/_im_upper}, \code{feasible}, \code{falsified} \tab truth in [lower, upper]; IM-CI coverage \cr
+   \code{"probabilistic"} \tab \code{pmed}, \verb{pmed_ci_lower/_upper}, \code{pmed_p}, \code{branch_switch} \tab truth in CI (truth from potential outcomes) \cr
+   \code{"variance_share"} \tab \code{{p}}, \verb{\{p\}_ci_lower/_upper} \tab truth in Wald CI (bounded scalar share in [0,1]) \cr
    \code{"numeric"} \tab \code{error}, \code{abs_error}, \code{elapsed_sec} \tab none \cr
 }
 
@@ -54,7 +54,7 @@ Five kinds are recognised:\tabular{lll}{
 CI — the Sobol / functional-ANOVA proportion mediated
 \eqn{P_{med}^{\sigma^2} = V_{med}/V_T \in [0,1]} (see
 \code{\link[=medsim_scenario_sobol]{medsim_scenario_sobol()}}, \code{\link[=medsim_method_sobol]{medsim_method_sobol()}}).  Coverage uses the
-generic \verb{truth ∈ CI} path; the dedicated kind exists for clear labeling and
+generic \verb{truth in CI} path; the dedicated kind exists for clear labeling and
 so \code{\link[=medsim_validate_scenario]{medsim_validate_scenario()}} checks the causal-notation \code{A/M/Y/C} columns
 the Sobol estimator requires (rather than the legacy \code{X/M/Y} of \code{"point"}).
 

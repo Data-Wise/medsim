@@ -15,6 +15,25 @@
   meaningful only for a direct `medsim_run_parallel(seed = ...)` call) --
   see updated docs on `medsim_config()` and `medsim_run_parallel()`.
 
+## Testing infrastructure
+
+* Two-tier test model for the simulation/parallel code. **Tier A**
+  (`tests/testthat/`, always run by `R CMD check`) adds single-core
+  correctness guards — coverage-instrument discrimination, cross-chunk RNG
+  independence, truth-cache invalidation across the combine seam, failure-rate
+  / NA-CI accounting, and chunk boundary cases. **Tier B**
+  (`inst/hopper-tests/`, run only on a SLURM cluster, never by `R CMD check`)
+  covers the at-scale and many-core-FORK properties CRAN cannot exercise:
+  production-grid `.medsim_det_seed()` collision checks, real FORK-cluster RNG
+  independence/reproducibility, and a self-contained can-fail coverage dogfood.
+  Documented in the new `cluster-testing` vignette (all chunks non-evaluated,
+  so it adds negligible check time).
+* Building the Tier-A suite surfaced and fixed several latent defects: an
+  interval-branch `failure_rate`, a stale truth-cache when the DGM changed, an
+  empty-chunk phantom-replication footgun (`1:0`), missing-chunk detection in
+  `medsim_combine_chunks()` (new `expected_chunks` argument), and an all-NA
+  analyze crash.
+
 ## New features
 
 * ADEMP reporting (#25): per-cell coverage Monte Carlo SE (`coverage_mcse`),
