@@ -1,5 +1,10 @@
 # Implementation Plan: medsim Simulation & Parallel-Code Test Infrastructure
 
+> **✅ COMPLETE — merged to dev as PR #31 (squash `986f0e0`), 2026-07-11.**
+> Full suite 968/0/1, R CMD check --as-cran 0/0/0. Kept below as the
+> historical implementation plan — not actionable; see `tasks/todo.md` for
+> the completed checklist and `TEST-INFRASTRUCTURE.md` for the knowledge doc.
+
 **Status:** PLANNING ONLY — no test code written this session.
 **Scope:** `medsim` R package (`Data-Wise/medsim`), simulation + parallel-execution surface.
 **Motivating exemplar:** the chunked-RNG bug fixed in PR #30 (cross-chunk replication

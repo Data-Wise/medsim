@@ -1,5 +1,10 @@
 # GOALS — medsim test-infrastructure (for Claude Code `/goal`)
 
+> **✅ COMPLETE — merged to dev as PR #31 (squash `986f0e0`), 2026-07-11.**
+> G0/G2/G3 all reached DONE; G4 (integration PR) opened and merged. Worktree
+> `feature-test-infrastructure` pruned post-merge. Kept below as a historical
+> record of the `/goal` run-book — not actionable.
+
 Paste-ready completion conditions for the built-in **`/goal`** command
 (Claude Code ≥ v2.1.139). `/goal <condition>` runs turn-by-turn **without
 supervision** until a lightweight evaluator confirms the condition; pair it with

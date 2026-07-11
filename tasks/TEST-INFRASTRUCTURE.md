@@ -5,9 +5,12 @@ effort on branch `feature/test-infrastructure` (stacked on the RNG-fix branch /
 PR #30). Companion files in `tasks/`: `plan.md` (full plan), `todo.md`
 (checklist), `GOALS.md` (autonomous `/goal` prompts + operating instructions).
 
-> **Status:** Phase 0 (CRAN blockers) ✅ · Phase 1 (Tier-A guards) ✅ · Phase 2
-> (Tier-B cluster) ⏳ · Phase 3 (vignette+docs) ⏳. Commits: `dced161` (Phase 1),
-> `8f7e096` (Phase 0). `.Rbuildignore`d (`tasks/` never ships to CRAN).
+> **Status:** ✅ ALL PHASES COMPLETE — Phase 0 (CRAN blockers), Phase 1 (Tier-A
+> guards), Phase 2 (Tier-B cluster, 12,000-rep Hopper run all PASS), Phase 3
+> (vignette+docs) all done. Commits: `8f7e096` (Phase 0), `dced161` (Phase 1),
+> `986f0e0` (Phase 2+3, squash-merged as PR #31, 2026-07-11). Worktree
+> `feature-test-infrastructure` pruned post-merge. `.Rbuildignore`d (`tasks/`
+> never ships to CRAN) — kept as historical knowledge doc, not actionable.
 
 ---
 
