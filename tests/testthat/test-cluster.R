@@ -323,6 +323,107 @@ test_that("medsim_run_chunk emits verbose messages", {
   )
 })
 
+test_that("medsim_run_chunk produces independent draws across chunks (regression: cross-chunk RNG collapse)", {
+  # Prior to the .medsim_det_seed fix, every chunk called set.seed(config$seed)
+  # with the SAME scalar and always started rep_id at 1 -- chunk_config$rep_offset
+  # was computed but never consumed. Every chunk regenerated the identical short
+  # sequence of "replications", so a 60-chunk/1000-rep coverage study collapsed
+  # to ~n_chunks distinct outcomes and produced spurious coverage = 1.0.
+  sc <- medsim_scenario(
+    name = "rng_independence_test",
+    data_generator = function(n = 100) data.frame(x = rnorm(n)),
+    params = list()
+  )
+  method <- function(data, params) list(x1 = data$x[1])
+
+  run_chunk_values <- function(chunk_id) {
+    tmp_dir <- tempfile()
+    dir.create(tmp_dir)
+    on.exit(unlink(tmp_dir, recursive = TRUE))
+    cfg <- medsim_config("test", chunk_id = chunk_id, n_chunks = 2L,
+                          n_replications = 4L, output_dir = tmp_dir)
+    out_path <- medsim_run_chunk(list(sc), method, cfg, verbose = FALSE)
+    readRDS(out_path)$results$x1
+  }
+
+  chunk1 <- run_chunk_values(1L)
+  chunk2 <- run_chunk_values(2L)
+
+  # Different chunks must draw different data -- NOT identical.
+  expect_false(identical(chunk1, chunk2))
+  # Within a chunk, distinct replications must also differ from each other.
+  expect_gt(length(unique(chunk1)), 1L)
+})
+
+test_that("medsim_run_chunk is reproducible: same chunk_id gives same draws", {
+  sc <- medsim_scenario(
+    name = "rng_reproducibility_test",
+    data_generator = function(n = 100) data.frame(x = rnorm(n)),
+    params = list()
+  )
+  method <- function(data, params) list(x1 = data$x[1])
+
+  run_chunk_values <- function() {
+    tmp_dir <- tempfile()
+    dir.create(tmp_dir)
+    on.exit(unlink(tmp_dir, recursive = TRUE))
+    cfg <- medsim_config("test", chunk_id = 1L, n_chunks = 2L,
+                          n_replications = 4L, output_dir = tmp_dir)
+    out_path <- medsim_run_chunk(list(sc), method, cfg, verbose = FALSE)
+    readRDS(out_path)$results$x1
+  }
+
+  expect_identical(run_chunk_values(), run_chunk_values())
+})
+
+test_that(".medsim_det_seed is a pure function of (scenario_name, rep_id)", {
+  expect_identical(.medsim_det_seed("scenario_a", 5L), .medsim_det_seed("scenario_a", 5L))
+  expect_false(identical(.medsim_det_seed("scenario_a", 5L), .medsim_det_seed("scenario_a", 6L)))
+  expect_false(identical(.medsim_det_seed("scenario_a", 5L), .medsim_det_seed("scenario_b", 5L)))
+})
+
+test_that(".medsim_det_seed is order-sensitive (anagrams do not collide)", {
+  expect_false(identical(.medsim_det_seed("abc", 1L), .medsim_det_seed("bca", 1L)))
+  expect_false(identical(.medsim_det_seed("abc", 1L), .medsim_det_seed("cab", 1L)))
+})
+
+test_that("medsim_run_chunk output is invariant to how the total is split into chunks", {
+  # The actual value proposition of .medsim_det_seed: replication k of a given
+  # scenario must draw the same data whether it lands in a 2-chunk or a
+  # 5-chunk split of the same 10-replication total -- not just "chunk 1 !=
+  # chunk 2" (already covered above), but "chunk boundaries don't matter".
+  sc <- medsim_scenario(
+    name = "chunking_invariance_test",
+    data_generator = function(n = 100) data.frame(x = rnorm(n)),
+    params = list()
+  )
+  method <- function(data, params) list(x1 = data$x[1])
+
+  run_all_chunks <- function(n_chunks, n_replications = 10L) {
+    tmp_dir <- tempfile()
+    dir.create(tmp_dir)
+    on.exit(unlink(tmp_dir, recursive = TRUE))
+    for (cid in seq_len(n_chunks)) {
+      cfg <- medsim_config("test", chunk_id = cid, n_chunks = n_chunks,
+                            n_replications = n_replications, output_dir = tmp_dir)
+      medsim_run_chunk(list(sc), method, cfg, verbose = FALSE)
+    }
+    combined <- medsim_combine_chunks(tmp_dir, verbose = FALSE)
+    # NOTE: combined$results$replication is the per-chunk LOCAL rep_id (it
+    # collides across chunks -- e.g. every chunk's first row is labeled
+    # replication=1), so it cannot align rows to a common global order across
+    # different chunkings. Compare the drawn VALUES as a set instead, which
+    # sidesteps that ambiguity and still proves the real invariant: the same
+    # global draws occur regardless of chunk boundaries.
+    sort(combined$results$x1)
+  }
+
+  values_2_chunks <- run_all_chunks(n_chunks = 2L)
+  values_5_chunks <- run_all_chunks(n_chunks = 5L)
+
+  expect_equal(values_2_chunks, values_5_chunks)
+})
+
 test_that("medsim_combine_chunks verbose=TRUE prints file count", {
   sc <- medsim_scenario(
     name = "combine_verbose_test",

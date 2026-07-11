@@ -1,5 +1,20 @@
 # medsim 0.4.0
 
+## Bug fixes
+
+* **Critical**: `medsim_run_chunk()` produced correlated, non-independent
+  replications across SLURM array chunks. `chunk_config$rep_offset` was
+  computed but never consumed, and every chunk called `set.seed(config$seed)`
+  with the same scalar -- so every chunk regenerated the identical short
+  sequence of "replications", collapsing e.g. a 1000-replication/60-chunk
+  study to ~17 truly distinct outcomes. Fixed by seeding each replication
+  deterministically from `(scenario_name, global_rep_id)` via the new
+  internal `.medsim_det_seed()`, independent of chunk count, worker count,
+  cluster type, or execution order. `config$seed`/`seed_stream` no longer
+  affect `medsim_run()`/`medsim_run_chunk()` replication draws (they remain
+  meaningful only for a direct `medsim_run_parallel(seed = ...)` call) --
+  see updated docs on `medsim_config()` and `medsim_run_parallel()`.
+
 ## New features
 
 * ADEMP reporting (#25): per-cell coverage Monte Carlo SE (`coverage_mcse`),

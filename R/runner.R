@@ -303,6 +303,35 @@ medsim_run <- function(method,
   return(results)
 }
 
+#' Deterministic Per-Replication Seed
+#'
+#' @description
+#' Derives a seed from `(scenario_name, rep_id)` alone, independent of chunk
+#' count, worker count, cluster type, or execution order. This is what makes
+#' [medsim_run_chunk()] safe to split across any number of SLURM array tasks:
+#' replication `k` of a given scenario draws the same data regardless of
+#' which chunk or worker happens to process it.
+#'
+#' @param scenario_name Character: scenario name.
+#' @param rep_id Integer: **global** replication id (i.e. already offset by
+#'   `config$rep_offset` for chunked runs -- see [medsim_run_single_replication()]).
+#'
+#' @return Integer in `[1, .Machine$integer.max]`.
+#'
+#' @keywords internal
+.medsim_det_seed <- function(scenario_name, rep_id) {
+  # Polynomial rolling hash (order-sensitive -- unlike a plain character sum,
+  # anagrams of a scenario name do NOT collide) over a ~1e6-bucket space.
+  # medsim is shared infrastructure accumulating scenario names across many
+  # studies; a name_hash collision would silently reproduce the exact
+  # cross-run correlation bug this function exists to fix, just relocated
+  # from "chunk boundary" to "scenario-name space".
+  chars <- utf8ToInt(scenario_name)
+  name_hash <- Reduce(function(acc, ch) (acc * 31L + ch) %% 1000003L, chars, 0L)
+  seed <- (name_hash * 1e6) + rep_id
+  as.integer(seed %% .Machine$integer.max) + 1L
+}
+
 #' Run Single Simulation Replication
 #'
 #' @description
@@ -310,7 +339,9 @@ medsim_run <- function(method,
 #' called repeatedly by [medsim_run()].
 #'
 #' @param scenario Scenario object
-#' @param rep_id Replication ID number
+#' @param rep_id Replication ID number (local to the current chunk, if any --
+#'   offset by `config$rep_offset` internally to get the global id used for
+#'   seeding)
 #' @param method User-defined method function
 #' @param config Configuration object
 #'
@@ -318,6 +349,18 @@ medsim_run <- function(method,
 #'
 #' @keywords internal
 medsim_run_single_replication <- function(scenario, rep_id, method, config) {
+
+  # Seed deterministically from (scenario, global rep id) -- NOT from
+  # config$seed alone. config$seed is a single scalar shared by every chunk
+  # in a SLURM array job; without this, medsim_run_chunk() resets to the same
+  # RNG state on every chunk and every chunk regenerates the same short
+  # sequence of "replications" (see medsim issue: chunked coverage runs
+  # silently collapsing to ~n_chunks distinct outcomes). rep_offset (set by
+  # medsim_run_chunk()) shifts rep_id to its true position in the full
+  # 1..n_replications sequence so chunk 2's rep 1 gets a different seed than
+  # chunk 1's rep 1.
+  global_rep_id <- (config$rep_offset %||% 0L) + rep_id
+  set.seed(.medsim_det_seed(scenario$name, global_rep_id))
 
   # Generate data
   data <- scenario$data_generator(n = config$n %||% 200)
