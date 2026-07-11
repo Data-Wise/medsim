@@ -4,9 +4,9 @@
 # Standardized workflow for mediationverse ecosystem packages
 on:
   push:
-    branches: [main, dev]
+    branches: [main]
   pull_request:
-    branches: [main, dev]
+    branches: [main]
   release:
     types: [published]
   workflow_dispatch:

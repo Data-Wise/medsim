@@ -119,7 +119,13 @@ medsim_run <- function(method,
     stop("config must be a medsim_config object from medsim_config()")
   }
 
-  # Set random seed
+  # NOTE: this does NOT seed the replication draws -- each replication
+  # re-seeds deterministically from (scenario_name, global_rep_id) via
+  # .medsim_det_seed() (see medsim_run_single_replication), so replication
+  # independence is invariant to config$seed. This set.seed only affects the
+  # compute_truth pass below (Step 1), where it keeps ground-truth computation
+  # reproducible and identical across chunks. config$seed is otherwise
+  # provenance-only (see medsim_config() / medsim_run_parallel() docs).
   set.seed(config$seed)
 
   # Create output directory
@@ -182,17 +188,22 @@ medsim_run <- function(method,
                   s_idx, length(scenarios), scenario$name))
     }
 
-    # Create parameter grid
+    # Create parameter grid. seq_len (not 1:n) so an empty chunk
+    # (n_replications == 0, e.g. n_chunks > total reps) yields ZERO rows rather
+    # than the `1:0 == c(1,0)` footgun that fabricates 2 phantom replications.
+    # scenario_idx uses rep() (not a length-1 scalar) so it is length 0 too when
+    # n_replications == 0 -- a length-1 column cannot recycle into a 0-row frame.
+    reps <- seq_len(config$n_replications)
     param_grid <- data.frame(
-      scenario_idx = s_idx,
-      replication = 1:config$n_replications,
+      scenario_idx = rep(s_idx, length(reps)),
+      replication = reps,
       stringsAsFactors = FALSE
     )
 
     # Run replications
     if (parallel) {
       scenario_results <- medsim_run_parallel(
-        tasks = 1:nrow(param_grid),
+        tasks = seq_len(nrow(param_grid)),
         fun = function(i) {
           medsim_run_single_replication(
             scenario = scenario,
@@ -208,7 +219,7 @@ medsim_run <- function(method,
         packages = NULL  # Add if method requires specific packages
       )
     } else {
-      scenario_results <- lapply(1:nrow(param_grid), function(i) {
+      scenario_results <- lapply(seq_len(nrow(param_grid)), function(i) {
         medsim_run_single_replication(
           scenario = scenario,
           rep_id = param_grid$replication[i],
@@ -303,6 +314,35 @@ medsim_run <- function(method,
   return(results)
 }
 
+#' Deterministic Per-Replication Seed
+#'
+#' @description
+#' Derives a seed from `(scenario_name, rep_id)` alone, independent of chunk
+#' count, worker count, cluster type, or execution order. This is what makes
+#' [medsim_run_chunk()] safe to split across any number of SLURM array tasks:
+#' replication `k` of a given scenario draws the same data regardless of
+#' which chunk or worker happens to process it.
+#'
+#' @param scenario_name Character: scenario name.
+#' @param rep_id Integer: **global** replication id (i.e. already offset by
+#'   `config$rep_offset` for chunked runs -- see [medsim_run_single_replication()]).
+#'
+#' @return Integer in `[1, .Machine$integer.max]`.
+#'
+#' @keywords internal
+.medsim_det_seed <- function(scenario_name, rep_id) {
+  # Polynomial rolling hash (order-sensitive -- unlike a plain character sum,
+  # anagrams of a scenario name do NOT collide) over a ~1e6-bucket space.
+  # medsim is shared infrastructure accumulating scenario names across many
+  # studies; a name_hash collision would silently reproduce the exact
+  # cross-run correlation bug this function exists to fix, just relocated
+  # from "chunk boundary" to "scenario-name space".
+  chars <- utf8ToInt(scenario_name)
+  name_hash <- Reduce(function(acc, ch) (acc * 31L + ch) %% 1000003L, chars, 0L)
+  seed <- (name_hash * 1e6) + rep_id
+  as.integer(seed %% .Machine$integer.max) + 1L
+}
+
 #' Run Single Simulation Replication
 #'
 #' @description
@@ -310,7 +350,9 @@ medsim_run <- function(method,
 #' called repeatedly by [medsim_run()].
 #'
 #' @param scenario Scenario object
-#' @param rep_id Replication ID number
+#' @param rep_id Replication ID number (local to the current chunk, if any --
+#'   offset by `config$rep_offset` internally to get the global id used for
+#'   seeding)
 #' @param method User-defined method function
 #' @param config Configuration object
 #'
@@ -318,6 +360,18 @@ medsim_run <- function(method,
 #'
 #' @keywords internal
 medsim_run_single_replication <- function(scenario, rep_id, method, config) {
+
+  # Seed deterministically from (scenario, global rep id) -- NOT from
+  # config$seed alone. config$seed is a single scalar shared by every chunk
+  # in a SLURM array job; without this, medsim_run_chunk() resets to the same
+  # RNG state on every chunk and every chunk regenerates the same short
+  # sequence of "replications" (see medsim issue: chunked coverage runs
+  # silently collapsing to ~n_chunks distinct outcomes). rep_offset (set by
+  # medsim_run_chunk()) shifts rep_id to its true position in the full
+  # 1..n_replications sequence so chunk 2's rep 1 gets a different seed than
+  # chunk 1's rep 1.
+  global_rep_id <- (config$rep_offset %||% 0L) + rep_id
+  set.seed(.medsim_det_seed(scenario$name, global_rep_id))
 
   # Generate data
   data <- scenario$data_generator(n = config$n %||% 200)
@@ -361,6 +415,40 @@ medsim_run_single_replication <- function(scenario, rep_id, method, config) {
   return(result_df)
 }
 
+#' Content fingerprint of a scenario's truth inputs
+#'
+#' @description
+#' Serialized identity of everything that determines a scenario's ground truth:
+#' name, params (by value), and the *deparsed source* of the data-generator and
+#' the truth function. Used by [medsim_compute_all_truth()] to invalidate an
+#' index-keyed truth cache on any content change (guards against stale-truth
+#' reuse when an `output_dir` is reused after a scenario changes).
+#'
+#' Deparse (source text) is used rather than serializing the live closures on
+#' purpose: a closure's `serialize()` includes its whole enclosing environment,
+#' which mutates as the caller adds unrelated bindings -- that would make the
+#' fingerprint unstable across two identical calls and defeat legitimate cache
+#' reuse. Deparse is environment-independent, and the *values* a data-generator
+#' depends on live in `params` (medsim convention), which is fingerprinted by
+#' value. Residual limitation: a generator that closes over a value NOT in
+#' `params` (e.g. `local({ m <- 5; function(n) rnorm(n, m) })`) with an identical
+#' body and identical `params` would not be distinguished by a change to `m`;
+#' put such parameters in `params` for them to be tracked.
+#'
+#' @param scenario A `medsim_scenario`.
+#' @param truth_function The truth function passed to `medsim_run()`.
+#' @return A raw vector (compared with `identical()`).
+#' @keywords internal
+.medsim_truth_fingerprint <- function(scenario, truth_function) {
+  serialize(
+    list(name   = scenario$name,
+         params = scenario$params,
+         dgm    = deparse(scenario$data_generator),
+         truth  = deparse(truth_function)),
+    connection = NULL
+  )
+}
+
 #' Compute Ground Truth for All Scenarios
 #'
 #' @description
@@ -392,14 +480,27 @@ medsim_compute_all_truth <- function(scenarios,
                   s_idx, length(scenarios), scenario$name))
     }
 
-    # Create cache file path
+    # Create cache file path (keyed by index; content validated by fingerprint
+    # below -- the filename alone is NOT a safe key, see fingerprint note).
     cache_file <- file.path(
       config$output_dir,
       sprintf("truth_scenario_%d.rds", s_idx)
     )
 
-    # Try to load from cache
-    truth_value <- medsim_cache_load(cache_file)
+    # Content fingerprint: reusing an output_dir after changing a scenario's
+    # DGM/params must NOT reload stale truth. Serializing name+params+DGM+truth
+    # captures closure values too (e.g. a data_generator that closes over mu via
+    # local()), so an anagram-of-body or a changed closed-over constant both
+    # invalidate. The cached object is list(truth=, fingerprint=); a legacy bare
+    # cache (no $fingerprint) is treated as a miss and recomputed (safe).
+    fingerprint <- .medsim_truth_fingerprint(scenario, truth_function)
+    cached <- medsim_cache_load(cache_file)
+    truth_value <- if (is.list(cached) && !is.null(cached$fingerprint) &&
+                       identical(cached$fingerprint, fingerprint)) {
+      cached$truth
+    } else {
+      NULL
+    }
 
     if (is.null(truth_value)) {
       # Compute truth
@@ -420,8 +521,9 @@ medsim_compute_all_truth <- function(scenarios,
         }
       )
 
-      # Cache result
-      medsim_cache_save(truth_result, cache_file)
+      # Cache result WITH its fingerprint so a later content change invalidates.
+      medsim_cache_save(list(truth = truth_result, fingerprint = fingerprint),
+                        cache_file)
       truth_value <- truth_result
 
       if (verbose) {

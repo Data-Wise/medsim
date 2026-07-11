@@ -400,10 +400,14 @@ medsim_analyze_coverage <- function(results,
     coverage_rate <- mean(in_ci)
 
     # Store result
+    n_total <- length(merged[[lower_col]])
     coverage_list[[param]] <- data.frame(
-      parameter = param,
-      coverage = coverage_rate,
-      n_valid = length(in_ci),
+      parameter     = param,
+      coverage      = coverage_rate,
+      coverage_mcse = sqrt(coverage_rate * (1 - coverage_rate) / length(in_ci)),
+      n_valid       = length(in_ci),
+      n_failed      = n_total - length(in_ci),
+      failure_rate  = (n_total - length(in_ci)) / n_total,
       stringsAsFactors = FALSE
     )
   }
@@ -441,11 +445,16 @@ medsim_analyze_coverage <- function(results,
 
         in_ci <- (truth >= ci_lower) & (truth <= ci_upper)
 
+        n_total_s <- length(scenario_data[[lower_col]])
+        cov_s     <- mean(in_ci)
         scenario_list[[paste(scenario_name, param, sep = "_")]] <- data.frame(
-          scenario = scenario_name,
-          parameter = param,
-          coverage = mean(in_ci),
-          n_valid = length(in_ci),
+          scenario      = scenario_name,
+          parameter     = param,
+          coverage      = cov_s,
+          coverage_mcse = sqrt(cov_s * (1 - cov_s) / length(in_ci)),
+          n_valid       = length(in_ci),
+          n_failed      = n_total_s - length(in_ci),
+          failure_rate  = (n_total_s - length(in_ci)) / n_total_s,
           stringsAsFactors = FALSE
         )
       }
@@ -518,16 +527,22 @@ medsim_analyze_coverage <- function(results,
     hi    <- merged[[upper_col]]
     truth <- merged[[truth_col]]
     valid <- !is.na(lo) & !is.na(hi) & !is.na(truth)
+    n_total <- length(valid)  # before subsetting -> gives the failed count
     lo <- lo[valid]; hi <- hi[valid]; truth <- truth[valid]
     if (length(lo) == 0L) next
 
     # Partial-ID interval contains truth
     in_bounds <- (truth >= lo) & (truth <= hi)
 
+    # Coverage is over successes only; failed replications (NA CI/truth) are
+    # excluded from the numerator AND denominator and accounted separately, so
+    # a near-singular tail (e.g. all-NA reps) never poisons the coverage number.
     row <- data.frame(
       parameter       = param,
       coverage        = mean(in_bounds),
       n_valid         = length(in_bounds),
+      n_failed        = n_total - length(in_bounds),
+      failure_rate    = (n_total - length(in_bounds)) / n_total,
       stringsAsFactors = FALSE
     )
 
@@ -545,6 +560,15 @@ medsim_analyze_coverage <- function(results,
   }
 
   coverage_df <- do.call(rbind, cov_list)
+  # When every parameter was skipped (e.g. a 100%-failure / all-NA run), cov_list
+  # is empty and rbind returns NULL. Coerce to a typed 0-row frame so nrow() is 0
+  # (not NULL) and the summary below does not error on `nrow(NULL) > 0`.
+  if (is.null(coverage_df)) {
+    coverage_df <- data.frame(
+      parameter = character(0), coverage = numeric(0), n_valid = integer(0),
+      n_failed = integer(0), failure_rate = numeric(0), mean_width = numeric(0),
+      stringsAsFactors = FALSE)
+  }
   rownames(coverage_df) <- NULL
 
   # Feasibility / falsification summaries if columns present
@@ -570,11 +594,14 @@ medsim_analyze_coverage <- function(results,
         lo <- d[[lower_col]]; hi <- d[[upper_col]]; truth <- d[[truth_col]]
         valid <- !is.na(lo) & !is.na(hi) & !is.na(truth)
         if (!any(valid)) next
+        n_total_s <- length(valid)  # before subsetting
         lo <- lo[valid]; hi <- hi[valid]; truth <- truth[valid]
         in_bounds <- (truth >= lo) & (truth <= hi)
         sc_list[[paste(sc, param, sep = "_")]] <- data.frame(
           scenario = sc, parameter = param,
           coverage = mean(in_bounds), n_valid = length(in_bounds),
+          n_failed = n_total_s - length(in_bounds),
+          failure_rate = (n_total_s - length(in_bounds)) / n_total_s,
           mean_width = mean(hi - lo), stringsAsFactors = FALSE
         )
       }

@@ -4,13 +4,22 @@
 \alias{medsim_combine_chunks}
 \title{Combine chunk RDS files produced by medsim_run_chunk()}
 \usage{
-medsim_combine_chunks(output_dir, pattern = "chunk_*.rds", verbose = TRUE)
+medsim_combine_chunks(
+  output_dir,
+  pattern = "chunk_*.rds",
+  expected_chunks = NULL,
+  verbose = TRUE
+)
 }
 \arguments{
 \item{output_dir}{Character: directory containing \code{chunk_*.rds} files.}
 
 \item{pattern}{Character: glob pattern for chunk files.
 Default \code{"chunk_*.rds"}.}
+
+\item{expected_chunks}{Integer or \code{NULL}: if supplied (e.g. the SLURM array
+size), warn when fewer chunk files are found -- catching a failed/timed-out
+task instead of silently combining a partial grid. Default \code{NULL} (no check).}
 
 \item{verbose}{Logical: print file counts.}
 }

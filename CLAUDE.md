@@ -8,6 +8,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **medsim** is the mediationverse's standardized infrastructure for Monte Carlo simulation studies in mediation analysis — a reusable framework so parallel processing, progress reporting, result analysis, and visualization don't get reimplemented per project.
 
+> ⚠️ **In-flight (2026-06-19, see `.STATUS`):** `feature/estimand-spine` adds a Sobol `"variance_share"` estimand kind + `medsim_scenario_sobol()`/`medsim_method_sobol()` (PR-ready, 887/0, check 0/0/0). **Hold the PR until pmed-modern is ready to integrate.** Downstream: pmed-modern Paper-3 `run_grid.R` uses `estimand=NULL` today; re-point it to `medsim_estimand("variance_share", ...)` after this merges + medsim reinstalls.
+
 ### Key Features
 
 - Environment-aware execution (local vs HPC cluster)
@@ -129,7 +131,7 @@ pmed_method <- function(data, params) {
     treatment = "X", mediator = "M"
   )
 
-  p_med <- probmed::compute_pmed(med_data)
+  p_med <- probmed::pmed(med_data)
 
   list(estimate = p_med, truth = params$true_pmed)
 }
@@ -146,14 +148,19 @@ results <- medsim_run(pmed_method, scenarios, config)
 
 medsim's GitHub-only dependencies need a `Remotes:` field so pak can resolve
 them during R-CMD-check (without it, pak treats them as missing and the check
-fails). Keep it in lockstep with `Suggests` — as of v0.2.0 the only GitHub-only
-dep is `medfit` (PR #18's validated D4-MBCO uses `mice`/`mitml`/`RMediation`,
-all on CRAN, so `missingmed`/`rmediation` were dropped):
+fails). Keep it in lockstep with `Suggests`. As of dev the only GitHub-only dep
+is `medrobust` (CRAN-blocked — not in mainstream repos; see `.STATUS`); `medfit`
+reached mainstream distribution and was dropped from Remotes (it stays in
+`Suggests` at `>= 0.2.0`):
 
 ```
 Remotes:
-    Data-Wise/medfit
+    Data-Wise/medrobust
 ```
+
+In-flight: the `feature/gauge-estimand` branch (#24) adds a second, **temporary**
+pin `Data-Wise/probmed@feature/gauge-bootstrap-se` for the gauge bootstrap arm —
+remove it once that probmed branch merges + releases.
 
 RMediation is on CRAN — never list it under Remotes. `Remotes:` first added in
 PR #1 (2026-05-09).
@@ -190,6 +197,14 @@ PR #1 (2026-05-09).
 
 ## CI / GitHub Actions Notes
 
+- **GitHub CI is release-only (2026-07-11)**: `R-CMD-check.yaml`, `test-coverage.yaml`,
+  and `pkgdown.yaml` trigger only on `push`/`pull_request` to `main`/`master` (the
+  dev→main release PR), `release: published`, and `workflow_dispatch` — no longer on
+  `dev`. Reason: GitHub Actions minutes budget. Use `/craft:code:ci-local` (lint, test,
+  coverage, docs) before pushing to `dev` instead; PRs/pushes to `dev` get no automated
+  remote CI. `R-CMD-check-devel.yaml` (weekly cron) and `rhub.yaml` (dispatch-only) are
+  unaffected — already low-frequency. This supersedes the "R-CMD-check reliably fires on
+  PRs to `dev`" note below, which described the pre-2026-07-11 setup.
 - **Workflow auto-disable**: GitHub auto-disables scheduled workflows that
   fail for 60+ days without a manual successful run. Re-enable via:
   `gh api -X PUT repos/Data-Wise/medsim/actions/workflows/<id>/enable`
@@ -224,7 +239,9 @@ PR #1 (2026-05-09).
   `Data-Wise/data-wise.r-universe.dev` (`packages.json`) — the registry key
   MUST match the DESCRIPTION `Package:` field case-sensitively (the
   `rmediation`→`RMediation` mismatch fail-stopped the whole org sync). Full
-  philosophy + readiness checklist: `R-UNIVERSE-STANDARDS.md` at repo root.
+  philosophy + readiness checklist: `internal/R-UNIVERSE-STANDARDS.md` (moved
+  out of repo root 2026-07-11 — pkgdown renders every root `.md` file with no
+  exclude option, see `[[feedback-local-ci-only]]`-adjacent memory on the leak).
   - **No r-universe step belongs in any GitHub workflow** — it's external; you
     don't create CI for it. The universe rebuilds the **default branch** (`main`),
     so a release reaches it only via the dev→main merge (not pushes to `dev`,

@@ -40,8 +40,11 @@ is more efficient but only works on Unix. Auto-detected by default.}
 per-worker RNG streams.  When supplied, calls \code{RNGkind("L'Ecuyer-CMRG")}
 and \code{parallel::clusterSetRNGStream(cl, seed)} immediately after cluster
 creation so each worker gets a distinct, deterministic sub-stream.
-Pass \code{config$seed_stream} here for chunked SLURM array reproducibility.
-Default \code{NULL} leaves each worker's RNG seeded by the OS (non-reproducible).}
+Default \code{NULL} leaves each worker's RNG seeded by the OS (non-reproducible).
+Note: \code{\link[=medsim_run]{medsim_run()}}/\code{\link[=medsim_run_chunk]{medsim_run_chunk()}} do \strong{not} pass a \code{seed} here --
+they get chunk/worker-independent reproducibility from
+\code{.medsim_det_seed()} instead (see \code{?medsim_run}). This parameter matters
+only if you call \code{medsim_run_parallel()} directly.}
 }
 \value{
 List: Results from applying \code{fun} to each task (same length as tasks)
@@ -127,5 +130,5 @@ if (any(errors)) {
 
 }
 \seealso{
-\code{\link[parallel:makeCluster]{parallel::makeCluster()}}, \code{\link[parallel:clusterApply]{parallel::parLapply()}}, \code{\link[pbapply:pbapply]{pbapply::pblapply()}}
+\code{\link[parallel:makeCluster]{parallel::makeCluster()}}, \code{\link[parallel:parLapply]{parallel::parLapply()}}, \code{\link[pbapply:pblapply]{pbapply::pblapply()}}
 }

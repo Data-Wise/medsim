@@ -19,6 +19,9 @@
 - **Parallel Processing**: Built-in parallelization with progress bars
 - **Ground Truth Caching**: Avoid expensive recomputation
 - **Automated Analysis**: Summary statistics, accuracy metrics, coverage rates
+- **ADEMP Reporting**: Coverage Monte Carlo SE, failed-run logging, performance
+  tables (bias/empirical SE/model SE/RMSE), and a replications-sizing helper
+  (`medsim_nsim_for_mcse()`) following Morris, White & Crowther (2019)
 - **Publication-Ready Output**: Figures and LaTeX tables with one function call
 - **Missing Data & Nonnormality**: MCAR/MAR/MNAR amputation, target skew/kurtosis
   generators, and validated D4-MBCO multiple-imputation inference
@@ -267,17 +270,26 @@ pmed_method <- function(data, params) {
     treatment = "X", mediator = "M"
   )
 
-  p_med <- probmed::compute_pmed(med_data)
+  p_med <- probmed::pmed(med_data)
 
-  # Bootstrap CI
+  # Bootstrap CI: outer nonparametric bootstrap resamples the data; the
+  # statistic refits the models and returns the P_med plugin point estimate
+  # (a scalar), as bootstrap_mediation() requires.
   boot <- medfit::bootstrap_mediation(
-    med_data,
-    statistic = probmed::compute_pmed,
+    statistic_fn = function(d) {
+      md <- medfit::extract_mediation(
+        lm(M ~ X, data = d), model_y = lm(Y ~ X + M, data = d),
+        treatment = "X", mediator = "M"
+      )
+      probmed::pmed(md, method = "plugin")@estimate
+    },
+    method = "nonparametric",
+    data = data,
     n_boot = 1000
   )
 
   list(
-    estimate = p_med,
+    estimate = p_med@estimate,
     ci_lower = boot@ci_lower,
     ci_upper = boot@ci_upper,
     truth = params$true_pmed
@@ -329,6 +341,27 @@ Inspired by simulation infrastructure in successful R packages and academic proj
 2. **Environment Awareness**: Seamlessly scale from laptop to HPC cluster
 3. **Reproducibility by Design**: Automatic seed management, session tracking
 4. **Publication Ready**: One function generates manuscript-ready output
+
+## Testing
+
+medsim uses a **two-tier** test model for its simulation/parallel code:
+
+- **Tier A — CRAN-safe** (`tests/testthat/`): fast, deterministic,
+  single-core correctness guards that run in `R CMD check` on every commit.
+  These include statistical-correctness invariants — coverage-instrument
+  discrimination, cross-chunk RNG independence, truth-attachment across the
+  combine seam, and failure-rate/NA handling — so a reproducibility regression
+  cannot ship silently.
+- **Tier B — Hopper/cluster** (`inst/hopper-tests/`): real multi-node SLURM
+  stress, edge-case, and full-scale dogfood tests that are **never run by
+  `R CMD check`** and are documented in the non-evaluated `cluster-testing`
+  vignette (`vignette("cluster-testing", package = "medsim")`). Every cluster
+  run is pilot-gated (a small pilot is examined before scaling up).
+
+The design guideline: any correctness invariant that can run cheaply and
+deterministically is Tier A. The plan, checklist, and an autonomous-run kit live
+in the source repository under `tasks/` (`plan.md`, `todo.md`, `GOALS.md`,
+`TEST-INFRASTRUCTURE.md`).
 
 ## Documentation
 

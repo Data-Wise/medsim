@@ -381,6 +381,16 @@ medsim_validate_scenario <- function(scenario, n = 10) {
                    paste(required_cols, collapse = ", "),
                    paste(missing_cols, collapse = ", ")))
     }
+  } else if (kind == "variance_share") {
+    # Sobol / functional-ANOVA share estimator uses causal-notation columns
+    # (treatment A, mediator M, outcome Y, covariate(s) C) — not legacy X/M/Y.
+    required_cols <- c("A", "M", "Y", "C")
+    missing_cols <- setdiff(required_cols, names(data))
+    if (length(missing_cols) > 0) {
+      stop(sprintf("data_generator must return columns: %s (missing: %s)",
+                   paste(required_cols, collapse = ", "),
+                   paste(missing_cols, collapse = ", ")))
+    }
   }
 
   # Check that data has correct number of rows

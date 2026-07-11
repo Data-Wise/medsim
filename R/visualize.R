@@ -519,3 +519,35 @@ medsim_plot_combined_panel <- function(results,
 if (!exists("%||%")) {
   `%||%` <- function(x, y) if (is.null(x)) y else x
 }
+
+#' Diagnostic scatter of model SE against the point estimate
+#'
+#' Plots each replication's model standard error against its point estimate,
+#' faceted by scenario, to expose numerator-denominator coupling and outliers
+#' (White et al. 2023, *How to check a simulation study*, IJE).
+#'
+#' @param results A results data.frame from [medsim_run()].
+#' @param param Parameter name; expects `<param>` and `<param>_se` columns.
+#'   If `<param>_se` is absent, derived from `<param>_ci_lower/_upper`.
+#' @param by Grouping/faceting column (default "scenario").
+#' @return A ggplot object.
+#' @export
+medsim_plot_se_vs_estimate <- function(results, param = "indirect", by = "scenario") {
+  if (!requireNamespace("ggplot2", quietly = TRUE)) {
+    stop("ggplot2 is required for medsim_plot_se_vs_estimate()")
+  }
+  est_col <- param
+  se_col  <- paste0(param, "_se")
+  if (!se_col %in% names(results)) {
+    lo <- results[[paste0(param, "_ci_lower")]]
+    hi <- results[[paste0(param, "_ci_upper")]]
+    results[[se_col]] <- (hi - lo) / (2 * stats::qnorm(0.975))
+  }
+  ggplot2::ggplot(
+    results,
+    ggplot2::aes(x = .data[[est_col]], y = .data[[se_col]])
+  ) +
+    ggplot2::geom_point(alpha = 0.5) +
+    ggplot2::facet_wrap(stats::as.formula(paste("~", by))) +
+    ggplot2::labs(x = paste(param, "estimate"), y = paste(param, "model SE"))
+}

@@ -9,21 +9,30 @@
 #' `medsim_tables`, `medsim_figures`, `medsim_workflow`) dispatches on
 #' `estimand$kind` rather than assuming a scalar point-estimand.
 #'
-#' Four kinds are recognised:
+#' Five kinds are recognised:
 #'
 #' | kind | what `method()` returns | coverage notion |
 #' |------|-------------------------|-----------------|
-#' | `"point"` | `{p}`, `{p}_ci_lower/_upper`, `{p}_p` | truth ? CI |
-#' | `"interval"` | `{p}_lower/_upper`, `{p}_im_lower/_im_upper`, `feasible`, `falsified` | truth ? \[lower, upper\]; IM-CI coverage |
-#' | `"probabilistic"` | `pmed`, `pmed_ci_lower/_upper`, `pmed_p`, `branch_switch` | truth ? CI (truth from potential outcomes) |
+#' | `"point"` | `{p}`, `{p}_ci_lower/_upper`, `{p}_p` | truth in CI |
+#' | `"interval"` | `{p}_lower/_upper`, `{p}_im_lower/_im_upper`, `feasible`, `falsified` | truth in \[lower, upper\]; IM-CI coverage |
+#' | `"probabilistic"` | `pmed`, `pmed_ci_lower/_upper`, `pmed_p`, `branch_switch` | truth in CI (truth from potential outcomes) |
+#' | `"variance_share"` | `{p}`, `{p}_ci_lower/_upper` | truth in Wald CI (bounded scalar share in \[0,1\]) |
 #' | `"numeric"` | `error`, `abs_error`, `elapsed_sec` | none |
+#'
+#' `"variance_share"` is a bounded scalar point estimand with a standard Wald
+#' CI — the Sobol / functional-ANOVA proportion mediated
+#' \eqn{P_{med}^{\sigma^2} = V_{med}/V_T \in [0,1]} (see
+#' [medsim_scenario_sobol()], [medsim_method_sobol()]).  Coverage uses the
+#' generic `truth in CI` path; the dedicated kind exists for clear labeling and
+#' so [medsim_validate_scenario()] checks the causal-notation `A/M/Y/C` columns
+#' the Sobol estimator requires (rather than the legacy `X/M/Y` of `"point"`).
 #'
 #' Scenarios with `estimand = NULL` (the default in [medsim_scenario()]) are
 #' treated as `kind = "point"` throughout the package -- full back-compatibility
 #' with all existing code.
 #'
 #' @param kind Estimand kind: `"point"` (default), `"interval"`,
-#'   `"probabilistic"`, or `"numeric"`.
+#'   `"probabilistic"`, `"variance_share"`, or `"numeric"`.
 #' @param params Character vector of estimand parameter names -- e.g.
 #'   `c("indirect")` for point, `c("NDE", "NIE")` for interval,
 #'   `c("pmed")` for probabilistic.  Defaults to `character()` (auto-inferred
@@ -63,7 +72,7 @@
 #'
 #' @export
 medsim_estimand <- function(
-    kind   = c("point", "interval", "probabilistic", "numeric"),
+    kind   = c("point", "interval", "probabilistic", "variance_share", "numeric"),
     params = character(),
     truth  = NULL,
     ci     = c("standard", "imbens_manski", "mbco", "none"),

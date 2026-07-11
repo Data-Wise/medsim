@@ -21,8 +21,13 @@
 #' @param scenarios Character: "all" or "test". Use "test" for single challenging
 #'   scenario during development
 #' @param output_dir Character: Directory for saving results
-#' @param seed Integer: Random seed for reproducibility (base seed for
-#'   single-process runs; see `seed_stream` for chunked array jobs).
+#' @param seed Integer: Base seed, stored on the config and printed for
+#'   provenance. **Does not itself determine replication draws** -- since the
+#'   `.medsim_det_seed()` fix, [medsim_run()] seeds each replication
+#'   deterministically from `(scenario_name, global_rep_id)`, independent of
+#'   `seed`/`seed_stream`/chunk/worker/cluster-type. `seed`/`seed_stream` are
+#'   only consulted if you call [medsim_run_parallel()] directly (its own
+#'   `seed=` argument, documented there).
 #' @param chunk_id Integer: SLURM array task index (1-based) for this chunk.
 #'   Auto-detected from `SLURM_ARRAY_TASK_ID` when running inside a SLURM
 #'   array job and not supplied explicitly.  `NULL` = no chunking.
@@ -31,9 +36,10 @@
 #' @param array_size Integer: Alias for `n_chunks` (matches SLURM terminology).
 #'   When both are supplied, `n_chunks` wins.
 #' @param seed_stream Integer: Master seed for L'Ecuyer-CMRG reproducible
-#'   per-chunk RNG streams.  Passed to
-#'   `parallel::clusterSetRNGStream(cl, seed_stream)` so each chunk gets a
-#'   deterministic sub-stream.  Defaults to `seed` when `NULL`.
+#'   per-worker RNG streams, consulted only by a direct
+#'   [medsim_run_parallel()] call (its `seed=` argument) -- see the `seed`
+#'   param above for why [medsim_run()]/[medsim_run_chunk()] no longer need
+#'   it.  Defaults to `seed` when `NULL`.
 #' @param partition Character: SLURM partition (queue) name.  Defaults to
 #'   `"general"` in cluster mode; `NULL` otherwise.
 #' @param walltime Character: SLURM wall-time limit (HH:MM:SS).  Defaults to
@@ -310,7 +316,7 @@ print.medsim_config <- function(x, ...) {
 
   cat("Computing Resources:\n")
   cat(sprintf("  Cores:               %d\n", x$n_cores))
-  cat(sprintf("  Random Seed:         %d\n", x$seed))
+  cat(sprintf("  Base Seed:           %d (provenance only -- replications are seeded per-rep, see ?medsim_run)\n", x$seed))
   cat("\n")
 
   cat("Output:\n")

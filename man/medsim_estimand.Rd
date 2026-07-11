@@ -5,7 +5,7 @@
 \title{Declare the estimand kind for a simulation scenario}
 \usage{
 medsim_estimand(
-  kind = c("point", "interval", "probabilistic", "numeric"),
+  kind = c("point", "interval", "probabilistic", "variance_share", "numeric"),
   params = character(),
   truth = NULL,
   ci = c("standard", "imbens_manski", "mbco", "none"),
@@ -14,7 +14,7 @@ medsim_estimand(
 }
 \arguments{
 \item{kind}{Estimand kind: \code{"point"} (default), \code{"interval"},
-\code{"probabilistic"}, or \code{"numeric"}.}
+\code{"probabilistic"}, \code{"variance_share"}, or \code{"numeric"}.}
 
 \item{params}{Character vector of estimand parameter names -- e.g.
 \code{c("indirect")} for point, \code{c("NDE", "NIE")} for interval,
@@ -40,14 +40,23 @@ downstream command (\code{medsim_run}, \code{medsim_analyze_coverage},
 \code{medsim_tables}, \code{medsim_figures}, \code{medsim_workflow}) dispatches on
 \code{estimand$kind} rather than assuming a scalar point-estimand.
 
-Four kinds are recognised:\tabular{lll}{
+Five kinds are recognised:\tabular{lll}{
    kind \tab what \code{method()} returns \tab coverage notion \cr
-   \code{"point"} \tab \code{{p}}, \verb{\{p\}_ci_lower/_upper}, \verb{\{p\}_p} \tab truth ? CI \cr
-   \code{"interval"} \tab \verb{\{p\}_lower/_upper}, \verb{\{p\}_im_lower/_im_upper}, \code{feasible}, \code{falsified} \tab truth ? [lower, upper]; IM-CI coverage \cr
-   \code{"probabilistic"} \tab \code{pmed}, \verb{pmed_ci_lower/_upper}, \code{pmed_p}, \code{branch_switch} \tab truth ? CI (truth from potential outcomes) \cr
+   \code{"point"} \tab \code{{p}}, \verb{\{p\}_ci_lower/_upper}, \verb{\{p\}_p} \tab truth in CI \cr
+   \code{"interval"} \tab \verb{\{p\}_lower/_upper}, \verb{\{p\}_im_lower/_im_upper}, \code{feasible}, \code{falsified} \tab truth in [lower, upper]; IM-CI coverage \cr
+   \code{"probabilistic"} \tab \code{pmed}, \verb{pmed_ci_lower/_upper}, \code{pmed_p}, \code{branch_switch} \tab truth in CI (truth from potential outcomes) \cr
+   \code{"variance_share"} \tab \code{{p}}, \verb{\{p\}_ci_lower/_upper} \tab truth in Wald CI (bounded scalar share in [0,1]) \cr
    \code{"numeric"} \tab \code{error}, \code{abs_error}, \code{elapsed_sec} \tab none \cr
 }
 
+
+\code{"variance_share"} is a bounded scalar point estimand with a standard Wald
+CI — the Sobol / functional-ANOVA proportion mediated
+\eqn{P_{med}^{\sigma^2} = V_{med}/V_T \in [0,1]} (see
+\code{\link[=medsim_scenario_sobol]{medsim_scenario_sobol()}}, \code{\link[=medsim_method_sobol]{medsim_method_sobol()}}).  Coverage uses the
+generic \verb{truth in CI} path; the dedicated kind exists for clear labeling and
+so \code{\link[=medsim_validate_scenario]{medsim_validate_scenario()}} checks the causal-notation \code{A/M/Y/C} columns
+the Sobol estimator requires (rather than the legacy \code{X/M/Y} of \code{"point"}).
 
 Scenarios with \code{estimand = NULL} (the default in \code{\link[=medsim_scenario]{medsim_scenario()}}) are
 treated as \code{kind = "point"} throughout the package -- full back-compatibility
