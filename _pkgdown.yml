@@ -64,6 +64,10 @@ navbar:
         href: articles/getting-started.html
       - text: "Cluster Testing (two-tier model)"
         href: articles/cluster-testing.html
+      - text: "Missing-Data Mediation"
+        href: articles/missing-data-mediation.html
+      - text: "Estimand Kinds"
+        href: articles/estimand-kinds.html
     ecosystem:
       text: Ecosystem
       href: https://data-wise.github.io/mediationverse/articles/ecosystem.html
