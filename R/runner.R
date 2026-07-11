@@ -198,7 +198,7 @@ medsim_run <- function(method,
     # Run replications
     if (parallel) {
       scenario_results <- medsim_run_parallel(
-        tasks = 1:nrow(param_grid),
+        tasks = seq_len(nrow(param_grid)),
         fun = function(i) {
           medsim_run_single_replication(
             scenario = scenario,
@@ -214,7 +214,7 @@ medsim_run <- function(method,
         packages = NULL  # Add if method requires specific packages
       )
     } else {
-      scenario_results <- lapply(1:nrow(param_grid), function(i) {
+      scenario_results <- lapply(seq_len(nrow(param_grid)), function(i) {
         medsim_run_single_replication(
           scenario = scenario,
           rep_id = param_grid$replication[i],

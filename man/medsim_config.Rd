@@ -42,8 +42,13 @@ scenario during development}
 
 \item{output_dir}{Character: Directory for saving results}
 
-\item{seed}{Integer: Random seed for reproducibility (base seed for
-single-process runs; see \code{seed_stream} for chunked array jobs).}
+\item{seed}{Integer: Base seed, stored on the config and printed for
+provenance. \strong{Does not itself determine replication draws} -- since the
+\code{.medsim_det_seed()} fix, \code{\link[=medsim_run]{medsim_run()}} seeds each replication
+deterministically from \verb{(scenario_name, global_rep_id)}, independent of
+\code{seed}/\code{seed_stream}/chunk/worker/cluster-type. \code{seed}/\code{seed_stream} are
+only consulted if you call \code{\link[=medsim_run_parallel]{medsim_run_parallel()}} directly (its own
+\verb{seed=} argument, documented there).}
 
 \item{chunk_id}{Integer: SLURM array task index (1-based) for this chunk.
 Auto-detected from \code{SLURM_ARRAY_TASK_ID} when running inside a SLURM
@@ -56,9 +61,10 @@ Used by \code{medsim_run_chunk()} to slice the replication index.}
 When both are supplied, \code{n_chunks} wins.}
 
 \item{seed_stream}{Integer: Master seed for L'Ecuyer-CMRG reproducible
-per-chunk RNG streams.  Passed to
-\code{parallel::clusterSetRNGStream(cl, seed_stream)} so each chunk gets a
-deterministic sub-stream.  Defaults to \code{seed} when \code{NULL}.}
+per-worker RNG streams, consulted only by a direct
+\code{\link[=medsim_run_parallel]{medsim_run_parallel()}} call (its \verb{seed=} argument) -- see the \code{seed}
+param above for why \code{\link[=medsim_run]{medsim_run()}}/\code{\link[=medsim_run_chunk]{medsim_run_chunk()}} no longer need
+it.  Defaults to \code{seed} when \code{NULL}.}
 
 \item{partition}{Character: SLURM partition (queue) name.  Defaults to
 \code{"general"} in cluster mode; \code{NULL} otherwise.}

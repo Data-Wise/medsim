@@ -25,6 +25,11 @@ test_that("column names and order are preserved (DGM data contract)", {
 })
 
 test_that("MCAR: missingness is independent of observed variables", {
+  # Seeded: this is a null-true test (P(missing) does not depend on X), so at
+  # alpha = 0.05 an unseeded run rejects ~5% of the time and hard-fails
+  # R CMD check nondeterministically. Fixed seed makes it deterministic; the
+  # 0.05 threshold is unchanged (a real dependence would still be caught).
+  set.seed(20260710)
   d <- make_complete(6000)
   out <- medsim_amputate(d, target = "M", mechanism = "MCAR", prop = 0.3)
   r <- as.integer(is.na(out$M))
@@ -34,6 +39,7 @@ test_that("MCAR: missingness is independent of observed variables", {
 })
 
 test_that("MAR: missingness depends on an observed predictor", {
+  set.seed(20260710)  # deterministic p-value (power test); threshold unchanged
   d <- make_complete(6000)
   out <- medsim_amputate(d, target = "M", mechanism = "MAR", prop = 0.3, predictors = "X")
   r <- as.integer(is.na(out$M))
@@ -42,6 +48,7 @@ test_that("MAR: missingness depends on an observed predictor", {
 })
 
 test_that("MNAR: missingness depends on the (latent) target value itself", {
+  set.seed(20260710)  # deterministic p-value (power test); threshold unchanged
   d <- make_complete(6000)
   out <- medsim_amputate(d, target = "M", mechanism = "MNAR", prop = 0.3)
   r <- as.integer(is.na(out$M))
