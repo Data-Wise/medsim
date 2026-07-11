@@ -3,7 +3,26 @@ priority: P1
 progress: 99
 kind: package
 cran_state: dev
-next: ✅ v0.4.0 RELEASED 2026-07-11 — PR #32 merged to main (merge-commit `4a13a06`), tagged `v0.4.0`, GitHub release published. All main CI green (R-CMD-check/test-coverage/pkgdown ×2 — push + release events). gh-pages redeployed clean (pkgdown internal-docs leak from this cycle resolved — see `internal/` move). r-universe will pick up 0.4.0 on its own rebuild cycle (~hours), no action needed. ⏳ CRAN submission still BLOCKED on medrobust (not in mainstream repos, re-verified 2026-07-11) — sequence: (1) await medrobust CRAN acceptance; (2) devtools::submit_cran(). #24 gauge estimand remains held separately (see worktree).
+next: ⏳ NOTHING BLOCKING — dev is clean, v0.4.0 released, gauge estimand merged. Only real
+  next action: CRAN submission is BLOCKED on medrobust (not in mainstream repos, re-verified
+  2026-07-11) — check `available.packages(repos="https://cloud.r-project.org")` for
+  "medrobust"; once TRUE, run `devtools::submit_cran()` from a clean `main` checkout (bump
+  DESCRIPTION off the `.9000` dev suffix first). Everything else below is optional cleanup,
+  not blocking:
+  (1) r-universe should auto-pick up 0.4.0 within hours of the 2026-07-11 release — spot-check
+      `curl -s https://data-wise.r-universe.dev/api/packages/medsim` shows Version 0.4.0 if
+      curious, no action needed if not;
+  (2) prune `~/.git-worktrees/medsim/feature-gauge-estimand` (worktree) + `git push origin
+      --delete feature/gauge-estimand` (remote branch) — both stale, PR #33 already merged;
+  (3) stale remote branches never cleaned up: `feature/cran-readiness`,
+      `feature/fix-cluster-packages`, `feature/speed-up-ci`, `feature/test-parallel`,
+      `feature/test-runner`, `feature/test-visualize`, `feature/trim-suggests` — audit each
+      with `git cherry dev origin/<branch>` before deleting (verify merged, not just old);
+  (4) optional: pmed-modern could re-point its P1 gauge grid + Paper-3 run_grid.R to
+      `medsim_scenario_gauge()`/`medsim_estimand("variance_share", ...)` now that both are
+      released — not required, pmed-modern already has independently-validated results;
+  (5) Missing Effect repo's `code/config.R` still pins `medsim >= 0.2.0` (pre-RNG-fix,
+      buggy) — that repo's own `GAP-2026-07-11`, needs bumping to `>= 0.4.0` there, not here.
 done: #30 fix(run_chunk): deterministic per-replication seeding via .medsim_det_seed(), independent of chunk/worker/cluster-type/order — fixes SLURM chunk-collapse (coverage pinned at 1.0). #31 two-tier test infra: Tier-A CRAN guards + Tier-B Hopper suite (12,000 reps @ production scale: nominal coverage 0.947, narrow-interval 0.480, 12,000/12,000 distinct seeds, FORK-reproducible — all PASS), surfaced 5 more latent fixes. dev is CRAN-clean: R CMD check --as-cran 0/0/0 (real notes only — .remember/ note is a local-only artifact, absent on clean CI checkout), devtools::test() 968/0/1. #25 ADEMP coverage gates MERGED to dev 2026-06-22 (PR #26; coverage MCSE + failed-run logging + performance table + nsim helper + SE-vs-estimate plot; 913/0, CI green all platforms). Also fixed a pre-existing dev pkgdown failure (Sobol index gap from #22) + CLAUDE.md Remotes drift (medfit→medrobust). v0.3.1 RELEASED 2026-06-19.
 type: r
 last_updated: 2026-07-11
@@ -57,32 +76,8 @@ done: gauge-residual estimand MERGED to dev 2026-07-11 (PR #33, squash `d19ca92`
   on Hopper, 2026-06-24).
 
 # ═══════════════════════════════════════════════════════════════════
-
-📦 medsim - Simulation Infrastructure for the Mediationverse
-────────────────────────────────────────────────
-
-📍 LOCATION
-~/projects/r-packages/active/medsim/
-
-📋 DESCRIPTION
-Monte Carlo simulation infrastructure for mediation methods across the
-mediationverse (medfit, probmed, RMediation, medrobust). Version 0.1.1.
-
-🔗 medfit dependency: **Suggests** `medfit (>= 0.1.0)` + `Remotes: Data-Wise/medfit`.
-Soft (optional) dependency — not part of the hard post-CRAN cascade; drop the
-Remotes line whenever convenient after medfit reaches CRAN.
-
-🩺 HEALTH (audited 2026-06-03)
-- Tests: ~193 `test_that` blocks (healthy).
-- NEWS.md present (dev-version header), README present, pkgdown configured.
-
-🎯 NEXT
-- Merge feature/dgm-interface → dev (DGM generators built + green: 532/0/3, R CMD check OK).
-- Then gated #3: install missingmed+rmediation, validate the Missing Effect prototype, swap
-  real estimators in under test.
-- Routine: align Remotes post-medfit-CRAN (low priority).
-
-
-# 📌 CROSS-SESSION PLAN (2026-06-21, Cowork): BLOCKED on medrobust CRAN acceptance.
-# medrobust is verified ready (0/0/1N) and queued to submit — once accepted, run devtools::submit_cran() here.
-# Full plan: ~/projects/r-packages/PLAN-2026-06-21-cowork.md
+# Everything below this line was superseded by the fields above and removed
+# 2026-07-11 (was a 2026-06-03/06-21-era snapshot — pre-v0.2.0, referenced an
+# already-merged branch and a since-resolved medrobust submission queue state
+# that no longer matches current CRAN status). See `next:` at the top of this
+# file for the current, single source of truth.
