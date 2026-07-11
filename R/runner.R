@@ -119,7 +119,13 @@ medsim_run <- function(method,
     stop("config must be a medsim_config object from medsim_config()")
   }
 
-  # Set random seed
+  # NOTE: this does NOT seed the replication draws -- each replication
+  # re-seeds deterministically from (scenario_name, global_rep_id) via
+  # .medsim_det_seed() (see medsim_run_single_replication), so replication
+  # independence is invariant to config$seed. This set.seed only affects the
+  # compute_truth pass below (Step 1), where it keeps ground-truth computation
+  # reproducible and identical across chunks. config$seed is otherwise
+  # provenance-only (see medsim_config() / medsim_run_parallel() docs).
   set.seed(config$seed)
 
   # Create output directory
