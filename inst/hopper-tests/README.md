@@ -48,6 +48,24 @@ full run uses a heavier method or much larger N/reps.
 **Go/no-go: GO** for a full run — but that is a **deliberate, human-approved**
 step (pilot-before-scale), not part of this pilot pass.
 
+## Full run (2026-07-11, Hopper, jobs 4274541/42/43 — human-approved scale-up)
+
+Approved production scale: **n_rep=2000 across 20 chunks** (12000 reps/method),
+nominal + narrow each as a 20-task array, FORK at 256 reps. All 41 tasks
+COMPLETED (2–4 s each).
+
+| Check | Result | Verdict |
+|-------|--------|---------|
+| Nominal coverage | overall **0.947**; per-scenario 0.941–0.953; 0/12000 failures | PASS (near-nominal, MC-SE ≈ 0.005) |
+| Narrow dogfood control | overall **0.480**; per-scenario 0.463–0.491 | PASS (undercovers as designed) |
+| Grid-collision | **12000/12000 distinct**; 0 cross-grid + 0 within-scenario `.medsim_det_seed` collisions | PASS (hash fix holds at production grid) |
+| FORK-RNG realism | reproducible run1==run2; distinctness asserted | PASS |
+
+MaxRSS was again blank — each task finishes in ~3 s, under SLURM's ~30 s
+sampler; the synthetic Wald workload is memory-trivial (512M/cpu heavily
+over-provisioned, harmless). A heavier real-kernel study *would* register
+MaxRSS; re-check the envelope then.
+
 ## Run
 
 ```bash
