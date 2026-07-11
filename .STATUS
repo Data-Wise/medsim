@@ -1,6 +1,7 @@
 status: active
 priority: P1
 progress: 99
+kind: package
 cran_state: dev
 next: ⏳ CRAN BLOCKED on medrobust (not in mainstream repos). Sequence: (1) await medrobust CRAN acceptance; (2) devtools::submit_cran(). Unreleased on dev: #25 ADEMP gates (merged) + #24 gauge estimand (held, see worktree). Bump DESCRIPTION → 0.4.0 at the next dev→main release.
 done: #25 ADEMP coverage gates MERGED to dev 2026-06-22 (PR #26; coverage MCSE + failed-run logging + performance table + nsim helper + SE-vs-estimate plot; 913/0, CI green all platforms). Also fixed a pre-existing dev pkgdown failure (Sobol index gap from #22) + CLAUDE.md Remotes drift (medfit→medrobust). v0.3.1 RELEASED 2026-06-19.
