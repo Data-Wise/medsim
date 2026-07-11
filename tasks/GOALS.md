@@ -67,6 +67,74 @@ merges) with the full test evidence, and wait for the human.
 
 Phase 1 (Tier-A guards) is already ✅ complete (commit dced161) — no goal needed.
 
+## Operating instructions — paste RIGHT AFTER the matching `/goal`
+
+The `/goal` line is the *acceptance test* (terse, for the evaluator). Paste the
+matching block below as your next message — the *working brief* the executing
+agent follows. Two blocks: **Standard** (G0, G3 — local, autonomous) and
+**Hopper** (G2 — pilot discipline, halt-before-scale).
+
+### Standard operating instruction — paste after G0 or G3
+
+```
+You are pursuing the active /goal autonomously. Operate ONLY in the worktree
+~/.git-worktrees/medsim/feature-test-infrastructure on branch
+feature/test-infrastructure. Never checkout/commit to main; keep every commit on
+this feature branch. Read tasks/plan.md + tasks/todo.md for the phase detail, and
+work the items for the active goal's phase in dependency order.
+
+Verification + the evaluator: the /goal evaluator judges THIS CONVERSATION, not
+your tool results — so after every check, PASTE the actual output (rforge check
+summary line with FAIL/WARN counts, testthat pass/fail counts, grep results) into
+your reply. Unsurfaced proof = the goal can never verify. Use rforge for all
+R-package devops: `rforge lib.rcmd --kind check --as-cran`, `--kind lint`,
+`rforge r:document` after any roxygen change.
+
+CRITICAL gotcha (will waste turns if ignored): the branch-guard hook
+false-positives on inline `Rscript -e '...'` when the R code contains tokens it
+misreads as a filename (e.g. `x > 0`, `1e-4)`, `d$failed>0`). ALWAYS write R to a
+script file in your session scratchpad dir and run `Rscript file.R` — never `-e`
+for non-trivial code.
+
+Discipline: re-run the FULL testthat suite after any change to shared R/ code and
+judge failures against baseline (note: test-dgm-amputate.R MCAR/MAR p-value tests
+are ~5% flaky until G0 seeds them — not a regression). Update tasks/todo.md
+checkboxes as you finish items. Conventional-commit messages; do NOT add
+Co-Authored-By or name Claude/Anthropic (author preference). When the active
+goal's DONE criterion is met AND its proof is pasted here, stop.
+```
+
+### Hopper operating instruction — paste after G2
+
+```
+You are pursuing the active /goal (Tier-B cluster suite, PILOT ONLY). Operate in
+the worktree ~/.git-worktrees/medsim/feature-test-infrastructure on branch
+feature/test-infrastructure; new Tier-B files go under inst/hopper-tests/. Read
+tasks/plan.md Phase 2 + the Second-principle (pilot-before-scale) section first.
+
+HARD SAFETY RULE — do not violate under any circumstance: for each Tier-B script,
+submit a pilot of AT MOST 4 array tasks, then examine `sacct` (all COMPLETED),
+MaxRSS (within the requested memory envelope), and result sanity (distinct draws
+across chunks / plausible coverage / expected failure_rate). PASTE that transcript
+here, then HALT with a consolidated go/no-go table. DO NOT submit any array larger
+than 4 tasks — scaling to a full run requires explicit human approval. This goal
+is COMPLETE at the go/no-go summary; completing it does NOT mean running the full
+suite.
+
+Environment: cluster access is `ssh hopper` (key-based, no 2FA, scriptable). The
+RNG-fixed medsim is ALREADY installed on Hopper this session — do not rebuild
+unless a check shows it is stale. Poll pilot jobs at the real batch-change cadence
+(a few minutes), not tighter, and only report when state actually changes.
+
+Same gotchas as the standard brief: /goal evaluator judges the CONVERSATION so
+PASTE all sacct/result proof here; never use inline `Rscript -e` for non-trivial R
+(branch-guard false-positive) — write a script file and run it; keep everything on
+the feature branch; conventional commits with no Claude/Anthropic attribution.
+Also add the cheap Tier-A boundary units (n_chunks>n_replications, missing/
+duplicate chunk file, all-NA chunk) to tests/testthat and confirm they pass under
+R CMD check — those need no cluster.
+```
+
 ## If you want G2 to run FULLY unattended (past the pilot gate)
 
 That requires overriding the standing pilot-before-scale + ask-before-Hopper
