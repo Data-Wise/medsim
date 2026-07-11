@@ -25,8 +25,11 @@
 #'   per-worker RNG streams.  When supplied, calls `RNGkind("L'Ecuyer-CMRG")`
 #'   and `parallel::clusterSetRNGStream(cl, seed)` immediately after cluster
 #'   creation so each worker gets a distinct, deterministic sub-stream.
-#'   Pass `config$seed_stream` here for chunked SLURM array reproducibility.
 #'   Default `NULL` leaves each worker's RNG seeded by the OS (non-reproducible).
+#'   Note: [medsim_run()]/[medsim_run_chunk()] do **not** pass a `seed` here --
+#'   they get chunk/worker-independent reproducibility from
+#'   `.medsim_det_seed()` instead (see `?medsim_run`). This parameter matters
+#'   only if you call `medsim_run_parallel()` directly.
 #'
 #' @return List: Results from applying `fun` to each task (same length as tasks)
 #'
@@ -154,11 +157,14 @@ medsim_run_parallel <- function(tasks,
   # Ensure cluster is stopped on exit
   on.exit(parallel::stopCluster(cl), add = TRUE)
 
-  # Reproducible per-worker RNG via L'Ecuyer-CMRG substreams.
-  # Each worker gets a distinct, deterministic stream derived from `seed`.
-  # This is the only pattern that survives chunk-based SLURM array jobs:
-  # worker k in chunk c always draws from the same substream regardless of
-  # how many other chunks ran before or after it.
+  # Reproducible per-worker RNG via L'Ecuyer-CMRG substreams, for CALLERS OF
+  # THIS FUNCTION DIRECTLY with an explicit `seed`. Each worker then gets a
+  # distinct, deterministic stream derived from `seed`.
+  # medsim_run()/medsim_run_chunk() do NOT rely on this -- they seed each
+  # replication deterministically via .medsim_det_seed(scenario, rep_id)
+  # (see runner.R), which needs no worker/chunk coordination at all. That is
+  # the reproducibility mechanism SLURM array jobs actually get today; this
+  # block only fires for a user-supplied `seed` on a direct call.
   if (!is.null(seed)) {
     # Restore the caller's RNG kind on exit: setting L'Ecuyer-CMRG here would
     # otherwise leak into the global session and perturb downstream draws
