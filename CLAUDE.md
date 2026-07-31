@@ -247,15 +247,20 @@ PR #1 (2026-05-09).
   out of repo root 2026-07-11 — pkgdown renders every root `.md` file with no
   exclude option, see `[[feedback-local-ci-only]]`-adjacent memory on the leak).
   - **No r-universe step belongs in any GitHub workflow** — it's external; you
-    don't create CI for it. The universe rebuilds the **default branch** (`main`),
-    so a release reaches it only via the dev→main merge (not pushes to `dev`,
-    not tags).
-  - **Release checklist — add a post-merge VERIFY step**: after dev→main merges,
-    the universe lags ~hours behind `main`. Confirm it actually rebuilt before
-    calling the release done:
+    don't create CI for it. The registry (`Data-Wise/data-wise.r-universe.dev`,
+    `packages.json`) pins medsim to the **`dev` branch** — NOT the default
+    (`main`) — so the universe rebuilds from `dev`'s tip, and any push to `dev`
+    reaches it (via its own ~hourly cron), not just dev→main merges. Consequence:
+    the published Version always carries the `.9000` dev suffix (e.g.
+    `0.4.0.9000`), never a clean release number. Verified 2026-07-31 against
+    `packages.json`.
+  - **Release checklist — add a post-push VERIFY step**: after pushing to `dev`,
+    the universe lags ~hours behind. Confirm it actually rebuilt before calling
+    the release done:
     `curl -s https://data-wise.r-universe.dev/api/packages/medsim | python3 -c "import sys,json;print(json.load(sys.stdin)['Version'])"`
-    — poll until it matches the released version. Same lag gate applies when a
-    dependency must land first (e.g. medfit before missingmed's IPW build).
+    — poll until Version reflects the new `.9000` (matches the released base
+    version + dev suffix). Same lag gate applies when a dependency must land
+    first (e.g. medfit before missingmed's IPW build).
 
 ---
 
