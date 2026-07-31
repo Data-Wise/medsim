@@ -227,3 +227,7 @@ folded into the Design above.
 Feature-branch work off `dev` (code changes, not docs-only). Parts B and C are
 independently shippable; A depends on the `global_rep_id` prerequisite; D depends
 on A's column. Natural increment order: prerequisite → A → B → C → D.
+
+---
+
+**Grilled:** independent interactive grill on 2026-07-31 → [GRILL-medsim-chunked-run-gates-2026-07-31.md](GRILL-medsim-chunked-run-gates-2026-07-31.md) (B1–B5 + metadata_cols finding).
