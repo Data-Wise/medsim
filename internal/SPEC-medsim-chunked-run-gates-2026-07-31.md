@@ -1,11 +1,11 @@
 # SPEC: Fail-Loud Gates for Chunked Runs (seed audit, output gating, provenance, pilot control)
 
 - **Issue:** #34
-- **Status:** Draft
-- **Created:** 2026-07-31
-- **Author:** medsim maintainer (drafted from #34 + code trace + advisor review)
-- **Type:** Enhancement (integrity enforcement layer over the 0.4.0 seeding fix)
-- **Refs:** #28 (planning workflow — Part B **subsumes** its unshipped Part B), #25 (failure *reporting*; this is failure *gating*), #27 (truth-cache collision — same "silent wrong data" class), Morris/White/Crowther (2019)
+- **Status:** Draft **v2** (amended 2026-07-31 pm after independent grill + 8-angle adversarial review)
+- **Created:** 2026-07-31 · **Amended:** 2026-07-31
+- **Author:** medsim maintainer (drafted from #34 + code trace; hardened by grill B1–B9 + review R1–R10)
+- **Refs:** #28 (Part B **subsumes** its unshipped Part B), #25 (reporting vs gating), #27 (same "silent wrong data" class), #36 (rep-id collision — the prerequisite here IS its fix), #37 (Hopper shebang — fixed by Part B), #38 (chunk CSV clobber — fixed by Prerequisite 3), Morris/White/Crowther (2019)
+- **Companion ledgers:** [GRILL-medsim-chunked-run-gates-2026-07-31.md](GRILL-medsim-chunked-run-gates-2026-07-31.md) (interactive grill, B1–B9); 26-finding adversarial review (2026-07-31, reported in-session — 19 CONFIRMED, 7 empirically reproduced)
 
 ---
 
@@ -13,148 +13,236 @@
 
 medsim 0.4.0 fixed chunk-seed collapse by seeding each replication from
 `(scenario_name, global_rep_id)` ([`runner.R:373`](../../R/runner.R)). Nothing
-currently *detects* a reintroduction of that class of bug: the 0.3.1 failure
-produced ~17 distinct outcomes out of 1000 **while every SLURM chunk exited 0**.
-#34 proposes four fail-loud gates so the fix is regression-proof.
+*detects* a reintroduction: the 0.3.1 failure produced ~17 distinct outcomes out
+of 1000 **while every SLURM chunk exited 0**. #34 adds four fail-loud gates.
 
-### Spine finding (not stated in the issue): `global_rep_id` is never persisted
+The grill + review found the gates' foundations are missing or broken in current
+`dev` — five confirmed bugs (all empirically reproduced) that this spec now
+fixes as prerequisites:
 
-`global_rep_id` is computed for `set.seed()` only and thrown away. The result
-row stores the **local** chunk rep id:
+| Bug | Where | Symptom |
+|---|---|---|
+| Local rep ids collide across chunks; no global id persisted (#36) | `runner.R:402` | 20-rep/4-chunk run: 5 distinct `replication` values, each ×4 |
+| `medsim_analyze()`/`print()` report chunk size as `n_replications` (#36) | `analyze.R:236` | reports 5 for a true nsim of 20 |
+| Combine returns chunk-1's stale `$summary`/`$config` | `cluster.R:204` | quarter-run statistics labeled as the study |
+| One failed replication crashes the whole run (ragged `rbind`) | `runner.R:233` | `names do not match previous names`; in chunk mode → missing chunk file |
+| Logical contract fields silently dropped (`branch_switch`, `converged`) | `runner.R:410` | `medsim_summarize_branch_switch()` stops on missing column |
 
-- [`runner.R:373`](../../R/runner.R) — `global_rep_id <- (config$rep_offset %||% 0L) + rep_id` (seeding)
-- [`runner.R:402`](../../R/runner.R) — `replication = rep_id` (**local**, written to `$results`)
-- [`cluster.R:125`](../../R/cluster.R) — `medsim_run_chunk()` sets `chunk_config$n_replications <- length(indices)`, so every chunk emits `replication = 1..chunk_size`
-- [`cluster.R:191`](../../R/cluster.R) — `medsim_combine_chunks()` does a plain `rbind`
+---
 
-**Consequence:** the combined frame has **colliding** rep ids and **no global
-id at all**. Parts A and D of #34 are unimplementable as written until a
-`global_rep_id` column exists — A keys its distinctness audit on it, and D needs
-it to identify "reps `1..B_pilot`."
+## Architecture decision (locked 2026-07-31): ONE global `replication` column
 
-**Adjacent real bug this surfaces:** [`analyze.R:236`](../../R/analyze.R) computes
-`n_replications = max(results$results$replication)`. For a combined chunk run
-this returns the **chunk size**, not the total `nsim` — a silent under-count in
-every summary. (Coverage itself is unaffected: it merges by `scenario` and takes
-a proportion over rows, never keying on `replication`.)
+The grill (B4) initially locked an *additive* design — keep local `replication`,
+add `global_rep_id` beside it. The review challenged this (two finders,
+independently), and a code check settled it: **the justification was inverted**.
+Existing tests do not depend on local ids — [`test-cluster.R:412-414`](../../tests/testthat/test-cluster.R)
+*works around* them ("cannot align rows to a common global order across chunks"),
+and [`test-cluster-edge-cases.R:31`](../../tests/testthat/test-cluster-edge-cases.R)
+documents the repeat as a known wart. `test-runner.R:360` asserts at
+`rep_offset = 0`, where global == local.
+
+**Decided:** `replication` itself becomes the **global** rep id (offset applied at
+write time). No second column, no permanent reader fallback, no
+`metadata_cols` change (`replication` is already registered). Trade-off accepted:
+a one-time sweep of the few chunk-path tests versus a forever-branched schema in
+which every consumer must know which of two id columns is safe to key on.
+
+Schema versioning: the runner stamps `attr(results$results, "medsim_schema") <- 2L`
+(v1 = local ids, absent attribute). Readers treat absent/`1L` as legacy.
 
 ---
 
 ## Goals
 
-1. **Persist `global_rep_id`** in `$results` (prerequisite for A + D; also fixes the `n_replications` under-count).
-2. **A — combine-step seed-provenance audit**: hard-stop on duplicate global rep ids and on the collapse signature, per cell.
-3. **B — output-existence gating** in `medsim_write_submit_script()`: make silent-empty-success impossible (subsumes #28B's throttle/requeue/pipefail).
-4. **C — provenance header per chunk** + single-SHA assertion at combine.
-5. **D — pilot-subset positive control**: assert a full run's reps `1..B_pilot` match an archived pilot within tolerance.
-6. **Never break legacy chunk files** — missing fields degrade to a skipped gate + warning, never a stop.
+1. **Prerequisites (fix the confirmed bugs):** global `replication`; combine rebuilds `$summary`/`$config`; runner-owned failure rows (no ragged rbind, no logical drop); no chunk CSV clobber.
+2. **A — combine-step audit:** self-validating rep-id contiguity + collapse signature + cross-scenario seed-collision check; hard-stop by default via a *data-carrying* condition.
+3. **B — hardened submit template** (subsumes #28B, fixes #37): login shell, hard-fail module load, propagated exit codes; **completeness gating lives in the combiner, not the shell**.
+4. **C — provenance header** per chunk with **auto-detected** code SHA; single-SHA assertion at combine.
+5. **D — pilot-subset positive control:** identity-asserted, estimate-columns-only, tolerance-based.
+6. **Never brick legacy artifacts** — schema-absent inputs degrade to warn + skip, never stop.
 
 ## Non-Goals
 
-- Not a documentation task (#28) or a reporting/summary task (#25).
-- No change to the seeding contract itself (0.4.0, done) — only detection around it.
-- Not a general provenance/experiment-tracking framework — four targeted gates only.
-- D does **not** promise cross-platform byte-equality (see Design D).
+- Not documentation (#28 Part A) or reporting (#25). No change to the 0.4.0 seeding contract itself.
+- No general experiment-tracking framework.
+- D does not promise cross-platform byte-equality (FORK-reproducibility scope, per `.STATUS`).
 
 ---
 
 ## Design
 
-Dependency order (build A's prerequisite first; B/C are independent and
-individually shippable):
+Dependency order:
 
 ```
-prerequisite (global_rep_id column)
-   ├── A (combine audit)  ── needs global_rep_id
-   └── D (pilot control)  ── needs global_rep_id
-B (shell template)        ── fully independent
-C (provenance header)     ── independent; same "add fields" class as prerequisite
+P1 global replication ──► A (audit)  ──► D (pilot control)
+P2 combine rebuild     ──► A
+P3 failure rows + CSV  (independent)
+B  (template)          (independent; fixes #37)
+C  (provenance)        (independent)
 ```
 
-### Prerequisite — persist `global_rep_id`
+### Prerequisite P1 — `replication` becomes global (fixes #36)
 
-One-line addition in `medsim_run_single_replication()` result frame
-([`runner.R:400`](../../R/runner.R)):
+[`runner.R:402`](../../R/runner.R): `replication = (config$rep_offset %||% 0L) + rep_id`
+(the same expression the seeding already uses at line 373 — hoist to one source
+of truth). Stamp `medsim_schema = 2L` attribute. Standalone runs
+(`rep_offset = 0`) are byte-identical to today.
 
-```r
-result_df <- data.frame(
-  scenario      = scenario$name,
-  replication   = rep_id,          # local (unchanged — existing tests depend on it)
-  global_rep_id = global_rep_id,   # NEW: true position in 1..nsim
-  elapsed       = elapsed_time,
-  stringsAsFactors = FALSE
-)
-```
+- [`analyze.R:236`](../../R/analyze.R): `n_replications = max(replication)` is now
+  *correct* for combined runs — no fallback branch needed.
+- **Column-provenance attribute (review R8, root-cause fix):** the runner also
+  stamps `attr(results$results, "medsim_meta_cols") <- c("scenario", "replication", "elapsed")`.
+  `medsim_analyze()` and gate A.2 consume the attribute when present, falling
+  back to the hardcoded name list for legacy frames. Future bookkeeping columns
+  can no longer silently become "estimates" (the B4 misclassification class).
+- Test sweep: update the local-id workaround at `test-cluster.R:412` and the
+  edge-case comment at `test-cluster-edge-cases.R:31`; add a test asserting
+  chunk 2's first row has `replication = chunk_size + 1`.
 
-Also fix [`analyze.R:236`](../../R/analyze.R): `n_replications` becomes
-`dplyr::n_distinct(global_rep_id)` when the column is present, falling back to
-`max(replication)` when it is absent (legacy frames).
+### Prerequisite P2 — combine rebuilds metadata (confirmed bug)
 
-### A — combine-step seed-provenance audit
+[`cluster.R:204`](../../R/cluster.R): after merging, `medsim_combine_chunks()`
+must (a) recompute `$summary` over the combined frame via
+`medsim_summarize_results()`, (b) set `config$n_replications` to the combined
+distinct-rep count and drop `config$rep_offset`/`chunk_id`, (c) keep
+`n_chunks_combined`. Never return chunk-1's slice statistics as the study.
 
-New internal `.medsim_audit_seed_provenance(results, on_violation)` called from
-both `medsim_combine_chunks()` and `medsim_check_results()`. Per `(scenario)`
-cell:
+### Prerequisite P3 — runner-owned failure rows + no CSV clobber (fixes #38)
 
-1. **Duplicate rep ids** — `n_distinct(global_rep_id) == nsim`. A duplicate =
-   two chunks claimed the same rep = a chunking bug.
-2. **Collapse signature** — on a **named, continuous** estimate column only
-   (default `"estimate"`; configurable via `collapse_col`), assert
-   `n_distinct(round(x, 12)) > 0.9 * n_ok`. **Never** applied to discrete
-   fields (`branch_switch`, `converged` — 0/1 per the `method()` contract) which
-   would false-positive on correct data. If `collapse_col` is absent from the
-   frame, **skip this sub-check with a warning** — do not stop.
+Two empirically-confirmed crashers live in the exact lines P1 touches; fixing
+them here is not scope creep — a chunk that *crashes* on one transient rep
+failure manufactures a missing chunk file, the opposite of a fail-loud run:
 
-**Legacy degradation:** if `global_rep_id` is absent, skip check 1 with a warning
-naming the fix (re-run under ≥ this version). Never stop on a missing column.
+- **Failure schema** ([`runner.R:385-414`](../../R/runner.R)): on method error,
+  synthesize a row with `NA` for the estimate columns (observed from successes
+  or declared via the estimand descriptor), plus `converged = 0` and an `error`
+  string column present on *every* row (`NA` on success) — all rows share one
+  schema, `rbind` cannot crash, and adapters stop hand-rolling private NA
+  templates (three exist today in `methods_missing.R` alone).
+- **Logical fields** ([`runner.R:410`](../../R/runner.R)): widen the filter to
+  `is.numeric() || is.character() || is.logical()` so the documented 6-field
+  contract (`branch_switch`, `converged`) actually reaches `$results`.
+- **CSV clobber (#38):** when `config$chunk_id` is set, skip the intermediate
+  per-scenario/summary CSV writes entirely — the chunk `.rds` is the artifact;
+  n_chunks concurrent tasks overwriting `results_scenario_1.csv` is wasted I/O
+  plus a partial-data-labeled-as-complete trap.
 
-### B — output-existence gating (subsumes #28B)
+### A — combine-step audit (`.medsim_audit_seed_provenance()`)
 
-Rewrite the `medsim_write_submit_script()` template
-([`cluster.R:60`](../../R/cluster.R)) to emit, in order:
+Runs inside `medsim_combine_chunks()` **only** — NOT `medsim_check_results()`,
+which takes a *list of parallel task results*, not a `medsim_results` object
+(review R1; wiring the audit there would silently no-op). Standalone entry
+point: a new exported `medsim_audit_results(results, ...)` thin wrapper for
+auditing an already-combined object.
 
-1. module-init sourcing (`/etc/profile.d/modules.sh` fallback chain),
-2. `module load <r_module>` with hard `exit 1` on failure (**never** `|| true`),
-3. `command -v Rscript >/dev/null || exit 1`,
-4. `#28B` hardening: `set -euo pipefail`, `--requeue`, `%N` throttle line,
-5. `Rscript <run_script>`; capture and propagate its exit code,
-6. **final line:** `[ -s "$chunk_out" ] || exit 1`.
+Per `(scenario)` cell:
 
-The chunk filename convention (`chunk_%04d.rds`) currently lives only in
-`medsim_run_chunk()` ([`cluster.R:132`](../../R/cluster.R)). Centralize it in an
-internal `.medsim_chunk_filename(chunk_id)` that **both** `medsim_run_chunk()`
-and the template use, so the `[ -s ... ]` path can't drift from the writer.
+1. **A.1 contiguity (exact, self-validating — grill B7):** `replication` values
+   form a contiguous `1..max` run, no gaps, no duplicates; `max` identical
+   across cells. Catches duplicate ids, missing chunks, and ragged cells with
+   zero external input. Optional `nsim =` pins the absolute total. **Never**
+   derive expected counts from chunk-file configs (`config$n_replications`
+   inside a chunk file is the chunk size — review R2's 100%-false-positive trap)
+   nor by summing chunk metadata (circular: a missing chunk shrinks the
+   expectation to match the truncated data).
+2. **A.2 collapse signature (heuristic — grill B2/B6, review R5):** for **every
+   continuous estimate column** — the `medsim_meta_cols` attribute complement
+   (legacy: name-subtraction), keeping numeric columns with > 2 distinct values
+   (structurally excludes 0/1 `branch_switch`/`converged`) — assert
+   `n_distinct(round(x, collapse_digits)) > collapse_threshold * n_ok`.
+   Defaults `collapse_threshold = 0.9`, `collapse_digits = 12` (calibration:
+   the 0.3.1 signature, ~17/1000). **Skip when `n_ok < 30`** (small-cell noise).
+   **`n_ok == 0` is its own violation type** (`cell_failed`), never reported as
+   collapse (review R5: `0 > 0` is FALSE — the naive check would misreport an
+   all-failed cell as seed collapse).
+3. **A.3 cross-scenario seed collision (exact, zero storage — review R9):**
+   recompute `.medsim_det_seed(scenario, replication)` per cell×rep (vectorized)
+   and assert no two *scenarios* share a seed sequence — detects the
+   hash-bucket collision residual ([`runner.R:342`](../../R/runner.R), 1000003
+   buckets) that A.1 cannot see. Within-scenario duplicate seeds are already
+   A.1 duplicates (seeds are deterministic in `(scenario, replication)`).
 
-**#28B is subsumed here**, not extended — implementing a 6-line template split
-across two issues would drift. Note #28B as folded into this SPEC.
+**Legacy degradation:** schema-absent frames (local ids) → skip A.1/A.3 with a
+warning naming the re-run fix; A.2 still runs (column selection falls back to
+name-subtraction). Never stop on a missing column/attribute.
+
+### Cross-cutting — `on_violation` + data-carrying condition (grill B1)
+
+One control threaded through combine/audit: `on_violation = c("stop", "warn", "ignore")`,
+default `"stop"` (#34's mandate — the 0.3.1 warnings were ignored; every chunk
+exited 0). "Stop" signals a **`medsim_combine_violation`** condition (subclassing
+the existing `medsim_error`, [`parallel.R:217`](../../R/parallel.R)) carrying
+`$results` (the combined object) and `$violations` — a `tryCatch` recovers an
+hours-long run's good cells; an unguarded call still fails loud. Base-R
+conditions only (`rlang` is not a dependency).
+
+The existing `expected_chunks` check folds under the same control (grill B1
+refinement). **Consequences handled explicitly (review R4):**
+`tests/testthat/test-cluster-edge-cases.R:47` (expects a warning on a missing
+chunk) is updated in-PR to expect the condition / pass `on_violation = "warn"`;
+the interim-look workflow (combining 58/60 chunks mid-run) is documented as
+`medsim_combine_chunks(out, on_violation = "warn")` — an explicit one-argument
+opt-out for a deliberate partial combine, with partial results still returned.
+NEWS documents the behavior change.
+
+### B — hardened submit template (subsumes #28B; fixes #37)
+
+Rewrite of the emitted script ([`cluster.R:60`](../../R/cluster.R)):
+
+1. **`#!/bin/bash -l`** (grill B8) — the mechanism this repo already field-tested
+   on Hopper ([`inst/hopper-tests/submit_chunk.sh:1`](../../inst/hopper-tests/submit_chunk.sh):
+   "`module` is a function sourced only by login-shell init"). The current plain
+   `#!/bin/bash` template **fails on Hopper today** (#37). A
+   `source /etc/profile.d/modules.sh` fallback remains as a secondary guard only.
+2. `set -euo pipefail` + `#SBATCH --requeue` + `%N` array throttle (#28B, folded).
+3. `module load <r_module>` with hard `exit 1` on failure — never `|| true`.
+4. `command -v Rscript >/dev/null || exit 1`.
+5. `Rscript <run_script>`; propagate its exit code.
+
+**No shell-side output-path gate.** The grill's `[ -s "$chunk_out" ]` line (B9)
+is **withdrawn** (review R3): the baked path comes from the *writer's* config
+while the chunk path is resolved at runtime by the run script's *own* config —
+the two routinely differ (`inst/hopper-tests` reads `TIER_B_OUTDIR`), so the
+gate would `exit 1` on every successful task and, with `--requeue`, loop
+requeuing successful work. Completeness is the **combiner's** job (A.1 catches
+missing/short chunks exactly; unreadable RDS fails at `readRDS`). The historical
+`COMPLETED 0:0, no output` mode is closed by items 1–5: `medsim_run_chunk()`
+either `saveRDS`es or errors → nonzero exit → propagated.
+
+The chunk filename convention still centralizes in `.medsim_chunk_filename(chunk_id)`
+(used by `medsim_run_chunk()` and `medsim_combine_chunks()`'s default pattern).
+
+**Exemplar sweep (review R7):** `inst/hopper-tests/submit_chunk.sh` and its
+README are updated to the hardened pattern in the same PR — the copy users
+actually start from must not reproduce the unhardened template.
 
 ### C — provenance header per chunk
 
 `medsim_run_chunk()` attaches `attr(results, "provenance")`:
 `list(r_version, medsim_version, dep_versions, hostname, code_sha, sec_per_rep)`.
-`code_sha` is **caller-stamped** (a `code_sha` arg on `medsim_run_chunk()`,
-defaulting to `NA`). At combine, assert a **single non-NA SHA across all chunks**
-(catches a mid-run code edit + partial resubmit). When SHA is `NA` (interactive
-run, no checkout) → skip the SHA assertion with a warning, never stop. A
-documented deliberate resubmit uses `on_violation = "warn"`.
+`code_sha` **auto-detects** (grill B5): `git -C <run-script dir> rev-parse HEAD`
+when in a git tree, else a `packageVersion("medsim")`-based tag; an explicit
+`code_sha =` argument overrides (installed-package / non-git runs). At combine,
+assert a single non-NA SHA across chunks (catches a mid-run edit + partial
+resubmit); all-NA → skip + warn; deliberate resubmits use `on_violation = "warn"`.
 
 ### D — pilot-subset positive control
 
-`medsim_combine_chunks(pilot_reference = <path>, pilot_tol = 1e-9)`: join the
-full run's rows with `global_rep_id %in% pilot$global_rep_id` against the pilot
-by `(scenario, global_rep_id)` and assert per-column agreement within
-`pilot_tol`. **Tolerance, not byte-equality** — the 1e-12 field match was one
-FORK-reproducible run; exact `identical()` will fail across a different
-BLAS/R build on *correct* code. D's scope inherits `.STATUS`'s "FORK-reproducible"
-contract. Default `pilot_tol = 1e-9`; document that a genuinely reordered/rebuilt
-environment may need a looser tol or `on_violation = "warn"`.
+`medsim_combine_chunks(pilot_reference = <path>, pilot_tol = 1e-9)`:
 
-### Cross-cutting — one control, not four switches
-
-Single `on_violation = c("stop", "warn", "ignore")` argument threaded through A,
-C, D (default `"stop"`). Four independent opt-outs is how a gate ends up
-silently disabled. The existing `expected_chunks` soft-warning
-([`cluster.R:180`](../../R/cluster.R)) folds under the same control.
+1. **Identity first (grill B3):** the pilot artifact stores `n`, the scenario
+   fingerprint (reuse `.medsim_truth_fingerprint()`), and its schema version.
+   Assert pilot-n == full-run-n per compared cell and matching fingerprints — a
+   mismatched-config pilot fails loud as `pilot_config_differs`, never
+   masquerading as a seeding regression. (Absolute pilot size stays the user's
+   choice — small-n pilots are fine; the invariant is *equality*, not size.)
+2. **Value match — estimate columns ONLY (review R6):** join on
+   `(scenario, replication)`; compare the estimate-column set (from the
+   provenance attribute), explicitly excluding `elapsed` (wall time never
+   matches) and all metadata. The v1 text compared all columns — a guaranteed
+   false positive on every correct run.
+3. Tolerance `pilot_tol`, not `identical()` (grill G4): FORK-reproducibility
+   scope; document the looser-tol / `warn` escape for rebuilt environments.
 
 ---
 
@@ -162,72 +250,109 @@ silently disabled. The existing `expected_chunks` soft-warning
 
 | Function | Change |
 |---|---|
-| `medsim_run_single_replication()` | + `global_rep_id` column (internal) |
-| `medsim_analyze()` | `n_replications` counts distinct `global_rep_id` (fallback to `max`) |
-| `medsim_run_chunk()` | + `code_sha` arg; attaches `provenance` attr; uses `.medsim_chunk_filename()` |
-| `medsim_combine_chunks()` | + `pilot_reference`, `pilot_tol`, `on_violation`; runs A + C + D audits |
-| `medsim_check_results()` | + runs A audit; `on_violation` |
-| `medsim_write_submit_script()` | rewritten template (B, subsumes #28B) |
-| `.medsim_audit_seed_provenance()` | NEW internal |
-| `.medsim_chunk_filename()` | NEW internal (shared name convention) |
+| `medsim_run_single_replication()` | `replication` = global id; schema + meta-cols attributes; failure rows share success schema; logical fields kept |
+| `medsim_run_chunk()` | provenance attr (auto-SHA + `code_sha` override); skips intermediate CSVs; uses `.medsim_chunk_filename()` |
+| `medsim_combine_chunks()` | rebuilds `$summary`/`$config`; runs A.1–A.3 + C + D; `on_violation`, `nsim`, `pilot_reference`, `pilot_tol`, `collapse_*` args |
+| `medsim_audit_results()` | NEW export: standalone audit of a combined object |
+| `medsim_analyze()` | consumes `medsim_meta_cols` attr (legacy fallback) |
+| `medsim_write_submit_script()` | hardened template (B); no path gate |
+| `.medsim_audit_seed_provenance()`, `.medsim_chunk_filename()` | NEW internals |
+
+**Not** touched: `medsim_check_results()` (wrong input shape for this audit — review R1).
 
 ---
 
 ## Acceptance Criteria — planted-defect matrix
 
-Each gate must FIRE on its defect **and** NOT fire on the matched negative control:
+Each gate must FIRE on its defect and stay SILENT on the matched negative control:
 
-| Gate | Planted defect ⇒ stop | Negative control ⇒ silent |
+| Gate | Planted defect ⇒ violation | Negative control ⇒ silent |
 |---|---|---|
-| A.1 dup rep ids | two rows same `(scenario, global_rep_id)` | distinct ids, full grid |
-| A.2 collapse | continuous `estimate` with ~17 distinct/1000 | **discrete `branch_switch`/`converged` 0/1** (must NOT fire) |
-| B output gate | zero-byte `chunk_out` ⇒ `exit 1` | non-empty chunk ⇒ exit 0 |
-| B module fail | `module load` fails ⇒ `exit 1` (no `|| true`) | module loads ⇒ proceed |
-| C SHA | two chunks, different non-NA SHA ⇒ stop | single SHA, or all-NA ⇒ skip+warn |
-| D pilot | one perturbed rep vs pilot ⇒ stop | pilot-identical subset within tol |
-| legacy | chunk file missing `global_rep_id` ⇒ **warn + skip**, never stop |
+| P1 | 4-chunk/nsim-20 combine ⇒ 20 distinct `replication`, `n_replications = 20` | standalone run unchanged (byte-identical at `rep_offset = 0`) |
+| P2 | combined `$summary` recomputed over all rows | single-chunk combine |
+| P3 | method failing on rep k ⇒ run completes, NA row, `converged = 0`, `rbind` succeeds | all-success run identical to today (+ `error` col NA) |
+| P3 | `branch_switch = NA` (logical) survives to `$results` | — |
+| A.1 | duplicated rep id ⇒ stop; deleted chunk ⇒ gap ⇒ stop | full contiguous grid |
+| A.2 | continuous `indirect` with ~17/1000 distinct ⇒ stop | discrete 0/1 `branch_switch` (must NOT fire); `n_ok < 30` cell skipped; `n_ok == 0` ⇒ `cell_failed`, NOT collapse |
+| A.3 | two scenario names forced into one hash bucket ⇒ stop | distinct buckets |
+| B | `module load` failure ⇒ task exit ≠ 0; `Rscript` error ⇒ exit ≠ 0 | clean run exits 0 |
+| C | two chunks, different non-NA SHA ⇒ stop | single SHA; all-NA ⇒ skip + warn |
+| D | one perturbed estimate vs pilot ⇒ stop; pilot at different n ⇒ `pilot_config_differs` | pilot-identical subset within tol (`elapsed` differing must NOT fire) |
+| legacy | schema-absent chunk ⇒ warn + skip A.1/A.3, never stop |
+| condition | `tryCatch(medsim_combine_violation)` recovers `$results` from a stopped combine |
 
-**E2E (per `e2e-before-pr.md`):** A/C/D via unit fixtures; B via a **local render
-+ stubbed `module`/`Rscript` exit-code harness** (a real cluster run is not
-performable — state that in the PR body, do not claim a Hopper run).
+**E2E (per `e2e-before-pr.md`):** A/C/D + P1–P3 via unit fixtures (the P1/P2/P3
+defects are already reproduced in-session — the fixtures encode those
+transcripts); B via local render + stubbed `module`/`Rscript` exit-code harness.
+A real Hopper run is not performable from this environment — the PR body states
+this; `inst/hopper-tests/` remains the on-cluster validation path.
 
 ---
 
 ## Risks
 
-1. **Legacy `.rds` bricking** — the #1 way this breaks real work (pmed-modern archives have no `global_rep_id`/provenance). Mitigation: missing-field ⇒ warn+skip, encoded in acceptance matrix.
-2. **Collapse check false-positive** on discrete columns — mitigation: named continuous column only + explicit negative control.
-3. **D over-strict tolerance** across environments — mitigation: `pilot_tol` param, documented `warn` escape.
-4. **Template coupling** — B duplicates the chunk-name convention; mitigation: shared `.medsim_chunk_filename()`.
-5. **`expected_chunks` semantics change** (warn→configurable) is a mild behavior change; document in NEWS.
+1. **P1 blast radius** — global ids change chunk-frame contents. Mitigated: standalone runs byte-identical; the only affected tests are the ones working around the old behavior; schema attribute + legacy warn+skip protect archived `.rds`.
+2. **`on_violation` default flips `expected_chunks` semantics** — a documented breaking change (NEWS), test updated in-PR, interim-look opt-out documented (review R4).
+3. **A.2 false positives** — configurable knobs + small-cell floor + structural discrete exclusion + matrix negative controls.
+4. **Auto-SHA wrong tree** — detect the *run-script's* dir, not `getwd()`; override retained; all-NA degrades to warn.
+5. **D pilot staleness** — identity assert converts silent staleness into a loud `pilot_config_differs`.
+6. **Exemplar drift** — `inst/hopper-tests` updated in-PR (review R7); `.medsim_chunk_filename()` keeps writer/combiner naming coupled.
 
 ---
 
-## Grill Ledger
+## Grill Ledger (v1, retained) — G1–G9
 
-Convergent adversarial interrogation of this SPEC. Each finding → resolution now
-folded into the Design above.
-
-| # | Finding (attack) | Resolution |
+| # | Finding | Resolution (as amended) |
 |---|---|---|
-| G1 | **A/D assume a `global_rep_id` column that doesn't exist** — `runner.R:402` stores local `rep_id`; combine `rbind`s colliding ids. Both parts are dead on arrival. | Promoted to **Prerequisite** (persist the column). Made the spec's spine, not a footnote. |
-| G2 | **"Hard stop, opt-out not opt-in" bricks every archived chunk** (no `global_rep_id`, no provenance). | Legacy rule: missing field ⇒ **warn + skip that gate, never stop**. In acceptance matrix. |
-| G3 | **Collapse signature fires on correct data** for any discrete field (`branch_switch`, `converged` are 0/1 per the `method()` contract). | Applies to a **named continuous column only** (`collapse_col`, default `"estimate"`); discrete negative control is a gating acceptance test. |
-| G4 | **D conflates "byte-level" and "1e-12"** — exact equality fails on correct code across a different BLAS/R build; `.STATUS` scopes reproducibility to FORK only. | D asserts **within `pilot_tol` (default 1e-9)**, not `identical()`; scope inherits FORK-reproducibility; `warn` escape documented. |
-| G5 | **B's output gate re-hardcodes the chunk filename** that lives only in `medsim_run_chunk()`. | Centralized in `.medsim_chunk_filename()` used by both writer and template. |
-| G6 | **"Extends #28B" — #28B doesn't exist yet** (template is a bare `module load`). | B **subsumes** #28B (throttle/requeue/pipefail folded in); one-pass implementation; #28B noted as absorbed. |
-| G7 | **Four opt-outs = a gate gets silently disabled.** | Single `on_violation = c("stop","warn","ignore")` threaded through A/C/D + the existing `expected_chunks` warning. |
-| G8 | **C's SHA is absent on interactive/non-git runs** and blocks legitimate deliberate resubmits. | `NA` SHA ⇒ skip+warn; deliberate resubmit uses `on_violation="warn"`. |
-| G9 (residual) | A.1's distinctness can't detect a bug where a user DGM calls `set.seed()` internally yet rep ids stay distinct — only A.2 (collapse) catches that, and only on the continuous column. | Accepted & documented: A.1 and A.2 are complementary; neither alone is complete. Matches #34's own framing (both checks needed). |
+| G1 | A/D assume a `global_rep_id` column that doesn't exist | Promoted to prerequisite; **v2: single global `replication` column** (Architecture decision) |
+| G2 | Hard-stop bricks archived chunk files | Legacy rule: schema-absent ⇒ warn + skip, never stop |
+| G3 | Collapse check fires on discrete fields | v2: structural exclusion via "> 2 distinct values" in auto column selection |
+| G4 | D conflates byte-level and 1e-12 | `pilot_tol`, FORK scope, documented escapes |
+| G5 | B re-hardcodes the chunk filename | `.medsim_chunk_filename()` shared by writer + combiner |
+| G6 | "#28B" doesn't exist to extend | B subsumes it one-pass |
+| G7 | Four opt-outs → silent disable | Single `on_violation` control |
+| G8 | SHA absent on non-git runs blocks resubmits | Auto-detect + NA ⇒ skip + warn |
+| G9 | A.1 can't catch DGM-internal `set.seed()` | Accepted: A.2 is the complementary heuristic for exactly this |
+
+## Interactive grill (B1–B9): see [GRILL ledger](GRILL-medsim-chunked-run-gates-2026-07-31.md)
+
+Note: B4's "additive dual-column" and B9's shell output-path gate were
+superseded in v2 (Architecture decision; review R3) — the ledger records the
+reasoning at the time; this spec is authoritative.
+
+## Review Ledger (v2 amendments) — R1–R10
+
+From the 8-angle adversarial review (26 findings; 19 CONFIRMED, 7 empirically
+reproduced):
+
+| # | Confirmed finding | Amendment |
+|---|---|---|
+| R1 | `medsim_check_results()` takes a task LIST, not `medsim_results` — an audit wired there no-ops | Audit lives in combine + new `medsim_audit_results()`; `check_results` untouched |
+| R2 | `combined$config$n_replications` is the chunk size — any config-derived nsim false-positives on 100% of correct chunked runs | A.1 is self-validating (contiguity); config never consulted; P2 fixes the stale config itself |
+| R3 | B's `[ -s "$chunk_out" ]` bakes the writer's path; the runtime config differs ⇒ exit 1 on success + requeue loop | Path gate **withdrawn**; combiner owns completeness; shell keeps only exit-code discipline |
+| R4 | `expected_chunks` stop-default breaks `test-cluster-edge-cases.R:47` + interim looks | Test updated in-PR; interim look = documented `on_violation = "warn"`; data-carrying condition returns partials even on stop |
+| R5 | `collapse_col = "estimate"` matches no real column (gate inert); `n_ok = 0` ⇒ `0 > 0` misreports an all-failed cell as collapse | Auto column selection (grill B6); `cell_failed` violation type for `n_ok == 0` |
+| R6 | D compares ALL columns — `elapsed`/local ids guarantee false positives | Estimate-columns-only compare; join on `(scenario, replication)` |
+| R7 | `inst/hopper-tests/submit_chunk.sh` is a second unhardened template copy | Exemplar + README updated in the same PR |
+| R8 | `metadata_cols` name-subtraction is the root cause of the misclassification class | `medsim_meta_cols` provenance attribute stamped by the runner; name list demoted to legacy fallback |
+| R9 | Seed-space hash collisions across scenario names are undetectable by A.1 | A.3: recomputed cross-scenario seed check (exact, zero storage) |
+| R10 | Ragged-rbind crash + logical-field drop live in the exact lines P1 touches (both empirically reproduced) | P3: runner-owned uniform failure schema + widened type filter |
+
+Review findings **not** folded here (separate work, unblocked by this spec):
+mojibake sweep (docs), unseeded pmed-truth MC → closed form, gauge/sobol DGP
+dedup, delta-SE / ab-fit shared helpers, MBCO-MI duplicate fits, truth-recompute
+race across chunks (`compute_truth` gating), dead `seed_stream` knob,
+`.gen_complete_med` rename, interval-kind validation skip, empty interval
+coverage table, cache-doc example drift, `config$seed` no-op documentation.
 
 ---
 
 ## Branch / Worktree Plan (descriptive — not an action item)
 
-Feature-branch work off `dev` (code changes, not docs-only). Parts B and C are
-independently shippable; A depends on the `global_rep_id` prerequisite; D depends
-on A's column. Natural increment order: prerequisite → A → B → C → D.
+Feature-branch work off `dev`. Natural increments: **P1+P2+P3 first, one branch**
+(they share `runner.R`/`cluster.R` lines and are the #36/#37-adjacent/#38 fixes)
+→ A → B (+ #37 exemplar sweep) → C → D. B and C remain independently shippable.
 
 ---
 
-**Grilled:** independent interactive grill on 2026-07-31 → [GRILL-medsim-chunked-run-gates-2026-07-31.md](GRILL-medsim-chunked-run-gates-2026-07-31.md) (B1–B5 + metadata_cols finding).
+**Grilled:** independent interactive grill on 2026-07-31 → [GRILL-medsim-chunked-run-gates-2026-07-31.md](GRILL-medsim-chunked-run-gates-2026-07-31.md) (B1–B9 + metadata_cols finding). **Reviewed:** 8-angle adversarial review, 2026-07-31 pm (R1–R10 folded above).
