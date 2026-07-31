@@ -12,8 +12,10 @@ next: ⏳ NOTHING BLOCKING — dev is clean, v0.4.0 released, gauge estimand mer
   (1) r-universe should auto-pick up 0.4.0 within hours of the 2026-07-11 release — spot-check
       `curl -s https://data-wise.r-universe.dev/api/packages/medsim` shows Version 0.4.0 if
       curious, no action needed if not;
-  (2) prune `~/.git-worktrees/medsim/feature-gauge-estimand` (worktree) + `git push origin
-      --delete feature/gauge-estimand` (remote branch) — both stale, PR #33 already merged;
+  (2) [DONE 2026-07-31] pruned stale merged feature branches — gauge-estimand (worktree +
+      local, remote was already auto-deleted; PR #33) and dgm-interface + dgm-mbco-port
+      (local `-D`; PRs #17/#18, v0.2.0). All merge-verified (local tip == PR head, merge
+      commit ancestor of dev). No stale feature branches or worktrees remain;
   (3) [DONE 2026-07-11] the 7 stale remote branches (cran-readiness, fix-cluster-packages,
       speed-up-ci, test-parallel, test-runner, test-visualize, trim-suggests) no longer exist
       on origin — already gone (likely GitHub auto-delete-on-merge), nothing to prune;
@@ -24,7 +26,7 @@ next: ⏳ NOTHING BLOCKING — dev is clean, v0.4.0 released, gauge estimand mer
       buggy) — that repo's own `GAP-2026-07-11`, needs bumping to `>= 0.4.0` there, not here.
 done: #30 fix(run_chunk): deterministic per-replication seeding via .medsim_det_seed(), independent of chunk/worker/cluster-type/order — fixes SLURM chunk-collapse (coverage pinned at 1.0). #31 two-tier test infra: Tier-A CRAN guards + Tier-B Hopper suite (12,000 reps @ production scale: nominal coverage 0.947, narrow-interval 0.480, 12,000/12,000 distinct seeds, FORK-reproducible — all PASS), surfaced 5 more latent fixes. dev is CRAN-clean: R CMD check --as-cran 0/0/0 (real notes only — .remember/ note is a local-only artifact, absent on clean CI checkout), devtools::test() 968/0/1. #25 ADEMP coverage gates MERGED to dev 2026-06-22 (PR #26; coverage MCSE + failed-run logging + performance table + nsim helper + SE-vs-estimate plot; 913/0, CI green all platforms). Also fixed a pre-existing dev pkgdown failure (Sobol index gap from #22) + CLAUDE.md Remotes drift (medfit→medrobust). v0.3.1 RELEASED 2026-06-19.
 type: r
-last_updated: 2026-07-11
+last_updated: 2026-07-31
 test_infra: MERGED to dev — PR #30 (rng-seed-audit) + PR #31 (test-infrastructure), squash.
   Two-tier sim/parallel test suite — Tier A (CRAN-safe, tests/testthat/) + Tier B
   (Hopper-only, inst/hopper-tests/). DONE: Phase 0 CRAN-blockers (∈ U+2208 fix, seeded
