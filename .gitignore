@@ -15,6 +15,10 @@ simulation_results*/
 .claude/
 .STATUS.backup
 BRAINSTORM-*.md
+# Internal agent-instruction docs — kept local so pkgdown does not publish them
+# (every root .md is part of the rendered site surface). See .rforge.yaml note.
+CLAUDE.md
+AGENTS.md
 
 # testthat failure snapshots (transient; regenerated on test runs)
 tests/testthat/_problems/

@@ -1,0 +1,15 @@
+# rforge project configuration
+#
+# site.allowlist: files that are legitimately part of the pkgdown-rendered
+# surface (root *.md, non-.Rd man/, non-vignette vignettes/) and should NOT be
+# reported as leaks by `lib.sitelint` / `r:site --check-leaks`. The core
+# allowlist (README, NEWS, cran-comments, LICENSE, etc.) is built in; list only
+# the extras here.
+#
+# NOTE: CLAUDE.md and AGENTS.md are deliberately NOT allowlisted. They are
+# internal-tooling docs that must not be published; they are kept out of the
+# rendered surface by being untracked + .gitignored (see .gitignore), not by
+# silencing the warning.
+site:
+  allowlist:
+    - vignettes/.gitignore   # git housekeeping file, never a real doc — false positive
