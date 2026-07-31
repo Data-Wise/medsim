@@ -9,9 +9,12 @@ next: ⏳ NOTHING BLOCKING — dev is clean, v0.4.0 released, gauge estimand mer
   "medrobust"; once TRUE, run `devtools::submit_cran()` from a clean `main` checkout (bump
   DESCRIPTION off the `.9000` dev suffix first). Everything else below is optional cleanup,
   not blocking:
-  (1) r-universe should auto-pick up 0.4.0 within hours of the 2026-07-11 release — spot-check
-      `curl -s https://data-wise.r-universe.dev/api/packages/medsim` shows Version 0.4.0 if
-      curious, no action needed if not;
+  (1) [VERIFIED 2026-07-31] r-universe is live with the 0.4.0 content — reports Version
+      `0.4.0.9000`. NOTE: the registry (`Data-Wise/data-wise.r-universe.dev`, packages.json)
+      pins medsim to the `dev` branch, NOT `main`, so the published Version always carries the
+      `.9000` dev suffix and never a clean release number. Working as configured (dev-tracking);
+      CLAUDE.md r-universe note corrected to match (commit 50c7f5b). No action needed unless a
+      clean `0.4.0` off `main` is wanted — then drop `branch: dev` from the registry entry;
   (2) [DONE 2026-07-31] pruned stale merged feature branches — gauge-estimand (worktree +
       local, remote was already auto-deleted; PR #33) and dgm-interface + dgm-mbco-port
       (local `-D`; PRs #17/#18, v0.2.0). All merge-verified (local tip == PR head, merge
