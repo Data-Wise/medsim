@@ -64,17 +64,7 @@ medsim_scenario_sobol <- function(name,
   # Closed-form ground-truth Sobol share for this DGP.
   truth_val <- .medsim_sobol_truth(tp, pd = pd, pm = pm)
 
-  gen_fn <- local({
-    p <- tp
-    function(n) {
-      C <- rnorm(n)
-      A <- rbinom(n, 1L, p$p_a)
-      M <- p$beta_a * A + p$gamma_mc * C + rnorm(n)
-      Y <- p$tau_a * A + p$tau_m * M + p$kappa * A * M +
-        p$gamma_yc * C + rnorm(n)
-      data.frame(C = C, A = A, M = M, Y = Y)
-    }
-  })
+  gen_fn <- .medsim_lingauss_dgp(tp)
 
   estimand <- medsim_estimand("variance_share",
                               params = "pmed_sobol",
@@ -92,15 +82,40 @@ medsim_scenario_sobol <- function(name,
 }
 
 # Internal helpers -----------------------------------------------------------
+# Shared by medsim_scenario_sobol() and medsim_scenario_gauge() (R/scenarios_gauge.R).
+
+# Linear-Gaussian-with-interaction data generator for the A -> M -> Y chain
+# with a single covariate C and an A*M interaction (kappa). Returns the
+# `function(n)` closure used as a scenario `data_generator`.
+#' @noRd
+.medsim_lingauss_dgp <- function(tp) {
+  p <- tp
+  function(n) {
+    C <- rnorm(n)
+    A <- rbinom(n, 1L, p$p_a)
+    M <- p$beta_a * A + p$gamma_mc * C + rnorm(n)
+    Y <- p$tau_a * A + p$tau_m * M + p$kappa * A * M +
+      p$gamma_yc * C + rnorm(n)
+    data.frame(C = C, A = A, M = M, Y = Y)
+  }
+}
+
+# Closed-form corner means for that DGP (C centered):
+# theta_{a,a'} = tau_a*a + (tau_m + kappa*a) * beta_a * a'.
+# Returns c(t11, t10, t01, t00).
+#' @noRd
+.medsim_corner_means <- function(tp) {
+  th <- function(a, ap) tp$tau_a * a + (tp$tau_m + tp$kappa * a) * tp$beta_a * ap
+  c(t11 = th(1, 1), t10 = th(1, 0), t01 = th(0, 1), t00 = th(0, 0))
+}
 
 # Closed-form corner means -> functional-ANOVA components -> Sobol share.
-# theta_{a,a'} = tau_a*a + (tau_m + kappa*a) * beta_a * a'   (C centered).
 # Mirrors the Dd/Dm/R -> Vd/Vm/Vdm -> Vm/VT algebra of sobol_from_theta()
 # in the prototype sobol_pmed.R, so the truth matches the estimator's target.
 #' @noRd
 .medsim_sobol_truth <- function(tp, pd = 0.5, pm = 0.5) {
-  th <- function(a, ap) tp$tau_a * a + (tp$tau_m + tp$kappa * a) * tp$beta_a * ap
-  t11 <- th(1, 1); t10 <- th(1, 0); t01 <- th(0, 1); t00 <- th(0, 0)
+  tm <- .medsim_corner_means(tp)
+  t11 <- tm[["t11"]]; t10 <- tm[["t10"]]; t01 <- tm[["t01"]]; t00 <- tm[["t00"]]
 
   Dd <- (1 - pm) * (t10 - t00) + pm * (t11 - t01)
   Dm <- (1 - pd) * (t01 - t00) + pd * (t11 - t10)

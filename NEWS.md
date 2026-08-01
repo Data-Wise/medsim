@@ -99,6 +99,57 @@
   partial data that looked complete. The chunk `.rds` is the artifact;
   standalone runs still write their CSVs.
 
+## Quality fixes (2026-07 review round)
+
+* `medsim_scenario_pmed()` now computes the ground-truth P_med with the exact
+  closed form `Phi((beta_ay + alpha_ax*beta_my) / sqrt(2*(beta_my^2*sigma_m^2
+  + sigma_y^2)))` instead of an unseeded 4x50k Monte-Carlo potential-outcome
+  draw at construction time. The truth is now deterministic, exact, and leaves
+  the RNG state untouched; the `n_po` argument (and the `n_po` parameter of
+  the internal `.medsim_pmed_truth()`) has been removed.
+* `medsim_validate_scenario()` now validates generator output for *all*
+  estimand kinds: interval/numeric (and other non-core) kinds previously got
+  zero column validation; they now require a non-empty data.frame (at least
+  1 row and 1 column). X/M/Y columns are still not required for these kinds --
+  their column contract remains method-defined.
+* `.medsim_analyze_coverage_interval()` now emits a `coverage_mcse` column
+  (`sqrt(p*(1-p)/n_valid)`, mirroring the point path) in both the overall and
+  by-scenario coverage frames, so `medsim_table_coverage()` renders a real
+  MCSE for interval-kind runs instead of an `NA` placeholder. The table
+  builder is also hardened to render body rows even when optional columns
+  (`coverage_mcse`, `n_valid`, `n_failed`) are absent.
+* `medsim_config(seed_stream=)` is deprecated: the value was stored and
+  documented but has never been consumed by any medsim function. Passing a
+  non-`NULL` value now emits a deprecation warning pointing at
+  `medsim_run_parallel(seed=)`; the value is still stored for
+  back-compatibility.
+* The `medsim_cache_load()` documentation example now unwraps the
+  fingerprinted ground-truth cache format `list(truth=, fingerprint=)` written
+  by `medsim_run()` instead of treating the wrapper as the truth value.
+
+<!-- quality-fixes: duplication/refactor findings (R1/S3, R6+R3, E1, C1) -->
+* Internal refactor: `medsim_scenario_sobol()` and `medsim_scenario_gauge()`
+  now share one linear-Gaussian-with-interaction data generator
+  (`.medsim_lingauss_dgp()`) and one corner-mean truth helper
+  (`.medsim_corner_means()`) instead of duplicating them verbatim. Scenario
+  draws and closed-form truths are bit-identical to before.
+* Internal refactor: the delta-method product SE is now a single helper
+  (`.medsim_se_prod()`) used by the MC-CI and IPW adapters, and
+  `medsim_method_bounds()` / `medsim_method_pmed_mbco()` fit their mediation
+  regressions through the generalized `.medsim_md_fit_ab()` (named-coefficient
+  lookup, replacing fragile positional `coef()[k]` indexing; one edge-path
+  change: degenerate/collinear fits now error loudly instead of a silent
+  `se = 0.1` fallback). Estimates, SEs,
+  CIs, and p-values are bit-identical to before.
+* Performance: `medsim_method_mbco_mi()` computes the three MBCO
+  log-likelihoods once per imputation (`.medsim_mbco_lls()`) and derives both
+  the D4 LRT statistic and the union-null branch indicator from that triple --
+  about 6 instead of 10 `lm()` fits per imputation, with bit-identical
+  statistics, p-values, and `branch_switch` values.
+* Internal rename: `.gen_complete_med()` is now `.medsim_gen_complete_med()`,
+  matching the package's `.medsim_*` internal naming convention.
+<!-- end quality-fixes duplication/refactor -->
+
 # medsim 0.4.0
 
 ## Bug fixes

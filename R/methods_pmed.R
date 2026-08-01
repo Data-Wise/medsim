@@ -13,17 +13,17 @@
 #' | `pmed` | Point estimate of P_med |
 #' | `pmed_ci_lower` | Lower bound of MBCO CI |
 #' | `pmed_ci_upper` | Upper bound of MBCO CI |
-#' | `pmed_p` | Two-sided p-value (H0: P_med ? 0.5) |
+#' | `pmed_p` | Two-sided p-value (H0: P_med = 0.5) |
 #' | `branch_switch` | 1 if the MBCO union-null LRT switched branches |
 #' | `converged` | 1 if optimisation converged |
 #'
 #' **Algorithm:**
 #' 1. Fit linear SEM: `M ~ A` and `Y ~ A + M`.
-#' 2. Estimate path coefficients ? (A->M) and ? (M->Y).
+#' 2. Estimate path coefficients alpha (A->M) and beta (M->Y).
 #' 3. Estimate P_med via a parametric bootstrap PO draw under the estimated SEM.
 #' 4. Build a delta-method normal CI and clamp to \[0, 1\].
 #' 5. The "branch_switch" flag records whether the union-null test selected the
-#'    constrained branch (??? ? 0) over the unconstrained branch (??? > 0).
+#'    constrained branch (alpha*beta <= 0) over the unconstrained branch (alpha*beta > 0).
 #'
 #' @param data A `data.frame` with columns `A`, `M`, `Y`.
 #' @param params Named list from [medsim_scenario_pmed()]; must contain at
@@ -47,38 +47,43 @@ medsim_method_pmed_mbco <- function(data, params,
 
   n <- nrow(data)
 
-  # Step 1: fit linear SEM
-  fit_m <- lm(M ~ A, data = data)
-  fit_y <- lm(Y ~ A + M, data = data)
+  # Step 1: fit linear SEM via the shared a/b-path fitter
+  # (.medsim_md_fit_ab, R/methods_missing.R)
+  fit <- .medsim_md_fit_ab(data, treatment = "A", mediator = "M", outcome = "Y")
 
-  alpha_hat <- unname(coef(fit_m)["A"])
-  beta_hat  <- unname(coef(fit_y)["M"])
-  gamma_hat <- unname(coef(fit_y)["A"])  # direct effect
-  sigma_m   <- sigma(fit_m)
-  sigma_y   <- sigma(fit_y)
+  alpha_hat <- fit$a
+  beta_hat  <- fit$b
+  gamma_hat <- fit$cprime  # direct effect
+  sigma_m   <- fit$sigma_m
+  sigma_y   <- fit$sigma_y
 
   # Step 2: estimate P_med via parametric bootstrap PO draw
   pmed_hat <- .medsim_pmed_boot(alpha_hat, beta_hat, gamma_hat,
                                   sigma_m, sigma_y, n_po = n_boot)
 
   # Step 3: delta-method SE for pmed_hat (approximate, via Normal assumption
-  # on path coefficients).  SE ? |?P_med/?(???)| * se(???)
-  # For continuous Y: P_med ? ?(??? / sqrt(2?(???_m? + ?_y?)))
-  # ?P_med/?(??) = ?(z) / sqrt(2(???_m? + ?_y?))  where z = ?? / denom
+  # on path coefficients).  SE ~= |dP_med/d(alpha*beta)| * se(alpha*beta)
+  # For continuous Y: P_med ~= Phi(alpha*beta / sqrt(2*(beta^2*sigma_m^2 + sigma_y^2)))
+  # dP_med/d(alpha*beta) = phi(z) / sqrt(2*(beta^2*sigma_m^2 + sigma_y^2))  where z = alpha*beta / denom
   ab  <- alpha_hat * beta_hat
   denom_sq <- 2 * (beta_hat^2 * sigma_m^2 + sigma_y^2)
   denom    <- sqrt(max(denom_sq, 1e-10))
   z_pmed   <- ab / denom
   dphi     <- dnorm(z_pmed)
+  # Delta-method SE of a*b -- same quantity as .medsim_se_prod(), but kept in
+  # the historical (b*se_a)^2 + (a*se_b)^2 grouping: the algebraically equal
+  # b^2*va + a^2*vb reordering shifts the last ulp of se_ab (and hence pmed_p)
+  # on some datasets, breaking bit-compatibility with published grids
+  # (verified 2026-07-31, quality-fixes refactor).
   se_ab    <- sqrt(
-    (beta_hat * summary(fit_m)$coefficients["A", "Std. Error"])^2 +
-    (alpha_hat * summary(fit_y)$coefficients["M", "Std. Error"])^2
+    (beta_hat * fit$se_a)^2 +
+    (alpha_hat * fit$se_b)^2
   )
   se_pmed  <- dphi / denom * se_ab
 
   # MBCO two-branch union-null CI
-  # Branch 1 (unconstrained, ??? > 0): Wald CI on pmed_hat
-  # Branch 2 (constrained, ??? ? 0): CI = [0, pmed_hat + z*se]
+  # Branch 1 (unconstrained, alpha*beta > 0): Wald CI on pmed_hat
+  # Branch 2 (constrained, alpha*beta <= 0): CI = [0, pmed_hat + z*se]
   z_alpha   <- qnorm(1 - alpha / 2)
   branch_switch <- as.integer(ab <= 0)
 

@@ -75,12 +75,14 @@ medsim_method_bounds <- function(data, params,
   if (!"Y" %in% names(data)) stop("data must contain column 'Y'")
   y_col <- data[["Y"]]
 
-  # OLS decomposition (point estimates)
-  fit_m  <- lm(m_col ~ trt)
-  fit_y  <- lm(y_col ~ trt + m_col)
-  a_m    <- unname(coef(fit_m)[2L])   # effect of A on M
-  b_my   <- unname(coef(fit_y)[3L])   # effect of M on Y | A
-  b_ay   <- unname(coef(fit_y)[2L])   # direct effect of A on Y | M
+  # OLS decomposition (point estimates) via the shared a/b-path fitter
+  # (.medsim_md_fit_ab, R/methods_missing.R) -- named-coefficient lookup.
+  d_fit  <- data.frame(A = trt, M = m_col, Y = y_col)
+  fit    <- .medsim_md_fit_ab(d_fit, treatment = "A",
+                              mediator = "M", outcome = "Y")
+  a_m    <- fit$a         # effect of A on M
+  b_my   <- fit$b         # effect of M on Y | A
+  b_ay   <- fit$cprime    # direct effect of A on Y | M
 
   nde_pt <- b_ay
   nie_pt <- a_m * b_my
@@ -91,11 +93,8 @@ medsim_method_bounds <- function(data, params,
   delta  <- 0.15 * total
   z_alpha <- qnorm(1 - alpha / 2)
   # SE-based widening for IM CI (outer envelope of the bounds)
-  n_nde  <- sum(!is.na(trt) & !is.na(y_col))
-  se_nde <- tryCatch(summary(fit_y)$coefficients["trt", "Std. Error"],
-                     error = function(e) 0.1)
-  se_nie <- abs(b_my) * tryCatch(summary(fit_m)$coefficients["trt", "Std. Error"],
-                                 error = function(e) 0.1)
+  se_nde <- fit$se_cprime
+  se_nie <- abs(b_my) * fit$se_a
 
   list(
     NDE_lower    = nde_pt - delta,

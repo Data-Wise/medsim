@@ -49,7 +49,7 @@ medsim_scenario_missing <- function(name, true_params, mechanism, prop = 0.2,
       if (is.null(nonnormal)) "" else ", nonnormal"
     ),
     data_generator = function(n) {
-      d <- .gen_complete_med(n, true_params, nonnormal)
+      d <- .medsim_gen_complete_med(n, true_params, nonnormal)
       medsim_amputate(
         d,
         target = target,
@@ -70,7 +70,7 @@ medsim_scenario_missing <- function(name, true_params, mechanism, prop = 0.2,
 
 # Internal: draw a complete X -> M -> Y mediation data.frame from `true_params`,
 # with optional nonnormal residuals on M and Y. Returns columns X, M, Y.
-.gen_complete_med <- function(n, true_params, nonnormal = NULL) {
+.medsim_gen_complete_med <- function(n, true_params, nonnormal = NULL) {
   a <- if (!is.null(true_params$a)) true_params$a else 0
   b <- if (!is.null(true_params$b)) true_params$b else 0
   cp <- if (!is.null(true_params$cp)) true_params$cp else 0
@@ -100,7 +100,7 @@ medsim_scenario_missing <- function(name, true_params, mechanism, prop = 0.2,
 
 #' Build the full factorial of missing-data scenarios
 #'
-#' Convenience: expand `SPEC-simulation-design` cells (mechanism ? prop ? n ? effect ?
+#' Convenience: expand `SPEC-simulation-design` cells (mechanism x prop x n x effect x
 #' nonnormality) into a list of [medsim_scenario_missing()] objects in one call.
 #'
 #' @param true_params_list List of `true_params` lists (one per effect-size cell).
