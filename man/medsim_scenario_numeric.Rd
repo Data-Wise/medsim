@@ -24,8 +24,10 @@ Defaults to a no-op that returns an empty data frame (suitable for methods
 that derive everything from \code{params} rather than a random sample).}
 
 \item{extra}{Character vector of additional result columns beyond the
-mandatory \code{error}/\code{abs_error}/\code{elapsed_sec} columns.  These are passed to
-\code{\link[=medsim_estimand]{medsim_estimand()}} and stored on the scenario.}
+mandatory \code{est_error}/\code{abs_error}/\code{elapsed_sec} columns.  These are passed
+to \code{\link[=medsim_estimand]{medsim_estimand()}} and stored on the scenario.  (\code{est_error}, not
+\code{error}: \code{error} is reserved for medsim's failure-row schema and a
+successful \code{method()} returning it is rejected by \code{\link[=medsim_run]{medsim_run()}}.)}
 }
 \value{
 A \code{medsim_scenario} object with \code{estimand$kind = "numeric"}.

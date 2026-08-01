@@ -28,8 +28,10 @@
 #'   Defaults to a no-op that returns an empty data frame (suitable for methods
 #'   that derive everything from `params` rather than a random sample).
 #' @param extra Character vector of additional result columns beyond the
-#'   mandatory `error`/`abs_error`/`elapsed_sec` columns.  These are passed to
-#'   [medsim_estimand()] and stored on the scenario.
+#'   mandatory `est_error`/`abs_error`/`elapsed_sec` columns.  These are passed
+#'   to [medsim_estimand()] and stored on the scenario.  (`est_error`, not
+#'   `error`: `error` is reserved for medsim's failure-row schema and a
+#'   successful `method()` returning it is rejected by [medsim_run()].)
 #'
 #' @return A `medsim_scenario` object with `estimand$kind = "numeric"`.
 #'
@@ -65,8 +67,10 @@ medsim_scenario_numeric <- function(name,
     stop("data_generator must be a function(n) or NULL")
   }
 
-  # The numeric kind: no CI concept, no coverage; only error + timing
-  extra_cols <- union(c("error", "abs_error", "elapsed_sec"), extra)
+  # The numeric kind: no CI concept, no coverage; only error + timing.
+  # `est_error` (signed estimation error), NOT `error` -- that name is
+  # reserved for the failure-row schema and medsim_run() rejects it.
+  extra_cols <- union(c("est_error", "abs_error", "elapsed_sec"), extra)
   estimand   <- medsim_estimand("numeric",
                                  params = character(),
                                  ci     = "none",

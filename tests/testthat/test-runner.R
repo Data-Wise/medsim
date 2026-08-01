@@ -244,6 +244,30 @@ test_that("medsim_run captures method errors and completes", {
   expect_true("error" %in% names(res$results))
 })
 
+test_that("contract errors are re-raised from the parallel path, not swallowed", {
+  # Regression: a task-level error (here the reserved-`error`-field stop) was
+  # caught by medsim_run_parallel's per-task tryCatch as a medsim_error object,
+  # then silently dropped by .medsim_rbind_reps -- medsim_run "succeeded" with
+  # results = NULL and only a "No numeric columns to summarize" warning.
+  # Method failures are converted to failure rows INSIDE
+  # medsim_run_single_replication, so anything escaping to the task level is a
+  # contract/infrastructure error and must stop the run loudly.
+  reserved_method <- function(data, params) {
+    list(indirect = 0.1, error = 0.05)  # `error` on success => contract stop
+  }
+  out <- withr::local_tempdir()
+  cfg <- make_config(out)
+  cfg$n_cores <- 1L  # routes medsim_run_parallel through its sequential path
+
+  expect_error(
+    suppressMessages(suppressWarnings(
+      medsim_run(reserved_method, list(make_scenario()), cfg,
+                 parallel = TRUE, verbose = FALSE)
+    )),
+    "reserved"
+  )
+})
+
 # ---- medsim_run: output files -----------------------------------------------
 
 test_that("medsim_run writes CSV files to output_dir", {

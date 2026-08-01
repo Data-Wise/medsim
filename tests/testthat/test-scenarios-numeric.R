@@ -15,9 +15,12 @@ test_that("medsim_scenario_numeric estimand ci is 'none'", {
   expect_equal(sc$estimand$ci, "none")
 })
 
-test_that("medsim_scenario_numeric extra cols always include error/abs_error/elapsed_sec", {
+test_that("medsim_scenario_numeric extra cols always include est_error/abs_error/elapsed_sec", {
   sc <- medsim_scenario_numeric("acc_test")
-  expect_true(all(c("error", "abs_error", "elapsed_sec") %in% sc$estimand$extra))
+  expect_true(all(c("est_error", "abs_error", "elapsed_sec") %in%
+                    sc$estimand$extra))
+  # `error` is reserved for the failure-row schema -- must NOT be mandated
+  expect_false("error" %in% sc$estimand$extra)
 })
 
 test_that("medsim_scenario_numeric user extra cols are unioned in", {
@@ -68,4 +71,35 @@ test_that("medsim_scenario_numeric errors on non-function data_generator", {
 test_that("medsim_scenario_numeric estimand has no params (character(0))", {
   sc <- medsim_scenario_numeric("acc_test")
   expect_equal(sc$estimand$params, character(0L))
+})
+
+# ---- Regression: documented numeric contract must be runnable ---------------
+# v0.5.0 declared `error` BOTH as the numeric kind's mandatory result column
+# (here) AND as a reserved failure-schema field that medsim_run() rejects on a
+# successful method() (runner.R) -- so the documented numeric contract was
+# unusable as written. The mandatory column is now `est_error`.
+
+test_that("numeric-kind method returning the documented columns runs end-to-end", {
+  sc <- medsim_scenario_numeric("acc_run",
+                                true_params = list(ci_true = 0.95))
+  meth <- function(data, params) {
+    est <- params$ci_true + 0.01
+    list(est_error   = est - params$ci_true,
+         abs_error   = abs(est - params$ci_true),
+         elapsed_sec = 0.001)
+  }
+  cfg <- medsim_config("test", output_dir = withr::local_tempdir(),
+                       n_cores = 1L)
+  cfg$n_replications <- 3L
+
+  res <- suppressWarnings(suppressMessages(
+    medsim_run(meth, list(sc), cfg, parallel = FALSE, verbose = FALSE)
+  ))
+
+  expect_s3_class(res, "medsim_results")
+  expect_equal(nrow(res$results), 3L)
+  expect_true(all(c("est_error", "abs_error", "elapsed_sec") %in%
+                    names(res$results)))
+  # Reserved failure column is NA on every successful row
+  expect_true(all(is.na(res$results$error)))
 })

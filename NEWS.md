@@ -1,5 +1,25 @@
 # medsim (development version)
 
+## Bug fixes
+
+* **Numeric-kind contract collision fixed.** v0.5.0 declared `error` both as
+  the mandatory result column of the `"numeric"` estimand kind
+  (`medsim_scenario_numeric()`, `medsim_estimand()` docs) and as a reserved
+  failure-schema field that `medsim_run()` rejects when a successful
+  `method()` returns it -- the documented numeric contract was unusable as
+  written. The mandatory column is now `est_error` (breaking only for code
+  written against the never-runnable v0.5.0 contract).
+
+* **Worker task errors are re-raised, not swallowed.** With `parallel = TRUE`,
+  an error escaping a replication task (e.g. the reserved-`error`-field
+  contract stop) was caught by `medsim_run_parallel()`'s per-task `tryCatch`
+  and then silently dropped during row combination -- `medsim_run()`
+  "succeeded" with `results = NULL` and only a "No numeric columns to
+  summarize" warning. Such task-level errors (always contract/infrastructure
+  errors -- method failures already become failure rows inside
+  `medsim_run_single_replication()`) now stop the run with the original
+  message.
+
 # medsim 0.5.0
 
 ## New features

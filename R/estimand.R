@@ -17,7 +17,7 @@
 #' | `"interval"` | `{p}_lower/_upper`, `{p}_im_lower/_im_upper`, `feasible`, `falsified` | truth in \[lower, upper\]; IM-CI coverage |
 #' | `"probabilistic"` | `pmed`, `pmed_ci_lower/_upper`, `pmed_p`, `branch_switch` | truth in CI (truth from potential outcomes) |
 #' | `"variance_share"` | `{p}`, `{p}_ci_lower/_upper` | truth in Wald CI (bounded scalar share in \[0,1\]) |
-#' | `"numeric"` | `error`, `abs_error`, `elapsed_sec` | none |
+#' | `"numeric"` | `est_error`, `abs_error`, `elapsed_sec` | none |
 #'
 #' `"variance_share"` is a bounded scalar point estimand with a standard Wald
 #' CI — the Sobol / functional-ANOVA proportion mediated
@@ -64,7 +64,7 @@
 #'   extra  = "branch_switch")
 #'
 #' # Numerical accuracy (no coverage/power)
-#' medsim_estimand("numeric", params = "error", ci = "none",
+#' medsim_estimand("numeric", params = "est_error", ci = "none",
 #'   extra = "elapsed_sec")
 #'
 #' @seealso [medsim_scenario()] for attaching an estimand to a scenario;

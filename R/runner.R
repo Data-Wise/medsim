@@ -232,6 +232,22 @@ medsim_run <- function(method,
       })
     }
 
+    # Re-raise errors that escaped a worker task. medsim_run_single_replication
+    # already converts method() failures into failure rows, so anything caught
+    # by medsim_run_parallel's per-task tryCatch is a contract or
+    # infrastructure error (e.g. the reserved-`error`-field stop). Without
+    # this, .medsim_rbind_reps silently drops the condition objects and the
+    # run "succeeds" with results = NULL -- loud contract error turned into
+    # silent data loss.
+    task_errors <- Filter(function(x) inherits(x, "medsim_error"),
+                          scenario_results)
+    if (length(task_errors) > 0L) {
+      stop(sprintf(
+        "scenario '%s': %d replication task(s) failed with an unrecoverable error. First error: %s",
+        scenario$name, length(task_errors), task_errors[[1L]]$message
+      ), call. = FALSE)
+    }
+
     # Combine results. .medsim_rbind_reps harmonizes row schemas first: a
     # failed replication's row ({..., error}) has different columns than a
     # success row ({..., indirect, ...}), and a bare rbind crashes with
