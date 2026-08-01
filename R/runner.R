@@ -36,6 +36,9 @@
 #' - Accept `data` (data.frame) as first argument
 #' - Accept `params` (list) as second argument
 #' - Return a named list with at least one numeric element
+#' - NOT use the reserved field name `error` -- it marks failed replications
+#'   in the results schema (a non-NA `error` forces `converged = 0`); a
+#'   method returning it stops with an informative error
 #'
 #' Example:
 #' ```r
@@ -229,12 +232,20 @@ medsim_run <- function(method,
       })
     }
 
-    # Combine results
-    scenario_results_df <- do.call(rbind, scenario_results)
+    # Combine results. .medsim_rbind_reps harmonizes row schemas first: a
+    # failed replication's row ({..., error}) has different columns than a
+    # success row ({..., indirect, ...}), and a bare rbind crashes with
+    # "names do not match previous names" -- turning one transient rep failure
+    # into a dead scenario (or, chunked, a missing chunk file).
+    scenario_results_df <- .medsim_rbind_reps(scenario_results)
     all_results[[s_idx]] <- scenario_results_df
 
-    # Save intermediate results
-    if (!is.null(config$output_dir)) {
+    # Save intermediate results. Skipped in chunk mode (config$chunk_id set):
+    # n_chunks concurrent array tasks share one output_dir, so these fixed-name
+    # CSVs would overwrite each other (last writer wins) and leave partial data
+    # that LOOKS like a complete per-scenario record (#38). The chunk .rds
+    # written by medsim_run_chunk() is the real artifact.
+    if (!is.null(config$output_dir) && is.null(config$chunk_id)) {
       intermediate_file <- file.path(
         config$output_dir,
         sprintf("results_scenario_%d.csv", s_idx)
@@ -251,8 +262,21 @@ medsim_run <- function(method,
     }
   }
 
-  # Combine all results
-  all_results_df <- do.call(rbind, all_results)
+  # Combine all results (same harmonization across scenarios: methods may emit
+  # scenario-dependent columns).
+  all_results_df <- .medsim_rbind_reps(all_results)
+
+  # Schema stamp (v2: `replication` is the GLOBAL rep id) + column provenance.
+  # medsim_meta_cols records which columns the RUNNER wrote, so analyze/audit
+  # code can identify estimate columns by declared provenance instead of
+  # guessing by name subtraction (which silently mis-classified every new
+  # bookkeeping column as an estimate).
+  if (!is.null(all_results_df)) {
+    attr(all_results_df, "medsim_schema") <- 2L
+    attr(all_results_df, "medsim_meta_cols") <-
+      intersect(c("scenario", "replication", "elapsed", "error"),
+                names(all_results_df))
+  }
 
   # --- Step 3: Store Ground Truth (if available) ---
   # Note: truth_results columns are plain (no _truth suffix)
@@ -272,7 +296,9 @@ medsim_run <- function(method,
     cat("[STEP 5] Saving final results...\n")
   }
 
-  if (!is.null(config$output_dir)) {
+  # Final CSVs likewise skipped in chunk mode (#38): fixed names in a shared
+  # output_dir, clobbered across concurrent array tasks, never read by combine.
+  if (!is.null(config$output_dir) && is.null(config$chunk_id)) {
     write.csv(all_results_df,
               file.path(config$output_dir, "all_results.csv"),
               row.names = FALSE)
@@ -351,8 +377,9 @@ medsim_run <- function(method,
 #'
 #' @param scenario Scenario object
 #' @param rep_id Replication ID number (local to the current chunk, if any --
-#'   offset by `config$rep_offset` internally to get the global id used for
-#'   seeding)
+#'   offset by `config$rep_offset` internally to get the global id, which is
+#'   both used for seeding and recorded as the row's `replication` value
+#'   (schema v2: `replication` is the global rep id, never chunk-local))
 #' @param method User-defined method function
 #' @param config Configuration object
 #'
@@ -372,6 +399,9 @@ medsim_run_single_replication <- function(scenario, rep_id, method, config) {
   # chunk 1's rep 1.
   global_rep_id <- (config$rep_offset %||% 0L) + rep_id
   set.seed(.medsim_det_seed(scenario$name, global_rep_id))
+  # NOTE: global_rep_id is also what the result row records as `replication`
+  # (schema v2, SPEC-medsim-chunked-run-gates-2026-07-31): one honest global id,
+  # not a chunk-local one that collides across chunks (#36).
 
   # Generate data
   data <- scenario$data_generator(n = config$n %||% 200)
@@ -379,14 +409,30 @@ medsim_run_single_replication <- function(scenario, rep_id, method, config) {
   # Time the method
   start_time <- Sys.time()
 
+  method_failed <- FALSE
   result <- tryCatch(
     method(data, scenario$params),
     error = function(e) {
       warning(sprintf("Method failed for %s, rep %d: %s",
                       scenario$name, rep_id, e$message))
+      method_failed <<- TRUE
       list(error = e$message)
     }
   )
+
+  # `error` is a RESERVED field name: the failure-row schema uses it to mark
+  # failed replications (non-NA error => converged forced to 0, column treated
+  # as metadata). A method returning its own `error` field on success would be
+  # silently corrupted -- refuse loudly instead. Fires deterministically on
+  # the first replication, so this is an immediate contract error, not a
+  # mid-run surprise.
+  if (!method_failed && "error" %in% names(result)) {
+    stop(sprintf(paste(
+      "method() for scenario '%s' returned a field named 'error' -- that name",
+      "is reserved for medsim's failure-row schema (a non-NA value marks a",
+      "FAILED replication and forces converged = 0). Rename the field",
+      "(e.g. 'est_error')."), scenario$name), call. = FALSE)
+  }
 
   end_time <- Sys.time()
   elapsed_time <- as.numeric(difftime(end_time, start_time, units = "secs"))
@@ -396,18 +442,23 @@ medsim_run_single_replication <- function(scenario, rep_id, method, config) {
     result <- list(result = result)
   }
 
-  # Create result data.frame
+  # Create result data.frame. `replication` carries the GLOBAL rep id (schema
+  # v2) -- in a chunked run this is the rep's true position in 1..nsim, so ids
+  # never collide across chunks and max(replication) == nsim after combine.
   result_df <- data.frame(
     scenario = scenario$name,
-    replication = rep_id,
+    replication = global_rep_id,
     elapsed = elapsed_time,
     stringsAsFactors = FALSE
   )
 
-  # Add method results
+  # Add method results. is.logical() is included so the documented method()
+  # contract fields (branch_switch, converged -- often logical NA/TRUE/FALSE)
+  # survive to $results instead of being silently dropped.
   for (name in names(result)) {
     value <- result[[name]]
-    if (length(value) == 1 && (is.numeric(value) || is.character(value))) {
+    if (length(value) == 1 &&
+        (is.numeric(value) || is.character(value) || is.logical(value))) {
       result_df[[name]] <- value
     }
   }
@@ -675,4 +726,50 @@ summary.medsim_results <- function(object, ...) {
   cat("\n")
 
   invisible(object$summary)
+}
+
+#' Schema-harmonized rbind of replication rows
+#'
+#' @description
+#' Failed replications produce rows whose columns differ from success rows
+#' (a failure row carries `error` but no estimate columns), and a bare
+#' `do.call(rbind, ...)` crashes on the mismatch -- one transient rep failure
+#' used to kill the entire scenario (chunked: the whole chunk file).
+#'
+#' This helper unions the column sets, fills absent columns with `NA`,
+#' guarantees an `error` character column on EVERY row (`NA` on success), and
+#' sets `converged = 0` on failure rows when a `converged` column exists --
+#' so all rows share one schema and downstream code sees the documented
+#' failure semantics instead of a crash.
+#'
+#' @param rows List of single-row (or multi-row) result data.frames.
+#' @return One combined data.frame (0-row frames are dropped).
+#' @keywords internal
+.medsim_rbind_reps <- function(rows) {
+  rows <- Filter(function(d) !is.null(d) && nrow(d) > 0L, rows)
+  # NULL (not a 0x0 data.frame) preserves the pre-existing empty-chunk
+  # semantics: do.call(rbind, list()) was NULL, and downstream code
+  # (medsim_summarize_results, saveRDS of an empty chunk) guards on NULL.
+  if (length(rows) == 0L) return(NULL)
+
+  all_cols <- unique(unlist(lapply(rows, names)))
+  if (!("error" %in% all_cols)) all_cols <- c(all_cols, "error")
+
+  rows <- lapply(rows, function(d) {
+    for (col in setdiff(all_cols, names(d))) {
+      d[[col]] <- if (col == "error") NA_character_ else NA
+    }
+    d[all_cols]
+  })
+
+  out <- do.call(rbind, rows)
+
+  # ROW-wise failure semantics (this helper is applied twice -- per scenario,
+  # then across scenarios -- so it must be idempotent and must never treat a
+  # multi-row frame as one failure): rows whose error is non-NA report
+  # converged = 0 (the documented contract) when the contract field exists.
+  if ("converged" %in% names(out)) {
+    out$converged[!is.na(out$error)] <- 0
+  }
+  out
 }

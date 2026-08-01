@@ -29,7 +29,7 @@ interval.  Returns the 6-field contract expected by \code{\link[=medsim_run]{med
    \code{pmed} \tab Point estimate of P_med \cr
    \code{pmed_ci_lower} \tab Lower bound of MBCO CI \cr
    \code{pmed_ci_upper} \tab Upper bound of MBCO CI \cr
-   \code{pmed_p} \tab Two-sided p-value (H0: P_med ? 0.5) \cr
+   \code{pmed_p} \tab Two-sided p-value (H0: P_med = 0.5) \cr
    \code{branch_switch} \tab 1 if the MBCO union-null LRT switched branches \cr
    \code{converged} \tab 1 if optimisation converged \cr
 }
@@ -38,11 +38,11 @@ interval.  Returns the 6-field contract expected by \code{\link[=medsim_run]{med
 \strong{Algorithm:}
 \enumerate{
 \item Fit linear SEM: \code{M ~ A} and \code{Y ~ A + M}.
-\item Estimate path coefficients ? (A->M) and ? (M->Y).
+\item Estimate path coefficients alpha (A->M) and beta (M->Y).
 \item Estimate P_med via a parametric bootstrap PO draw under the estimated SEM.
 \item Build a delta-method normal CI and clamp to [0, 1].
 \item The "branch_switch" flag records whether the union-null test selected the
-constrained branch (??? ? 0) over the unconstrained branch (??? > 0).
+constrained branch (alpha\emph{beta <= 0) over the unconstrained branch (alpha}beta > 0).
 }
 }
 \seealso{

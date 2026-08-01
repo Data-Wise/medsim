@@ -1,0 +1,288 @@
+<title>medsim — Session Report, 2026-07-11</title>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --paper: #ffffff;
+    --ink: #1c2230;
+    --muted: #5b6472;
+    --border: #d7dbe3;
+    --accent: #0054ad;
+    --accent-soft: #e8f0fb;
+    --good: #1b7a4d;
+    --good-soft: #e7f5ee;
+    --warn: #a15b00;
+    --warn-soft: #fbf0df;
+    --serif: ui-serif, "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, monospace;
+  }
+  :root[data-theme="dark"] {
+    --bg: #12151c;
+    --paper: #181c25;
+    --ink: #e7e9ee;
+    --muted: #97a0b1;
+    --border: #2a2f3b;
+    --accent: #6fa4ec;
+    --accent-soft: #1b2536;
+    --good: #5fbf8f;
+    --good-soft: #17241e;
+    --warn: #d8a24b;
+    --warn-soft: #2a2113;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #12151c;
+      --paper: #181c25;
+      --ink: #e7e9ee;
+      --muted: #97a0b1;
+      --border: #2a2f3b;
+      --accent: #6fa4ec;
+      --accent-soft: #1b2536;
+      --good: #5fbf8f;
+      --good-soft: #17241e;
+      --warn: #d8a24b;
+      --warn-soft: #2a2113;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.6 var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  main {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 3rem 1.5rem 5rem;
+  }
+
+  .eyebrow {
+    font: 600 0.78rem/1 var(--sans);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 0.6rem;
+  }
+  h1 {
+    font: 600 2.1rem/1.2 var(--serif);
+    text-wrap: balance;
+    margin: 0 0 0.35rem;
+  }
+  .meta {
+    color: var(--muted);
+    font-size: 0.92rem;
+    margin: 0 0 2rem;
+  }
+  .meta code {
+    font: 0.85em var(--mono);
+    background: var(--accent-soft);
+    color: var(--accent);
+    padding: 0.1em 0.4em;
+    border-radius: 4px;
+  }
+
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.75rem;
+    margin: 0 0 2.75rem;
+  }
+  .metric {
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.9rem 1rem;
+  }
+  .metric .n {
+    font: 600 1.5rem/1 var(--serif);
+    font-variant-numeric: tabular-nums;
+  }
+  .metric .l {
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-top: 0.3rem;
+    letter-spacing: 0.02em;
+  }
+
+  section { margin: 0 0 2.5rem; }
+  section > h2 {
+    font: 600 0.82rem/1 var(--sans);
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.6rem;
+    margin: 0 0 1.1rem;
+  }
+
+  ul.plain { list-style: none; margin: 0; padding: 0; }
+  ul.plain li {
+    position: relative;
+    padding: 0.6rem 0 0.6rem 1.1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  ul.plain li:last-child { border-bottom: none; }
+  ul.plain li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 1.1rem;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  .cards { display: flex; flex-direction: column; gap: 0.7rem; }
+  .decision {
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 0.85rem 1rem;
+  }
+  .decision .what { font-weight: 600; margin-bottom: 0.25rem; }
+  .decision .why { color: var(--muted); font-size: 0.92rem; }
+
+  .blocker {
+    background: var(--warn-soft);
+    border: 1px solid var(--warn);
+    border-radius: 10px;
+    padding: 1rem 1.1rem;
+  }
+  .blocker h2 {
+    color: var(--warn) !important;
+    border-bottom: none !important;
+    padding-bottom: 0 !important;
+    margin-bottom: 0.6rem !important;
+  }
+  .blocker ul.plain li::before { background: var(--warn); }
+  .blocker ul.plain li { border-bottom-color: rgba(161,91,0,0.18); }
+
+  ol.steps {
+    list-style: none;
+    counter-reset: step;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  ol.steps li {
+    counter-increment: step;
+    display: flex;
+    gap: 0.85rem;
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.8rem 1rem;
+  }
+  ol.steps li::before {
+    content: counter(step);
+    flex: none;
+    width: 1.6rem;
+    height: 1.6rem;
+    border-radius: 50%;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font: 600 0.85rem/1.6rem var(--mono);
+    text-align: center;
+  }
+
+  footer {
+    margin-top: 3rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+  footer code { font: 0.9em var(--mono); }
+
+  a { color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+
+<main>
+  <p class="eyebrow">Session report</p>
+  <h1>medsim — vignettes, site audit, and one real downstream fix</h1>
+  <p class="meta">2026-07-11 · <code>dev</code> + Missing Effect <code>draft</code></p>
+
+  <div class="metrics">
+    <div class="metric"><div class="n">2</div><div class="l">new vignettes</div></div>
+    <div class="metric"><div class="n">2</div><div class="l">repos touched</div></div>
+    <div class="metric"><div class="n">4</div><div class="l">commits this session</div></div>
+    <div class="metric"><div class="n">0</div><div class="l">blockers left open</div></div>
+  </div>
+
+  <section>
+    <h2>Done</h2>
+    <ul class="plain">
+      <li>Closed the vignette coverage gap flagged by the site audit — drafted
+        <code style="font:0.9em var(--mono)">missing-data-mediation.qmd</code> (DGM generators +
+        D4-MBCO workflow) and <code style="font:0.9em var(--mono)">estimand-kinds.qmd</code> (Sobol
+        variance-share + gauge residual, side by side). Both build clean under
+        <code style="font:0.9em var(--mono)">pkgdown::check_pkgdown(--strict)</code> — 0 problems —
+        and are registered in the navbar articles menu.</li>
+      <li>Standardized the pkgdown site against mediationverse convention: fixed
+        <code style="font:0.9em var(--mono)">DESCRIPTION</code>'s missing site <code style="font:0.9em var(--mono)">URL:</code>
+        (was breaking <code style="font:0.9em var(--mono)">check_pkgdown()</code>), corrected README
+        badge labels (lifecycle experimental → stable, repo-status wip → active), and added the
+        shared <em>status</em> navbar menu matching medfit / probmed / medrobust / mediationverse.</li>
+      <li><code style="font:0.9em var(--mono)">.STATUS</code> cleanup — removed a stale untracked
+        scratch file and confirmed all 7 branches flagged as stale-cleanup candidates are already
+        gone from <code style="font:0.9em var(--mono)">origin</code>; nothing left to prune.</li>
+      <li>Ran a cascade-update plan for medsim v0.4.0 across the mediationverse ecosystem — found
+        one real blocker (a downstream version guard still allowing the pre-RNG-fix medsim) and
+        fixed it; confirmed probmed/medrobust remain CRAN-blocked upstream with no action
+        available from here.</li>
+      <li>Ecosystem snapshot (<code style="font:0.9em var(--mono)">/rforge:status</code>,
+        <code style="font:0.9em var(--mono)">/rforge:analyze</code>) — health score 75/100, nothing
+        blocking for medsim specifically.</li>
+      <li>Traced an apparent "missing badges" report on a local pkgdown preview to a stale build
+        path — the site's dev-suffixed version routes local builds to
+        <code style="font:0.9em var(--mono)">docs/dev/index.html</code>, not
+        <code style="font:0.9em var(--mono)">docs/index.html</code>. Badges were never missing.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Decisions</h2>
+    <div class="cards">
+      <div class="decision">
+        <div class="what">Vignette writes on <code style="font:0.9em var(--mono)">dev</code> went through a manual one-shot bypass</div>
+        <div class="why">The branch-guard bypass marker can't be self-created by the agent (blocked as self-approval) — the user ran the touch command directly, once per new file.</div>
+      </div>
+      <div class="decision">
+        <div class="what">Kept both new vignettes example-driven, not exhaustive references</div>
+        <div class="why">Matches <code style="font:0.9em var(--mono)">getting-started.qmd</code>'s style; existing README sections already covered the material as source content.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="blocker">
+    <h2>Blockers</h2>
+    <ul class="plain">
+      <li>medsim's CRAN submission stays blocked on <code style="font:0.9em var(--mono)">medrobust</code> (a Suggests) not yet reaching mainstream CRAN mirrors — re-verified this session, unchanged.</li>
+      <li>probmed and medrobust both confirmed absent from CRAN — no further action available from the medsim side of the dependency chain.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Next</h2>
+    <ol class="steps">
+      <li>Once <code style="font:0.9em var(--mono)">medrobust</code> clears CRAN: bump medsim's
+        <code style="font:0.9em var(--mono)">DESCRIPTION</code> off the <code style="font:0.9em var(--mono)">.9000</code>
+        dev suffix and submit from a clean <code style="font:0.9em var(--mono)">main</code> checkout.</li>
+      <li>Optional: prune the merged <code style="font:0.9em var(--mono)">feature/gauge-estimand</code> worktree and branch.</li>
+      <li>Optional: pmed-modern's gauge grid could re-point to <code style="font:0.9em var(--mono)">medsim_scenario_gauge()</code> — not required, already validated independently.</li>
+    </ol>
+  </section>
+
+  <footer>
+    Generated from this session's git activity and conversation.
+    Source: <code>internal/REPORT-session-2026-07-11.md</code>
+  </footer>
+</main>

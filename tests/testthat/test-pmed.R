@@ -22,33 +22,46 @@ test_that("medsim_scenario_pmed estimand has pmed param and mbco ci", {
 })
 
 test_that("medsim_scenario_pmed stores pmed truth in params", {
-  sc <- medsim_scenario_pmed("test_pmed", n_po = 5000L)
+  sc <- medsim_scenario_pmed("test_pmed")
   expect_true("pmed" %in% names(sc$params))
   pmed_truth <- sc$params$pmed
   expect_true(is.numeric(pmed_truth))
   expect_true(pmed_truth >= 0 && pmed_truth <= 1)
 })
 
-test_that("medsim_scenario_pmed default SEM truth is near 0.61 (alpha=beta=0.5)", {
+test_that("medsim_scenario_pmed default SEM truth is exact (alpha=beta=0.5)", {
   # Under alpha=0.5, beta=0.5, direct=0, sigma_m=sigma_y=1:
-  # P_med ≈ Φ(0.25 / sqrt(2*(0.25+1))) ≈ Φ(0.153) ≈ 0.561
-  # (Monte-Carlo estimate with n_po=100k will vary; just test it's in [0.5, 0.7])
-  set.seed(42L)
-  sc <- medsim_scenario_pmed("test_pmed", n_po = 100000L)
-  pmed_truth <- sc$params$pmed
-  expect_true(pmed_truth > 0.5 && pmed_truth < 0.7,
-              info = sprintf("Expected P_med in (0.5,0.7), got %.4f", pmed_truth))
+  # P_med = Φ(0.25 / sqrt(2*(0.25+1))) — exact closed form, no MC error
+  sc <- medsim_scenario_pmed("test_pmed")
+  expect_equal(sc$params$pmed, pnorm(0.25 / sqrt(2 * 1.25)), tolerance = 1e-12)
 })
 
-test_that("medsim_scenario_pmed with no mediation (alpha=0) has truth near 0.5", {
-  set.seed(42L)
+test_that("medsim_scenario_pmed with no mediation (alpha=0, direct=0) has truth exactly 0.5", {
   sc <- medsim_scenario_pmed("no_med",
-                              true_params = list(alpha_ax = 0.0, beta_my = 0.5),
-                              n_po = 100000L)
-  pmed_truth <- sc$params$pmed
-  # When A has no effect on M, P(Y1 > Y0) = P(eps_y + direct > eps_y) under
-  # direct=0 → P_med ≈ 0.5
-  expect_equal(pmed_truth, 0.5, tolerance = 0.02)
+                              true_params = list(alpha_ax = 0.0, beta_my = 0.5))
+  # When A has no effect on M and no direct effect, Y1 - Y0 is mean-zero
+  # Normal → P_med = 0.5 exactly
+  expect_equal(sc$params$pmed, 0.5, tolerance = 1e-12)
+})
+
+test_that("medsim_scenario_pmed truth is deterministic and leaves RNG untouched", {
+  set.seed(123L)
+  sc1 <- medsim_scenario_pmed("det_test")
+  rng_after <- .Random.seed
+  sc2 <- medsim_scenario_pmed("det_test")
+  expect_identical(sc1$params$pmed, sc2$params$pmed)
+  # Closed form must not consume RNG state
+  expect_identical(rng_after, .Random.seed)
+})
+
+test_that(".medsim_pmed_truth includes the direct effect (beta_ay does not cancel)", {
+  tp <- list(alpha_ax = 0.6, beta_my = 0.5, beta_ay = 0.3,
+             sigma_m = 1.2, sigma_y = 0.8)
+  expect_equal(
+    medsim:::.medsim_pmed_truth(tp),
+    pnorm((0.3 + 0.6 * 0.5) / sqrt(2 * (0.5^2 * 1.2^2 + 0.8^2))),
+    tolerance = 1e-12
+  )
 })
 
 test_that("medsim_scenario_pmed data_generator returns correct columns", {
@@ -142,8 +155,7 @@ test_that("medsim_method_pmed_mbco pmed estimate near truth for large n", {
   res <- medsim_method_pmed_mbco(dat, params = list(), n_boot = 5000L)
   truth <- medsim:::.medsim_pmed_truth(
     list(alpha_ax = 0.5, beta_my = 0.5, beta_ay = 0.0,
-         sigma_m  = 1.0, sigma_y  = 1.0),
-    n_po = 200000L
+         sigma_m  = 1.0, sigma_y  = 1.0)
   )
   expect_equal(res$pmed, truth, tolerance = 0.1)
 })

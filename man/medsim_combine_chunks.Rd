@@ -8,6 +8,14 @@ medsim_combine_chunks(
   output_dir,
   pattern = "chunk_*.rds",
   expected_chunks = NULL,
+  on_violation = c("stop", "warn", "ignore"),
+  nsim = NULL,
+  collapse_threshold = 0.9,
+  collapse_digits = 12L,
+  collapse_min_cell = 30L,
+  collapse_exclude = c("converged", "branch_switch"),
+  pilot_reference = NULL,
+  pilot_tol = 1e-09,
   verbose = TRUE
 )
 }
@@ -18,8 +26,54 @@ medsim_combine_chunks(
 Default \code{"chunk_*.rds"}.}
 
 \item{expected_chunks}{Integer or \code{NULL}: if supplied (e.g. the SLURM array
-size), warn when fewer chunk files are found -- catching a failed/timed-out
-task instead of silently combining a partial grid. Default \code{NULL} (no check).}
+size), a shortfall in chunk files is reported as an integrity violation
+(see \code{on_violation}) -- catching a failed/timed-out task instead of
+silently combining a partial grid. Default \code{NULL} (no check).}
+
+\item{on_violation}{One of \code{"stop"} (default), \code{"warn"}, \code{"ignore"}: what to
+do when an integrity violation is found (missing chunks, duplicate or
+gapped replication ids, ragged cells, output collapse, all-failed cells,
+cross-scenario seed collisions). \code{"stop"} signals a
+\code{medsim_combine_violation} condition that CARRIES the combined results --
+recover an hours-long run's good cells with
+\code{tryCatch(medsim_combine_chunks(...), medsim_combine_violation = function(e) e$results)}.
+For a deliberate partial combine (an interim look at a still-running
+array), pass \code{on_violation = "warn"}.}
+
+\item{nsim}{Integer or \code{NULL}: if supplied, additionally assert that every
+scenario has exactly \code{nsim} replications (the contiguity audit is
+otherwise self-validating and needs no external count).}
+
+\item{collapse_threshold, collapse_digits, collapse_min_cell}{Tuning for the
+collapse-signature audit: per scenario and per continuous estimate column,
+require \code{n_distinct(round(x, collapse_digits)) > collapse_threshold * n_ok}
+(defaults 0.9 and 12; calibration: the 0.3.1 seed-collapse produced ~17
+distinct outcomes in 1000). Cells with fewer than \code{collapse_min_cell}
+non-NA values (default 30) are skipped as too small to diagnose.}
+
+\item{collapse_exclude}{Character: DISCRETE method-contract fields excluded
+from the collapse audit BY NAME (default \code{converged}, \code{branch_switch}).
+Name-based (not distinctness-based) so a totally collapsed estimate
+column cannot exempt itself; add any custom discrete field your method
+emits.}
+
+\item{pilot_reference}{Character path (or \code{medsim_results} object): an
+archived pilot run to use as a positive control (Gate D). Because seeds
+depend only on \verb{(scenario, replication)}, the full run's replications
+\verb{1..B_pilot} are draw-identical to the pilot -- a free regression check
+that harness, environment, and seeding are unchanged since the pilot
+passed. Identity is asserted FIRST (same sample size \code{n}, same scenario
+generator/params via fingerprint) so a stale or mis-configured pilot
+fails loud as \code{pilot_config_differs} instead of masquerading as a
+seeding regression; then estimate columns (only -- never \code{elapsed} or
+other metadata) are compared within \code{pilot_tol}. Default \code{NULL} (no
+pilot check).}
+
+\item{pilot_tol}{Numeric: absolute per-value tolerance for the pilot
+comparison (default \code{1e-9}). Byte-equality is deliberately NOT required:
+a different BLAS/R build can legitimately differ in low-order bits on
+correct code (FORK-reproducibility scope). For a rebuilt environment,
+loosen the tolerance or use \code{on_violation = "warn"}.}
 
 \item{verbose}{Logical: print file counts.}
 }
@@ -38,5 +92,6 @@ that is equivalent to running all replications in one call.
 
 }
 \seealso{
-\code{\link[=medsim_run_chunk]{medsim_run_chunk()}}, \code{\link[=medsim_analyze_coverage]{medsim_analyze_coverage()}}
+\code{\link[=medsim_run_chunk]{medsim_run_chunk()}}, \code{\link[=medsim_audit_results]{medsim_audit_results()}},
+\code{\link[=medsim_analyze_coverage]{medsim_analyze_coverage()}}
 }

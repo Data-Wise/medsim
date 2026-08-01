@@ -3,10 +3,33 @@ priority: P1
 progress: 99
 kind: package
 cran_state: dev
-next: ⏳ PR #32 (dev→main, Release: v0.4.0) OPENED 2026-07-11 but HELD — user said "do not release yet"; CI runs cancelled on request (macos/oldrel-1/windows/test-coverage show cancel, not real failures; pkgdown + ubuntu-release passed before cancel). Do NOT merge/tag/GitHub-release without explicit go-ahead. CRAN submission still BLOCKED on medrobust (not in mainstream repos, re-verified 2026-07-11). Sequence once resumed: (1) re-run/verify CI on PR #32 green; (2) merge (merge-commit) + tag v0.4.0 + GitHub release; (3) await medrobust CRAN acceptance; (4) devtools::submit_cran(). #24 gauge estimand remains held separately (see worktree).
-done: #30 fix(run_chunk): deterministic per-replication seeding via .medsim_det_seed(), independent of chunk/worker/cluster-type/order — fixes SLURM chunk-collapse (coverage pinned at 1.0). #31 two-tier test infra: Tier-A CRAN guards + Tier-B Hopper suite (12,000 reps @ production scale: nominal coverage 0.947, narrow-interval 0.480, 12,000/12,000 distinct seeds, FORK-reproducible — all PASS), surfaced 5 more latent fixes. dev is CRAN-clean: R CMD check --as-cran 0/0/0 (real notes only — .remember/ note is a local-only artifact, absent on clean CI checkout), devtools::test() 968/0/1. #25 ADEMP coverage gates MERGED to dev 2026-06-22 (PR #26; coverage MCSE + failed-run logging + performance table + nsim helper + SE-vs-estimate plot; 913/0, CI green all platforms). Also fixed a pre-existing dev pkgdown failure (Sobol index gap from #22) + CLAUDE.md Remotes drift (medfit→medrobust). v0.3.1 RELEASED 2026-06-19.
+next: ⏳ NOTHING BLOCKING — dev is clean, v0.4.0 released, gauge estimand merged. Only real
+  next action: CRAN submission is BLOCKED on medrobust (not in mainstream repos, re-verified
+  2026-07-11) — check `available.packages(repos="https://cloud.r-project.org")` for
+  "medrobust"; once TRUE, run `devtools::submit_cran()` from a clean `main` checkout (bump
+  DESCRIPTION off the `.9000` dev suffix first). Everything else below is optional cleanup,
+  not blocking:
+  (1) [VERIFIED 2026-07-31] r-universe is live with the 0.4.0 content — reports Version
+      `0.4.0.9000`. NOTE: the registry (`Data-Wise/data-wise.r-universe.dev`, packages.json)
+      pins medsim to the `dev` branch, NOT `main`, so the published Version always carries the
+      `.9000` dev suffix and never a clean release number. Working as configured (dev-tracking);
+      CLAUDE.md r-universe note corrected to match (commit 50c7f5b). No action needed unless a
+      clean `0.4.0` off `main` is wanted — then drop `branch: dev` from the registry entry;
+  (2) [DONE 2026-07-31] pruned stale merged feature branches — gauge-estimand (worktree +
+      local, remote was already auto-deleted; PR #33) and dgm-interface + dgm-mbco-port
+      (local `-D`; PRs #17/#18, v0.2.0). All merge-verified (local tip == PR head, merge
+      commit ancestor of dev). No stale feature branches or worktrees remain;
+  (3) [DONE 2026-07-11] the 7 stale remote branches (cran-readiness, fix-cluster-packages,
+      speed-up-ci, test-parallel, test-runner, test-visualize, trim-suggests) no longer exist
+      on origin — already gone (likely GitHub auto-delete-on-merge), nothing to prune;
+  (4) optional: pmed-modern could re-point its P1 gauge grid + Paper-3 run_grid.R to
+      `medsim_scenario_gauge()`/`medsim_estimand("variance_share", ...)` now that both are
+      released — not required, pmed-modern already has independently-validated results;
+  (5) Missing Effect repo's `code/config.R` still pins `medsim >= 0.2.0` (pre-RNG-fix,
+      buggy) — that repo's own `GAP-2026-07-11`, needs bumping to `>= 0.4.0` there, not here.
+done: [2026-07-31 pm] #34 grilled + 3 bugs filed. Interactive /craft:grill of the #34 spec (internal/GRILL-medsim-chunked-run-gates-2026-07-31.md, ead5862): 9 branches (B1–B9) — on_violation stop-with-data-carrying-condition, A.2 configurable thresholds + auto column selection over continuous estimate_cols (named default "estimate" matches NO real column), A.1 self-validating contiguity (no external nsim), D pilot-identity assert before value-match, C SHA auto-detect, B login-shell shebang + write-time output path. Empirical verification then filed: #36 (chunked runs collide replication ids; medsim_analyze reports chunk size 5 as n_replications for nsim=20 — reproduced; fix = persist global_rep_id + metadata_cols registration, is #34's prerequisite), #37 (generated submit template plain #!/bin/bash → module: command not found on Hopper; repo's own inst/hopper-tests script documents -l required — confirmed), #38 (bonus find: chunks overwrite each other's intermediate results_scenario_N.csv, index-only key, same class as #27; .rds combine unaffected — reproduced 4 chunks → 1 csv). Review returned: 26 findings (19 CONFIRMED, 7 empirical) → spec v2 (dd1c318) locked single-global-replication architecture + R1–R10 amendments. #34 SPEC FULLY IMPLEMENTED on branch feature/chunked-run-prereqs (dde3692 → 8797740, pushed; base dev@dd1c318): P1–P3 (global replication ids/schema v2, combine metadata rebuild, failure-row schema — fixes #36+#38+2 crashers) + Gate A (seed-provenance audit, data-carrying medsim_combine_violation, medsim_audit_results() export) + Gate B (hardened login-shell template — fixes #37; exemplar swept) + Gates C+D (provenance header w/ auto-SHA + single-SHA assert; pilot-subset control, identity-first). Full suite in-tree 1077 PASS / 0 FAIL / 1 SKIP; --as-cran 0/0/1-known-NOTE (also fixed the .rforge.yaml/.flow hidden-file NOTE from today via .Rbuildignore). BREAKING: expected_chunks/missing-chunk handling now stop-by-default (interim looks: on_violation="warn"). Doc sync done via 3 parallel agents (vignette audit section, _pkgdown.yml index, cross-refs). MERGED 2026-07-31 evening: PR #39 (chunked-run integrity — P1–P3 + Gates A–D + review hardening; squash 94ec11c) and PR #40 (quality round — closed-form pmed truth, validation/table/docs fixes, bit-identity dedup; squash 5fe9ae4), both squash to dev, both leak-scanned, both adversarially reviewed pre-merge (each returned FIX FIRST once, all blockers fixed + re-verified). dev suite post-merge: 1117 PASS / 0 FAIL / 0 ERR / 1 SKIP; --as-cran 0/0/1-baseline-NOTE. Issues CLOSED: #34 #36 #37 #38 (manual — dev-merge doesn't auto-close). Worktrees removed; remote feature branches deleted; local feature/{chunked-run-prereqs,quality-fixes} refs remain (squash-merge -d false positive — need user -D, tips verified == PR heads). Follow-ups filed: #41 (E4 truth-recompute race + X1 config$seed doc, deferred from review). NOTE: dev now has a BREAKING change vs 0.4.0 (expected_chunks stop-by-default) — next release is a version-bump decision (0.5.0). Note: medsim_run_chunk() has no compute_truth passthrough (unfiled, possibly by-design). [2026-07-31] Issue triage + #34 spec. Closed 3 stale-open issues after verifying against dev: #24 gauge estimand (exported/documented/tested), #25 ADEMP gates (PR #26), #27 truth-cache collision (fixed by .medsim_truth_fingerprint guard PR #31 + green regression test). Adversarial re-review of the 3 closures: #25/#27 SOUND; #24 PARTIAL — BCa CI arm (gate-A3) + ci=/se_method= interface from the issue's Ask were never delivered though closed as "fully shipped" → filed follow-up #35 (not reopened; headline analytic-vs-percentile grid is served). Drafted+committed internal/SPEC-medsim-chunked-run-gates-2026-07-31.md (#34, f59b922) with grill ledger G1–G9; grill spine finding: global_rep_id computed for seeding only, never persisted (runner.R:402 stores local rep_id) → #34-A/#34-D need a prerequisite column, which also fixes an n_replications under-count for combined chunk runs (analyze.R:236). #34 Part B subsumes unshipped #28B — cross-linked #34↔#28. Added .flow/obsidian-sync.yml (savant report/session delivery). Open issues now: #28, #29, #34 (spec'd), #35. [2026-07-31] pkgdown internal-doc leak closed — CLAUDE.md was being published as live CLAUDE.html (pkgdown renders every root .md). Untracked + gitignored CLAUDE.md & AGENTS.md (kept on disk for agents), filed .rforge.yaml with site.allowlist (vignettes/.gitignore false positive) — commit 277c2f8. Purged live gh-pages/CLAUDE.html (404 confirmed); index.html still 200. Only root CLAUDE.html was ever deployed (other scratch htmls were local-build-only). Won't recur: files not in committed tree, so neither CI nor clean-ref deploy rebuilds them. #30 fix(run_chunk): deterministic per-replication seeding via .medsim_det_seed(), independent of chunk/worker/cluster-type/order — fixes SLURM chunk-collapse (coverage pinned at 1.0). #31 two-tier test infra: Tier-A CRAN guards + Tier-B Hopper suite (12,000 reps @ production scale: nominal coverage 0.947, narrow-interval 0.480, 12,000/12,000 distinct seeds, FORK-reproducible — all PASS), surfaced 5 more latent fixes. dev is CRAN-clean: R CMD check --as-cran 0/0/0 (real notes only — .remember/ note is a local-only artifact, absent on clean CI checkout), devtools::test() 968/0/1. #25 ADEMP coverage gates MERGED to dev 2026-06-22 (PR #26; coverage MCSE + failed-run logging + performance table + nsim helper + SE-vs-estimate plot; 913/0, CI green all platforms). Also fixed a pre-existing dev pkgdown failure (Sobol index gap from #22) + CLAUDE.md Remotes drift (medfit→medrobust). v0.3.1 RELEASED 2026-06-19.
 type: r
-last_updated: 2026-07-11
+last_updated: 2026-07-31
 test_infra: MERGED to dev — PR #30 (rng-seed-audit) + PR #31 (test-infrastructure), squash.
   Two-tier sim/parallel test suite — Tier A (CRAN-safe, tests/testthat/) + Tier B
   (Hopper-only, inst/hopper-tests/). DONE: Phase 0 CRAN-blockers (∈ U+2208 fix, seeded
@@ -34,49 +57,38 @@ built: SPEC-medsim-missingdata-generators-2026-06-11.md — BUILT (deferral over
   MERGED to dev @ 7b3245e (PR #17, squash; all 6 CI gates green; tests 596/0/2; new-file cov ~94%). Deferred #3 =
   port the validated prototype (mice + D4 + MBCO), NOT missingmed/rmediation — the validated method
   uses neither (see spec "Deferred #3 — corrected scope"). base-R fallback ships meanwhile.
-worktree: feature/gauge-estimand @ ~/.git-worktrees/medsim/feature-gauge-estimand (local only, NOT pushed)
-  #24 gauge-residual estimand — COMPLETE, opus-reviewed READY, rebased onto dev (b25ab65), HELD.
-  5 commits: medsim_scenario_gauge() (closed-form P_med=IIE/OE, W=R/OE truth) +
-  medsim_method_gauge() (wraps probmed::ward_residual; analytic + bootstrap percentile arms;
-  estimator injected, S7-or-list, stub-tested; fieller=FALSE default) + probmed/S7 Suggests +
-  Remotes pin Data-Wise/probmed@feature/gauge-bootstrap-se + NEWS/pkgdown/CLAUDE.md.
-  16 gauge tests pass; full suite 943/0; R CMD check 0/0/1 (.superpowers scratch NOTE, benign).
-  Math verified vs probmed/R/gauge-pmed.R:176-178. Bootstrap-fires probe confirms se_method honored.
-  ⚠️ HOLD the PR until pmed-modern is ready to integrate (per CLAUDE.md). Plan+ledger:
-  docs/superpowers/plans/2026-06-21-gauge-residual-estimand.md (docs/ is gitignored).
-  Remove the probmed Remotes pin once that branch merges + releases.
-  DOWNSTREAM DEP: pmed-modern P1 gauge grid (01-gauge-pmed/sims) + Paper-3 (03-sobol-pmed/run_grid.R)
-  — re-point to medsim_scenario_gauge()/medsim_estimand("variance_share", ...) after this merges + reinstall.
-  NOTE: feature/estimand-spine FULLY PRUNED 2026-06-22 (worktree + local + remote; work landed in v0.3.0 #22).
-  Other stale remote feature branches remain (cran-readiness, test-*, trim-suggests, etc.) — candidates for later cleanup.
+done: gauge-residual estimand MERGED to dev 2026-07-11 (PR #33, squash `d19ca92` — #24 was
+  never actually opened on GitHub; #33 supersedes it). medsim_scenario_gauge() (closed-form
+  P_med=IIE/OE, W=R/OE truth) + medsim_method_gauge() (wraps probmed::ward_residual; analytic
+  + bootstrap percentile arms; estimator injected, S7-or-list, stub-tested; fieller=FALSE
+  default, deliberately overriding probmed's own fieller=TRUE default to skip per-replication
+  compute across large grids). Remotes pin fixed to plain Data-Wise/probmed (was pinned to the
+  now-deleted feature/gauge-bootstrap-se branch — that branch merged into probmed's main and
+  shipped in probmed v0.3.0 on 2026-06-22, before this PR was even opened). Rebased onto dev
+  (13 commits stale → clean, no conflicts) before merge. 984/0/1 full suite; R CMD check 0/0/2
+  (both expected pre-CRAN notes).
+  BOOTSTRAP-CURRENCY VERIFIED 2026-07-11 against pmed-modern's 01-gauge-pmed/manuscript/
+  gauge-pmed.qmd at the source-code level (not just docs): paper's percentile-bootstrap
+  description matches probmed's actual stats::quantile() implementation; K=5/reps=1/B=200/
+  ci_level=0.95 defaults all match; probmed's R/gauge-pmed.R has had zero commits since the
+  v0.3.0 release medsim now pins (paper's only later touch, 2026-07-09, was citation-style
+  only). Paper's newer Extensions (continuous exposure) + M-Y sensitivity sections have no
+  corresponding probmed implementation yet — future work, not a current gap.
+  DOWNSTREAM: pmed-modern P1 gauge grid (01-gauge-pmed/sims) + Paper-3 (03-sobol-pmed/run_grid.R)
+  can now re-point to medsim_scenario_gauge()/medsim_estimand("variance_share", ...) — optional
+  standardization, not blocking (pmed-modern already validated its own gauge grid independently
+  on Hopper, 2026-06-24).
+done: pkgdown site audit + fixes 2026-07-11 (commit 8993c8b): DESCRIPTION URL: field fixed
+  (was missing site URL, broke pkgdown::check_pkgdown()); README badges standardized
+  (lifecycle experimental→stable, repo-status wip→active); _pkgdown.yml navbar Status menu
+  added (matches medfit/probmed/medrobust/mediationverse). Vignette gap closed (commit
+  67153a6): vignettes/missing-data-mediation.qmd + vignettes/estimand-kinds.qmd added,
+  registered in navbar articles menu, strict pkgdown build 0 problems. Stale root scratch
+  file BRAINSTORM-ci-timeline-2026-05-09.md removed (was untracked).
 
 # ═══════════════════════════════════════════════════════════════════
-
-📦 medsim - Simulation Infrastructure for the Mediationverse
-────────────────────────────────────────────────
-
-📍 LOCATION
-~/projects/r-packages/active/medsim/
-
-📋 DESCRIPTION
-Monte Carlo simulation infrastructure for mediation methods across the
-mediationverse (medfit, probmed, RMediation, medrobust). Version 0.1.1.
-
-🔗 medfit dependency: **Suggests** `medfit (>= 0.1.0)` + `Remotes: Data-Wise/medfit`.
-Soft (optional) dependency — not part of the hard post-CRAN cascade; drop the
-Remotes line whenever convenient after medfit reaches CRAN.
-
-🩺 HEALTH (audited 2026-06-03)
-- Tests: ~193 `test_that` blocks (healthy).
-- NEWS.md present (dev-version header), README present, pkgdown configured.
-
-🎯 NEXT
-- Merge feature/dgm-interface → dev (DGM generators built + green: 532/0/3, R CMD check OK).
-- Then gated #3: install missingmed+rmediation, validate the Missing Effect prototype, swap
-  real estimators in under test.
-- Routine: align Remotes post-medfit-CRAN (low priority).
-
-
-# 📌 CROSS-SESSION PLAN (2026-06-21, Cowork): BLOCKED on medrobust CRAN acceptance.
-# medrobust is verified ready (0/0/1N) and queued to submit — once accepted, run devtools::submit_cran() here.
-# Full plan: ~/projects/r-packages/PLAN-2026-06-21-cowork.md
+# Everything below this line was superseded by the fields above and removed
+# 2026-07-11 (was a 2026-06-03/06-21-era snapshot — pre-v0.2.0, referenced an
+# already-merged branch and a since-resolved medrobust submission queue state
+# that no longer matches current CRAN status). See `next:` at the top of this
+# file for the current, single source of truth.

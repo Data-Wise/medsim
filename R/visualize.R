@@ -25,7 +25,7 @@
 #'
 #' - Box: IQR (25th to 75th percentile)
 #' - Line in box: Median error
-#' - Whiskers: 1.5 ? IQR
+#' - Whiskers: 1.5 x IQR
 #' - Points: Outliers beyond whiskers
 #'
 #' Tighter boxes = more consistent estimates

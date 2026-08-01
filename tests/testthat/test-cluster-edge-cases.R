@@ -28,9 +28,9 @@ test_that("n_chunks > n_replications produces exactly n_replications rows (no ph
   }
   combined <- medsim_combine_chunks(out, verbose = FALSE)
   # Exactly n_rep rows total (not 7): the 2 empty chunks contribute 0 rows.
-  # (`replication` is the per-chunk LOCAL id and legitimately repeats across
-  # chunks, so it is not asserted here.)
+  # Schema v2: `replication` is the GLOBAL id -- exactly 1..n_rep, no repeats.
   expect_equal(nrow(combined$results), n_rep)
+  expect_setequal(combined$results$replication, seq_len(n_rep))
 })
 
 test_that("medsim_combine_chunks warns when fewer chunk files than expected are present", {
@@ -43,12 +43,25 @@ test_that("medsim_combine_chunks warns when fewer chunk files than expected are 
     medsim_run_chunk(list(.edge_scenario()), .edge_method, cfg, verbose = FALSE)
   }
   file.remove(file.path(out, "chunk_0002.rds"))        # simulate a missing chunk
-  expect_warning(
+  # Gate A (schema v2): a missing chunk is an integrity violation -- default
+  # on_violation = "stop" signals a data-carrying medsim_combine_violation
+  # (this replaces the old warn-and-combine default; see NEWS).
+  expect_error(
     medsim_combine_chunks(out, expected_chunks = 3L, verbose = FALSE),
-    "expected 3.*found 2|missing|fewer"
+    class = "medsim_combine_violation"
   )
-  # Without expected_chunks it still combines the present chunks (no crash).
-  cmb <- medsim_combine_chunks(out, verbose = FALSE)
+  # The condition CARRIES the combined partial results -- hours of cluster
+  # compute are recoverable even from a stopped combine.
+  recovered <- tryCatch(
+    medsim_combine_chunks(out, expected_chunks = 3L, verbose = FALSE),
+    medsim_combine_violation = function(e) e$results)
+  expect_s3_class(recovered, "medsim_results")
+  expect_equal(recovered$n_chunks_combined, 2L)
+  # Deliberate partial combine (interim look): one-argument opt-out.
+  expect_warning(
+    cmb <- medsim_combine_chunks(out, on_violation = "warn", verbose = FALSE),
+    "rep_gap|missing"
+  )
   expect_equal(cmb$n_chunks_combined, 2L)
 })
 
@@ -60,7 +73,15 @@ test_that("an all-NA chunk yields failure_rate 1 and non-poisoned coverage", {
   cfg <- medsim_config("test", chunk_id = 1L, n_chunks = 1L,
                        n_replications = 5L, n_cores = 1L, output_dir = out)
   medsim_run_chunk(list(.edge_scenario()), na_method, cfg, verbose = FALSE)
-  combined <- medsim_combine_chunks(out, verbose = FALSE)
+  # Gate A: an all-NA cell now fires cell_failed under the default stop
+  # posture -- the deliberate all-NA method must opt out via "warn" (and the
+  # violation itself is asserted).
+  expect_error(medsim_combine_chunks(out, verbose = FALSE),
+               class = "medsim_combine_violation")
+  expect_warning(
+    combined <- medsim_combine_chunks(out, on_violation = "warn",
+                                      verbose = FALSE),
+    "cell_failed|failed")
   combined$truth <- data.frame(scenario = "edge", theta = 0, stringsAsFactors = FALSE)
   est <- medsim_estimand("interval", params = "theta", ci = "standard",
                          truth = function(s) c(theta = 0))

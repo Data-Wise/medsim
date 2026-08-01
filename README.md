@@ -1,13 +1,13 @@
 # medsim <img src="man/figures/logo.png" align="right" height="139" alt="medsim website" />
 
 <!-- badges: start -->
-[![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
-[![Repo Status](https://www.repostatus.org/badges/latest/wip.svg)](https://www.repostatus.org/#wip)
+[![Lifecycle: stable](https://img.shields.io/badge/lifecycle-stable-brightgreen.svg)](https://lifecycle.r-lib.org/articles/stages.html#stable)
+[![Repo Status](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
 [![R-CMD-check](https://github.com/data-wise/medsim/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/data-wise/medsim/actions/workflows/R-CMD-check.yaml)
-[![r-universe](https://data-wise.r-universe.dev/badges/medsim)](https://data-wise.r-universe.dev/medsim)
 [![Website Status](https://github.com/data-wise/medsim/actions/workflows/pkgdown.yaml/badge.svg)](https://github.com/data-wise/medsim/actions/workflows/pkgdown.yaml)
 [![R-hub](https://github.com/data-wise/medsim/actions/workflows/rhub.yaml/badge.svg)](https://github.com/data-wise/medsim/actions/workflows/rhub.yaml)
 [![Codecov](https://codecov.io/gh/data-wise/medsim/graph/badge.svg)](https://app.codecov.io/gh/data-wise/medsim)
+[![r-universe](https://data-wise.r-universe.dev/badges/medsim)](https://data-wise.r-universe.dev/medsim)
 <!-- badges: end -->
 
 **medsim** provides standardized infrastructure for conducting Monte Carlo simulation studies in mediation analysis. Eliminate the need to repeatedly implement parallel processing, progress reporting, result analysis, and visualization across different research projects.
@@ -191,6 +191,33 @@ The generators (`medsim_rnonnormal()`, `medsim_amputate()`,
 `medsim_scenario_missing()`) are domain-agnostic and reusable across studies;
 the estimator adapters (`medsim_method_mbco_mi()`, `medsim_method_mc_ci()`,
 `medsim_method_ipw()`) return the standard coverage/power contract.
+
+## Estimand Kinds
+
+Beyond the default indirect-effect (`interval`) coverage contract, `medsim_estimand()`
+supports additional estimand kinds for scenarios that report a variance-decomposition
+ratio rather than a point CI — e.g. Sobol-style sensitivity indices and the
+gauge-residual estimand:
+
+```r
+library(probmed)  # provides ward_residual(), the default estimator
+
+# Gauge-residual estimand: interventional proportion mediated (P_med = IIE/OE)
+# plus the gauge residual W = R/OE, quantifying effect not captured by the
+# standard direct+indirect decomposition. Ground truth is closed-form.
+scn <- medsim_scenario_gauge("interaction", true_params = list(kappa = 0.4))
+
+results <- medsim_run(
+  method = medsim_method_gauge,
+  scenarios = list(scn),
+  config = medsim_config("local")
+)
+```
+
+`medsim_method_gauge()` wraps an externally supplied estimator (not vendored) into
+medsim's flat-field contract, with analytic and bootstrap-percentile SE arms
+(`se_method = "analytic"` or `"bootstrap"`). See `medsim_scenario_sobol()` /
+`medsim_method_sobol()` for the sibling variance-share estimand.
 
 ## Complete Workflow
 

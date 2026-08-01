@@ -21,6 +21,11 @@
 ^\.STATUS\.backup$
 ^\.claude$
 ^\.remember$
+^\.superpowers$
 ^cran-comments\.md$
 ^internal$
 ^tasks$
+^\.rforge\.yaml$
+^\.flow$
+^AGENTS\.md$
+^CLAUDE\.md$

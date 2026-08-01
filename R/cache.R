@@ -126,10 +126,18 @@ medsim_cache_save <- function(object,
 #' }
 #' ```
 #'
+#' Note: ground-truth caches written by [medsim_run()] use a fingerprinted
+#' wrapper format `list(truth = , fingerprint = )` (so a scenario content
+#' change invalidates the cache) -- unwrap `$truth` after loading, as in the
+#' example below.
+#'
 #' @examples
 #' \dontrun{
-#' # Load from cache
-#' truth <- medsim_cache_load("cache/truth_scenario1.rds")
+#' # Load a ground-truth cache written by medsim_run(). Since the
+#' # fingerprinted format, the cached object is list(truth=, fingerprint=),
+#' # not the bare truth value -- unwrap it (legacy bare caches load as-is):
+#' cached <- medsim_cache_load("cache/truth_scenario1.rds")
+#' truth <- if (is.list(cached) && !is.null(cached$fingerprint)) cached$truth else cached
 #'
 #' if (is.null(truth)) {
 #'   # Cache miss - compute and cache

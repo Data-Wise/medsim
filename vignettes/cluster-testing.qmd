@@ -128,6 +128,32 @@ overall mean coverage: 0.947  (n reps total: 12000)
 verdict: PASS (near-nominal)
 ```
 
+#### Combining runs under an integrity audit
+
+`medsim_combine_chunks()` does more than concatenate: it rebuilds `$summary`
+and `$config` over the combined frame and **audits the grid** — per-scenario
+`replication` contiguity (ids are *global* across chunks under schema v2, so
+gaps, duplicates, and ragged cells are all detectable), the seed-collapse
+signature on every continuous estimate column, and cross-scenario seed
+collisions. By default a violation **stops** the combine, signalling a
+`medsim_combine_violation` condition that carries the combined object — no
+cluster compute is lost:
+
+```{r}
+#| label: combine-audit
+# Deliberate interim look at a still-running array (e.g. 58/60 chunks done):
+partial <- medsim_combine_chunks("tier_b_nominal", on_violation = "warn")
+
+# Recover the good cells from a stopped combine instead of losing the run:
+combined <- tryCatch(
+  medsim_combine_chunks("tier_b_nominal", expected_chunks = 20),
+  medsim_combine_violation = function(e) e$results
+)
+
+# The same audit, standalone, on an already-combined object:
+medsim_audit_results(combined, nsim = 2000)
+```
+
 ### B3 — the can-fail dogfood (planted defect)
 
 The same pipeline with the 1/3-width `narrow` method. If this *did not*

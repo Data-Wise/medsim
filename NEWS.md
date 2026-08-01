@@ -1,3 +1,155 @@
+# medsim 0.5.0
+
+## New features
+
+* **Pre-integration review hardening** (7 confirmed findings). The collapse
+  audit excludes discrete contract fields BY NAME (`collapse_exclude`,
+  default `converged`/`branch_switch`) instead of by observed distinctness --
+  a TOTALLY collapsed estimate column (1-2 distinct values) is no longer
+  invisible to the very check built for it. An all-failed run now fires an
+  `all_failed` violation instead of combining clean. Mixed legacy+v2 chunk
+  directories are order-independent (attributes stripped + one warning; the
+  audit never mis-stops on legacy ids). `error` is a documented RESERVED
+  method-field name -- a method returning it stops immediately instead of
+  having `converged` silently forced to 0. Pilot checks: `n` compared
+  numerically (200L vs 200 no longer false-positives) and NA-vs-value
+  asymmetries against the pilot are mismatches. All-provenance-less chunk
+  sets warn about the skipped SHA assertion. The combine `rbind` is
+  schema-harmonized (ragged chunk columns cannot crash it), and the submit
+  template creates `logs/` up front.
+
+* **Gate C: chunk provenance + single-SHA assertion** (#34). Every chunk file
+  now carries a provenance header (R version, medsim + key dependency
+  versions, hostname, code SHA, sec/rep, UTC timestamp). The SHA
+  **auto-detects** via `git rev-parse HEAD` in the running script's directory
+  (explicit `code_sha =` overrides; `pkg:medsim-<version>` tag outside git).
+  `medsim_combine_chunks()` asserts one SHA across all chunks -- catching a
+  mid-run code edit + partial resubmit that would silently mix two code
+  states. Provenance-less legacy chunks warn, never stop.
+
+* **Gate D: pilot-subset positive control** (#34). Because seeds depend only
+  on `(scenario, replication)`, a full run's reps `1..B_pilot` are
+  draw-identical to an archived pilot at the same `n`.
+  `medsim_combine_chunks(pilot_reference =, pilot_tol = 1e-9)` asserts
+  **identity first** (sample size + scenario fingerprints -- a stale pilot
+  fails as `pilot_config_differs`, never masquerading as a seeding
+  regression), then compares estimate columns only (never `elapsed`) within
+  tolerance -- a free regression check that harness, environment, and seeding
+  are unchanged since the pilot passed.
+
+* **Gate B: hardened SLURM submit template** (#34, fixes #37).
+  `medsim_write_submit_script()` now emits a fail-loud script: `#!/bin/bash -l`
+  (on Hopper `module` is defined only in login shells -- the old plain
+  `#!/bin/bash` template failed there with "module: command not found"),
+  `set -eo pipefail`, a hard-failing `module load` (never `|| true`), a
+  `command -v Rscript` pre-check, `#SBATCH --requeue`, and `Rscript` as the
+  final command so its exit code is the task's exit code. Optional
+  `config$array_throttle = K` emits `--array=1-N%K`. There is deliberately no
+  shell-side output-file gate -- completeness is audited at combine time by
+  Gate A. The `inst/hopper-tests/submit_chunk.sh` exemplar is updated to the
+  same pattern, and the `chunk_%04d.rds` naming convention is centralized in
+  an internal helper shared by writer and combiner.
+
+* **Gate A: combine-step seed-provenance audit** (#34, SPEC-medsim-chunked-run-gates).
+  `medsim_combine_chunks()` now audits the combined grid and the new
+  `medsim_audit_results()` runs the same audit standalone: per-scenario
+  `replication` **contiguity** (gapless, duplicate-free `1..max`, equal across
+  scenarios -- self-validating, no external count needed; optional `nsim =`
+  pin), the **collapse signature** on every continuous estimate column
+  (`n_distinct > collapse_threshold * n_ok`; the 0.3.1 seed collapse produced
+  ~17 distinct outcomes in 1000 while every chunk exited 0), all-failed cells
+  reported as `cell_failed`, and **cross-scenario seed collisions** in
+  `.medsim_det_seed()`'s hash space. Violations route through one
+  `on_violation = c("stop", "warn", "ignore")` control; the default `"stop"`
+  signals a `medsim_combine_violation` condition that **carries the combined
+  results** (`tryCatch(..., medsim_combine_violation = function(e) e$results)`
+  recovers an hours-long run's good cells). **Breaking**: the old
+  `expected_chunks` warn-and-combine default is now a violation under the same
+  control -- for a deliberate partial combine (interim look at a running
+  array), pass `on_violation = "warn"`. Legacy (pre-schema-v2) frames skip the
+  id-based audits with a warning, never an error.
+
+## Bug fixes
+
+* **Chunked runs: `replication` is now the GLOBAL rep id** (schema v2; #36,
+  SPEC-medsim-chunked-run-gates P1). Previously each SLURM chunk emitted
+  chunk-local ids (`1..chunk_size`), so a combined 4-chunk/nsim-20 run carried
+  5 distinct `replication` values each appearing 4 times, rows were not
+  uniquely identifiable, and `medsim_analyze()` reported the chunk size as
+  `n_replications`. Standalone (non-chunked) runs are unchanged. Result frames
+  now carry `medsim_schema = 2L` and a `medsim_meta_cols` provenance attribute
+  recording which columns the runner wrote (consumed by `medsim_analyze()`;
+  legacy frames fall back to the old name list).
+* **`medsim_combine_chunks()` rebuilds `$summary` and `$config`** (P2).
+  It previously returned chunk 1's slice statistics and chunk-sized
+  `config$n_replications` as if they described the combined run.
+* **One failed replication no longer crashes the run** (P3). Failure rows and
+  success rows had different columns, so `rbind` errored
+  ("names do not match previous names") -- in chunk mode converting one
+  transient rep failure into a missing chunk file. All rows now share one
+  schema: an `error` column on every row (`NA` on success), `NA` estimates and
+  `converged = 0` on failure rows.
+* **Logical method-contract fields are no longer dropped** (P3).
+  `branch_switch`/`converged` returned as logicals (including logical `NA`)
+  were silently excluded from `$results`, breaking
+  `medsim_summarize_branch_switch()`.
+* **Chunk mode no longer writes intermediate CSVs** (#38, P3). Concurrent
+  array tasks sharing an `output_dir` overwrote each other's fixed-name
+  `results_scenario_*.csv`/`all_results.csv` (last writer wins), leaving
+  partial data that looked complete. The chunk `.rds` is the artifact;
+  standalone runs still write their CSVs.
+
+## Quality fixes (2026-07 review round)
+
+* `medsim_scenario_pmed()` now computes the ground-truth P_med with the exact
+  closed form `Phi((beta_ay + alpha_ax*beta_my) / sqrt(2*(beta_my^2*sigma_m^2
+  + sigma_y^2)))` instead of an unseeded 4x50k Monte-Carlo potential-outcome
+  draw at construction time. The truth is now deterministic, exact, and leaves
+  the RNG state untouched; the `n_po` argument (and the `n_po` parameter of
+  the internal `.medsim_pmed_truth()`) has been removed.
+* `medsim_validate_scenario()` now validates generator output for *all*
+  estimand kinds: interval/numeric (and other non-core) kinds previously got
+  zero column validation; they now require a non-empty data.frame (at least
+  1 row and 1 column). X/M/Y columns are still not required for these kinds --
+  their column contract remains method-defined.
+* `.medsim_analyze_coverage_interval()` now emits a `coverage_mcse` column
+  (`sqrt(p*(1-p)/n_valid)`, mirroring the point path) in both the overall and
+  by-scenario coverage frames, so `medsim_table_coverage()` renders a real
+  MCSE for interval-kind runs instead of an `NA` placeholder. The table
+  builder is also hardened to render body rows even when optional columns
+  (`coverage_mcse`, `n_valid`, `n_failed`) are absent.
+* `medsim_config(seed_stream=)` is deprecated: the value was stored and
+  documented but has never been consumed by any medsim function. Passing a
+  non-`NULL` value now emits a deprecation warning pointing at
+  `medsim_run_parallel(seed=)`; the value is still stored for
+  back-compatibility.
+* The `medsim_cache_load()` documentation example now unwraps the
+  fingerprinted ground-truth cache format `list(truth=, fingerprint=)` written
+  by `medsim_run()` instead of treating the wrapper as the truth value.
+
+<!-- quality-fixes: duplication/refactor findings (R1/S3, R6+R3, E1, C1) -->
+* Internal refactor: `medsim_scenario_sobol()` and `medsim_scenario_gauge()`
+  now share one linear-Gaussian-with-interaction data generator
+  (`.medsim_lingauss_dgp()`) and one corner-mean truth helper
+  (`.medsim_corner_means()`) instead of duplicating them verbatim. Scenario
+  draws and closed-form truths are bit-identical to before.
+* Internal refactor: the delta-method product SE is now a single helper
+  (`.medsim_se_prod()`) used by the MC-CI and IPW adapters, and
+  `medsim_method_bounds()` / `medsim_method_pmed_mbco()` fit their mediation
+  regressions through the generalized `.medsim_md_fit_ab()` (named-coefficient
+  lookup, replacing fragile positional `coef()[k]` indexing; one edge-path
+  change: degenerate/collinear fits now error loudly instead of a silent
+  `se = 0.1` fallback). Estimates, SEs,
+  CIs, and p-values are bit-identical to before.
+* Performance: `medsim_method_mbco_mi()` computes the three MBCO
+  log-likelihoods once per imputation (`.medsim_mbco_lls()`) and derives both
+  the D4 LRT statistic and the union-null branch indicator from that triple --
+  about 6 instead of 10 `lm()` fits per imputation, with bit-identical
+  statistics, p-values, and `branch_switch` values.
+* Internal rename: `.gen_complete_med()` is now `.medsim_gen_complete_med()`,
+  matching the package's `.medsim_*` internal naming convention.
+<!-- end quality-fixes duplication/refactor -->
+
 # medsim 0.4.0
 
 ## Bug fixes
@@ -35,6 +187,10 @@
   analyze crash.
 
 ## New features
+
+* Gauge-residual estimand (#24): `medsim_scenario_gauge()` + `medsim_method_gauge()`
+  route the P1 gauge `P_med`/`W` coverage grid through `medsim_run()`, mirroring
+  Sobol; analytic + bootstrap (percentile) CI arms.
 
 * ADEMP reporting (#25): per-cell coverage Monte Carlo SE (`coverage_mcse`),
   `medsim_nsim_for_mcse()` for sizing replications to a target coverage MCSE,

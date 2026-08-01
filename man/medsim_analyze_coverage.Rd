@@ -49,7 +49,7 @@ Coverage rate is the proportion of confidence intervals that contain the
 true parameter value. For a 95\% CI, expect ~95\% coverage in large samples.
 \itemize{
 \item Coverage < nominal: CI too narrow (anti-conservative)
-\item Coverage ? nominal: CI has correct width
+\item Coverage ~= nominal: CI has correct width
 \item Coverage > nominal: CI too wide (conservative)
 }
 }

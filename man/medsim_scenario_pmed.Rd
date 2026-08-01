@@ -4,7 +4,7 @@
 \alias{medsim_scenario_pmed}
 \title{Create a P_med simulation scenario}
 \usage{
-medsim_scenario_pmed(name, true_params = list(), n_po = 50000L)
+medsim_scenario_pmed(name, true_params = list())
 }
 \arguments{
 \item{name}{Character: scenario name passed to \code{\link[=medsim_scenario]{medsim_scenario()}}.}
@@ -17,9 +17,6 @@ medsim_scenario_pmed(name, true_params = list(), n_po = 50000L)
 \item \code{sigma_m}: residual SD for M (default 1.0)
 \item \code{sigma_y}: residual SD for Y (default 1.0)
 }}
-
-\item{n_po}{Integer: number of potential-outcome draws for truth estimation
-(default 50000).  Larger = more accurate ground truth.}
 }
 \value{
 A \code{medsim_scenario} object with \code{estimand$kind = "probabilistic"}.
@@ -31,8 +28,9 @@ Thin wrapper over \code{\link[=medsim_scenario]{medsim_scenario()}} that bakes i
 \code{A -> M -> Y} causal chain.
 \item An \code{estimand = medsim_estimand("probabilistic", params = "pmed", ci = "mbco", extra = "branch_switch")} descriptor so that
 \code{\link[=medsim_analyze_coverage]{medsim_analyze_coverage()}} dispatches the MBCO-CI coverage branch.
-\item A \code{truth} function that draws potential outcomes under the SEM to
-compute the ground-truth P_med (not analytically tractable in general).
+\item An exact closed-form ground-truth P_med: under the all-Gaussian linear
+SEM the cross-world difference \code{Y1 - Y0} is Normal, so
+\code{P_med = Phi((beta_ay + alpha_ax * beta_my) / sqrt(2 * (beta_my^2 * sigma_m^2 + sigma_y^2)))}.
 }
 
 The estimand \verb{P_med = P(Y_a=1(M_a=1) > Y_a=0(M_a=1)) + 0.5 * P(Y_a=1(M_a=1) == Y_a=0(M_a=1))} uses the cross-world assumption --

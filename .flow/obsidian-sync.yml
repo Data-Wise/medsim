@@ -1,0 +1,13 @@
+# Obsidian vault destination for savant /savant:session + /savant:report delivery.
+# The session-report skill (reference/report-delivery.md §3b, order 3) reads `vault_root`
+# and resolves it to (vault_id, subfolder): here vault_id="Documents",
+# subfolder="Research/20_projects/medsim". The medsim vault folder is created on first sync.
+#
+# `pairs` are used only by the vault->repo `/obs:sync` mirror (vault is canonical). medsim has
+# no vault-authored notes to mirror back, so they stay commented out — do not add a pair that
+# points at a nonexistent vault dir (it would report phantom drift / clobber repo report files).
+vault_root: "/Users/dt/Library/Mobile Documents/iCloud~md~obsidian/Documents/Research/20_projects/medsim"
+pairs:
+  # - { vault: "teaching", repo: "teaching" }
+include: ["*.md"]
+exclude: ["_archive"]

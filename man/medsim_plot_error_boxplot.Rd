@@ -41,7 +41,7 @@ scenarios. Useful for comparing accuracy of different methods.
 \itemize{
 \item Box: IQR (25th to 75th percentile)
 \item Line in box: Median error
-\item Whiskers: 1.5 ? IQR
+\item Whiskers: 1.5 x IQR
 \item Points: Outliers beyond whiskers
 }
 

@@ -13,7 +13,7 @@ medsim_write_submit_script(
 }
 \arguments{
 \item{config}{A \code{medsim_config} object (from \code{\link[=medsim_config]{medsim_config()}}).  Must have
-\code{n_chunks} > 0 and \code{mode == "cluster"}.}
+\code{n_chunks} > 0 and \code{mode == "cluster"}. Optional: \code{array_throttle}.}
 
 \item{run_script}{Character: path (on the cluster) to the per-chunk R script
 (the one that calls \code{\link[=medsim_run_chunk]{medsim_run_chunk()}}).  Default \code{"run_simulation_chunk.R"}.}
@@ -32,6 +32,17 @@ Generates a \code{submit_array.sh} bash script targeting the UNM CARC Hopper
 cluster (and compatible SLURM systems).  The script submits one SLURM array
 job per scenario chunk; each task runs an R script that calls
 \code{\link[=medsim_run_chunk]{medsim_run_chunk()}}.
+
+The emitted script is fail-loud (Gate B of the chunked-run integrity layer):
+a login shell (\verb{#!/bin/bash -l} -- on Hopper \code{module} is only defined in
+login shells), \verb{set -eo pipefail}, a hard-failing \verb{module load} (never
+\verb{|| true}), a \verb{command -v Rscript} pre-check, \verb{#SBATCH --requeue}, and the
+\code{Rscript} call as the final command so its exit code is the task's exit
+code. There is deliberately NO output-file gate in the script: the writer's
+config and the run script's runtime config are independent, so a baked-in
+path could fail successful tasks; completeness is audited at combine time by
+\code{\link[=medsim_combine_chunks]{medsim_combine_chunks()}} instead. Set \code{config$array_throttle = K} to cap
+concurrently-running array tasks (\verb{--array=1-N\%K}).
 }
 \examples{
 cfg <- medsim_config(
