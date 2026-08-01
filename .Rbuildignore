@@ -27,3 +27,5 @@
 ^tasks$
 ^\.rforge\.yaml$
 ^\.flow$
+^AGENTS\.md$
+^CLAUDE\.md$
