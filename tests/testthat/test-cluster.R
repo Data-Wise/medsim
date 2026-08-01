@@ -29,9 +29,17 @@ test_that("medsim_config explicit chunk_id wins over SLURM_ARRAY_TASK_ID", {
   expect_equal(cfg$chunk_id, 2L)
 })
 
-test_that("medsim_config stores seed_stream", {
-  cfg <- medsim_config("cluster", seed_stream = 99L)
+test_that("medsim_config stores seed_stream but warns it is deprecated/unconsumed", {
+  expect_warning(
+    cfg <- medsim_config("cluster", seed_stream = 99L),
+    "seed_stream.*deprecated"
+  )
   expect_equal(cfg$seed_stream, 99L)
+})
+
+test_that("medsim_config does not warn when seed_stream is NULL (default)", {
+  expect_no_warning(cfg <- medsim_config("cluster"))
+  expect_null(cfg$seed_stream)
 })
 
 test_that("medsim_config cluster mode sets Hopper defaults", {

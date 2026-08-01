@@ -25,9 +25,9 @@
 #'   provenance. **Does not itself determine replication draws** -- since the
 #'   `.medsim_det_seed()` fix, [medsim_run()] seeds each replication
 #'   deterministically from `(scenario_name, global_rep_id)`, independent of
-#'   `seed`/`seed_stream`/chunk/worker/cluster-type. `seed`/`seed_stream` are
-#'   only consulted if you call [medsim_run_parallel()] directly (its own
-#'   `seed=` argument, documented there).
+#'   `seed`/chunk/worker/cluster-type. `seed` is only consulted if you call
+#'   [medsim_run_parallel()] directly (its own `seed=` argument, documented
+#'   there). See `seed_stream` below for its deprecation.
 #' @param chunk_id Integer: SLURM array task index (1-based) for this chunk.
 #'   Auto-detected from `SLURM_ARRAY_TASK_ID` when running inside a SLURM
 #'   array job and not supplied explicitly.  `NULL` = no chunking.
@@ -35,11 +35,13 @@
 #'   Used by `medsim_run_chunk()` to slice the replication index.
 #' @param array_size Integer: Alias for `n_chunks` (matches SLURM terminology).
 #'   When both are supplied, `n_chunks` wins.
-#' @param seed_stream Integer: Master seed for L'Ecuyer-CMRG reproducible
-#'   per-worker RNG streams, consulted only by a direct
-#'   [medsim_run_parallel()] call (its `seed=` argument) -- see the `seed`
-#'   param above for why [medsim_run()]/[medsim_run_chunk()] no longer need
-#'   it.  Defaults to `seed` when `NULL`.
+#' @param seed_stream Integer: **Deprecated.** This knob is stored on the
+#'   config but has never been consumed by any medsim function -- passing a
+#'   non-`NULL` value now emits a deprecation warning and has no effect on
+#'   any RNG stream.  For reproducible per-worker L'Ecuyer-CMRG streams, pass
+#'   `seed=` directly to [medsim_run_parallel()]; [medsim_run()]/
+#'   [medsim_run_chunk()] seed each replication deterministically (see the
+#'   `seed` param above) and need no stream seed.
 #' @param partition Character: SLURM partition (queue) name.  Defaults to
 #'   `"general"` in cluster mode; `NULL` otherwise.
 #' @param walltime Character: SLURM wall-time limit (HH:MM:SS).  Defaults to
@@ -126,6 +128,15 @@ medsim_config <- function(mode = "auto",
                           mem_per_cpu = NULL,
                           r_module = NULL,
                           ...) {
+
+  # Deprecated: seed_stream is stored for back-compatibility but has never
+  # been consumed by medsim_run()/medsim_run_chunk()/medsim_run_parallel().
+  if (!is.null(seed_stream)) {
+    warning("medsim_config(seed_stream=) is deprecated: the value is stored on ",
+            "the config but has never been consumed by any medsim function. ",
+            "For reproducible per-worker RNG streams, pass seed= directly to ",
+            "medsim_run_parallel().")
+  }
 
   # Detect environment if auto mode
   if (mode == "auto") {

@@ -391,6 +391,15 @@ medsim_validate_scenario <- function(scenario, n = 10) {
                    paste(required_cols, collapse = ", "),
                    paste(missing_cols, collapse = ", ")))
     }
+  } else {
+    # Other kinds (e.g. "interval", "numeric"): the column contract is
+    # method-defined, so no specific names are required — but the generator
+    # must still return a usable, non-empty data.frame.
+    if (nrow(data) < 1 || ncol(data) < 1) {
+      stop(sprintf(
+        "data_generator must return a non-empty data.frame (at least 1 row and 1 column); got %d rows x %d columns",
+        nrow(data), ncol(data)))
+    }
   }
 
   # Check that data has correct number of rows

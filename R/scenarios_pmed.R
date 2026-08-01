@@ -1,5 +1,5 @@
 # P_med scenario factory -- probabilistic estimand kind
-# P_med = P(Y1 > Y0) + 0.5 * P(Y1 == Y0), computed via cross-world PO draw.
+# P_med = P(Y1 > Y0) + 0.5 * P(Y1 == Y0), exact under the all-Gaussian SEM.
 
 #' Create a P_med simulation scenario
 #'
@@ -10,8 +10,10 @@
 #' - An `estimand = medsim_estimand("probabilistic", params = "pmed",
 #'   ci = "mbco", extra = "branch_switch")` descriptor so that
 #'   [medsim_analyze_coverage()] dispatches the MBCO-CI coverage branch.
-#' - A `truth` function that draws potential outcomes under the SEM to
-#'   compute the ground-truth P_med (not analytically tractable in general).
+#' - An exact closed-form ground-truth P_med: under the all-Gaussian linear
+#'   SEM the cross-world difference `Y1 - Y0` is Normal, so
+#'   `P_med = Phi((beta_ay + alpha_ax * beta_my) /
+#'   sqrt(2 * (beta_my^2 * sigma_m^2 + sigma_y^2)))`.
 #'
 #' The estimand `P_med = P(Y_a=1(M_a=1) > Y_a=0(M_a=1)) +
 #' 0.5 * P(Y_a=1(M_a=1) == Y_a=0(M_a=1))` uses the cross-world assumption --
@@ -24,8 +26,6 @@
 #'   - `beta_ay`: direct path A -> Y (default 0.0; set 0 for perfect mediation)
 #'   - `sigma_m`: residual SD for M (default 1.0)
 #'   - `sigma_y`: residual SD for Y (default 1.0)
-#' @param n_po Integer: number of potential-outcome draws for truth estimation
-#'   (default 50000).  Larger = more accurate ground truth.
 #'
 #' @return A `medsim_scenario` object with `estimand$kind = "probabilistic"`.
 #'
@@ -40,17 +40,17 @@
 #'
 #' @export
 medsim_scenario_pmed <- function(name,
-                                  true_params = list(),
-                                  n_po        = 50000L) {
+                                  true_params = list()) {
 
   # Defaults for the SEM coefficients
   tp <- list(alpha_ax = 0.5, beta_my = 0.5, beta_ay = 0.0,
              sigma_m  = 1.0, sigma_y  = 1.0)
   tp[names(true_params)] <- true_params
 
-  # Compute ground-truth P_med via a large PO draw at construction time.
-  # The truth is a constant for a given SEM, not a per-rep quantity.
-  truth_val <- .medsim_pmed_truth(tp, n_po = n_po)
+  # Exact ground-truth P_med at construction time (closed form -- no Monte
+  # Carlo draw, no RNG use).  The truth is a constant for a given SEM, not a
+  # per-rep quantity.
+  truth_val <- .medsim_pmed_truth(tp)
 
   # Observed-data generator: linear SEM
   gen_fn <- local({
@@ -81,25 +81,26 @@ medsim_scenario_pmed <- function(name,
 
 # -- Internal helpers -------------------------------------------------------
 
-# Compute ground-truth P_med via cross-world potential outcomes under the SEM.
+# Exact ground-truth P_med via cross-world potential outcomes under the SEM.
 # P_med = P(Y1 > Y0) where Y1 = Y(A=1, M(1)) and Y0 = Y(A=0, M(0)).
-# Each person's potential outcomes are drawn with INDEPENDENT residuals --
+# Each person's potential outcomes carry INDEPENDENT residuals --
 # the standard "random-effects" cross-world assumption in the P_med literature.
 # Using SHARED residuals would make Y1 - Y0 = constant, giving P_med in {0,1}.
-.medsim_pmed_truth <- function(tp, n_po = 50000L) {
-  n <- n_po
-  # Independent residuals for each potential outcome world
-  eps_m0 <- rnorm(n, 0, tp$sigma_m)
-  eps_m1 <- rnorm(n, 0, tp$sigma_m)
-  eps_y0 <- rnorm(n, 0, tp$sigma_y)
-  eps_y1 <- rnorm(n, 0, tp$sigma_y)
-
-  m0 <- tp$alpha_ax * 0 + eps_m0
-  m1 <- tp$alpha_ax * 1 + eps_m1
-  y1 <- tp$beta_ay * 1 + tp$beta_my * m1 + eps_y1
-  y0 <- tp$beta_ay * 0 + tp$beta_my * m0 + eps_y0
-
-  # For continuous Y, P(Y1 == Y0) ~= 0; P_med ~= P(Y1 > Y0)
-  # Analytic: Phi(alpha*beta / sqrt(2*(beta^2*sigma_m^2 + sigma_y^2)))
-  mean(y1 > y0)
+#
+# Under the all-Gaussian linear SEM this is analytically tractable:
+#   M(0) = eps_m0,                    M(1) = alpha_ax + eps_m1
+#   Y1   = beta_ay + beta_my * M(1) + eps_y1
+#   Y0   =           beta_my * M(0) + eps_y0
+#   Y1 - Y0 ~ N(beta_ay + alpha_ax * beta_my,
+#               2 * (beta_my^2 * sigma_m^2 + sigma_y^2))
+# so (Y continuous => P(Y1 == Y0) = 0):
+#   P_med = Phi((beta_ay + alpha_ax * beta_my) /
+#               sqrt(2 * (beta_my^2 * sigma_m^2 + sigma_y^2)))
+# Note the direct effect beta_ay does NOT cancel: it enters Y1 but not Y0
+# under this total-effect PO contrast (it vanishes at the beta_ay = 0 default).
+.medsim_pmed_truth <- function(tp) {
+  stats::pnorm(
+    (tp$beta_ay + tp$alpha_ax * tp$beta_my) /
+      sqrt(2 * (tp$beta_my^2 * tp$sigma_m^2 + tp$sigma_y^2))
+  )
 }

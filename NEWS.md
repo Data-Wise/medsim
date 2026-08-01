@@ -99,6 +99,34 @@
   partial data that looked complete. The chunk `.rds` is the artifact;
   standalone runs still write their CSVs.
 
+## Quality fixes (2026-07 review round)
+
+* `medsim_scenario_pmed()` now computes the ground-truth P_med with the exact
+  closed form `Phi((beta_ay + alpha_ax*beta_my) / sqrt(2*(beta_my^2*sigma_m^2
+  + sigma_y^2)))` instead of an unseeded 4x50k Monte-Carlo potential-outcome
+  draw at construction time. The truth is now deterministic, exact, and leaves
+  the RNG state untouched; the `n_po` argument (and the `n_po` parameter of
+  the internal `.medsim_pmed_truth()`) has been removed.
+* `medsim_validate_scenario()` now validates generator output for *all*
+  estimand kinds: interval/numeric (and other non-core) kinds previously got
+  zero column validation; they now require a non-empty data.frame (at least
+  1 row and 1 column). X/M/Y columns are still not required for these kinds --
+  their column contract remains method-defined.
+* `.medsim_analyze_coverage_interval()` now emits a `coverage_mcse` column
+  (`sqrt(p*(1-p)/n_valid)`, mirroring the point path) in both the overall and
+  by-scenario coverage frames, so `medsim_table_coverage()` renders a real
+  MCSE for interval-kind runs instead of an `NA` placeholder. The table
+  builder is also hardened to render body rows even when optional columns
+  (`coverage_mcse`, `n_valid`, `n_failed`) are absent.
+* `medsim_config(seed_stream=)` is deprecated: the value was stored and
+  documented but has never been consumed by any medsim function. Passing a
+  non-`NULL` value now emits a deprecation warning pointing at
+  `medsim_run_parallel(seed=)`; the value is still stored for
+  back-compatibility.
+* The `medsim_cache_load()` documentation example now unwraps the
+  fingerprinted ground-truth cache format `list(truth=, fingerprint=)` written
+  by `medsim_run()` instead of treating the wrapper as the truth value.
+
 # medsim 0.4.0
 
 ## Bug fixes
