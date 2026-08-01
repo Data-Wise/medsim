@@ -1,4 +1,4 @@
-# medsim (development version)
+# medsim 0.5.0
 
 ## New features
 
