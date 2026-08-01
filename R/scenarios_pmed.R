@@ -85,7 +85,7 @@ medsim_scenario_pmed <- function(name,
 # P_med = P(Y1 > Y0) where Y1 = Y(A=1, M(1)) and Y0 = Y(A=0, M(0)).
 # Each person's potential outcomes are drawn with INDEPENDENT residuals --
 # the standard "random-effects" cross-world assumption in the P_med literature.
-# Using SHARED residuals would make Y1 - Y0 = constant, giving P_med ? {0,1}.
+# Using SHARED residuals would make Y1 - Y0 = constant, giving P_med in {0,1}.
 .medsim_pmed_truth <- function(tp, n_po = 50000L) {
   n <- n_po
   # Independent residuals for each potential outcome world
@@ -99,7 +99,7 @@ medsim_scenario_pmed <- function(name,
   y1 <- tp$beta_ay * 1 + tp$beta_my * m1 + eps_y1
   y0 <- tp$beta_ay * 0 + tp$beta_my * m0 + eps_y0
 
-  # For continuous Y, P(Y1 == Y0) ? 0; P_med ? P(Y1 > Y0)
+  # For continuous Y, P(Y1 == Y0) ~= 0; P_med ~= P(Y1 > Y0)
   # Analytic: Phi(alpha*beta / sqrt(2*(beta^2*sigma_m^2 + sigma_y^2)))
   mean(y1 > y0)
 }

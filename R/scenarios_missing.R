@@ -100,7 +100,7 @@ medsim_scenario_missing <- function(name, true_params, mechanism, prop = 0.2,
 
 #' Build the full factorial of missing-data scenarios
 #'
-#' Convenience: expand `SPEC-simulation-design` cells (mechanism ? prop ? n ? effect ?
+#' Convenience: expand `SPEC-simulation-design` cells (mechanism x prop x n x effect x
 #' nonnormality) into a list of [medsim_scenario_missing()] objects in one call.
 #'
 #' @param true_params_list List of `true_params` lists (one per effect-size cell).

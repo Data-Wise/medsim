@@ -286,7 +286,7 @@ medsim_analyze <- function(results,
 #' true parameter value. For a 95% CI, expect ~95% coverage in large samples.
 #'
 #' - Coverage < nominal: CI too narrow (anti-conservative)
-#' - Coverage ? nominal: CI has correct width
+#' - Coverage ~= nominal: CI has correct width
 #' - Coverage > nominal: CI too wide (conservative)
 #'
 #' ## Column Naming Conventions
