@@ -105,8 +105,12 @@ medsim_analyze <- function(results,
     suffixes = c("_estimate", "_truth")
   )
 
-  # Identify estimate columns (exclude metadata)
-  metadata_cols <- c("scenario", "replication", "elapsed")
+  # Identify estimate columns (exclude metadata). Prefer the runner-stamped
+  # provenance attribute (schema v2) -- it records exactly which columns the
+  # runner wrote, so new bookkeeping columns can never be silently analyzed as
+  # method estimates. The hardcoded list is the legacy (schema v1) fallback.
+  metadata_cols <- attr(results$results, "medsim_meta_cols", exact = TRUE) %||%
+    c("scenario", "replication", "elapsed")
   estimate_cols <- setdiff(names(results$results), metadata_cols)
 
   # --- Compute Metrics ---

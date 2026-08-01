@@ -200,10 +200,33 @@ medsim_combine_chunks <- function(output_dir, pattern = "chunk_*.rds",
     }
   }
 
-  # Build combined medsim_results preserving first chunk's metadata
+  # Build combined medsim_results. Chunk 1's $summary and $config describe ONE
+  # chunk's slice (its config$n_replications is the CHUNK size and its summary
+  # was computed over chunk-1 rows only) -- returning them unrebuilt presented
+  # quarter-run statistics as the study. Rebuild both over the combined frame.
   combined <- chunks[[1L]]
+
+  # rbind drops attributes; restore the schema/provenance stamps when every
+  # chunk carries them (schema v2: `replication` is the global rep id).
+  schema_v2 <- all(vapply(chunks, function(ch) {
+    identical(attr(ch$results, "medsim_schema", exact = TRUE), 2L)
+  }, logical(1)))
+  if (schema_v2) {
+    attr(all_results, "medsim_schema") <- 2L
+    attr(all_results, "medsim_meta_cols") <-
+      attr(chunks[[1L]]$results, "medsim_meta_cols", exact = TRUE)
+  }
+
   combined$results <- all_results
   combined$truth   <- truth
+  combined$summary <- medsim_summarize_results(all_results)
+
+  # Rows-per-scenario is the true combined replication count for both schema
+  # versions (schema v1's local ids under-count via max()); chunk-only fields
+  # are meaningless on a combined object.
+  combined$config$n_replications <- max(table(all_results$scenario))
+  combined$config$rep_offset <- NULL
+  combined$config$chunk_id   <- NULL
   combined$n_chunks_combined <- length(files)
 
   class(combined) <- c("medsim_results", "list")

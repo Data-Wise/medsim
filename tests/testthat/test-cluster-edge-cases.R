@@ -28,9 +28,9 @@ test_that("n_chunks > n_replications produces exactly n_replications rows (no ph
   }
   combined <- medsim_combine_chunks(out, verbose = FALSE)
   # Exactly n_rep rows total (not 7): the 2 empty chunks contribute 0 rows.
-  # (`replication` is the per-chunk LOCAL id and legitimately repeats across
-  # chunks, so it is not asserted here.)
+  # Schema v2: `replication` is the GLOBAL id -- exactly 1..n_rep, no repeats.
   expect_equal(nrow(combined$results), n_rep)
+  expect_setequal(combined$results$replication, seq_len(n_rep))
 })
 
 test_that("medsim_combine_chunks warns when fewer chunk files than expected are present", {

@@ -1,3 +1,35 @@
+# medsim (development version)
+
+## Bug fixes
+
+* **Chunked runs: `replication` is now the GLOBAL rep id** (schema v2; #36,
+  SPEC-medsim-chunked-run-gates P1). Previously each SLURM chunk emitted
+  chunk-local ids (`1..chunk_size`), so a combined 4-chunk/nsim-20 run carried
+  5 distinct `replication` values each appearing 4 times, rows were not
+  uniquely identifiable, and `medsim_analyze()` reported the chunk size as
+  `n_replications`. Standalone (non-chunked) runs are unchanged. Result frames
+  now carry `medsim_schema = 2L` and a `medsim_meta_cols` provenance attribute
+  recording which columns the runner wrote (consumed by `medsim_analyze()`;
+  legacy frames fall back to the old name list).
+* **`medsim_combine_chunks()` rebuilds `$summary` and `$config`** (P2).
+  It previously returned chunk 1's slice statistics and chunk-sized
+  `config$n_replications` as if they described the combined run.
+* **One failed replication no longer crashes the run** (P3). Failure rows and
+  success rows had different columns, so `rbind` errored
+  ("names do not match previous names") -- in chunk mode converting one
+  transient rep failure into a missing chunk file. All rows now share one
+  schema: an `error` column on every row (`NA` on success), `NA` estimates and
+  `converged = 0` on failure rows.
+* **Logical method-contract fields are no longer dropped** (P3).
+  `branch_switch`/`converged` returned as logicals (including logical `NA`)
+  were silently excluded from `$results`, breaking
+  `medsim_summarize_branch_switch()`.
+* **Chunk mode no longer writes intermediate CSVs** (#38, P3). Concurrent
+  array tasks sharing an `output_dir` overwrote each other's fixed-name
+  `results_scenario_*.csv`/`all_results.csv` (last writer wins), leaving
+  partial data that looked complete. The chunk `.rds` is the artifact;
+  standalone runs still write their CSVs.
+
 # medsim 0.4.0
 
 ## Bug fixes
