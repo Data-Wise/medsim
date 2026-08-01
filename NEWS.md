@@ -18,8 +18,6 @@
   schema-harmonized (ragged chunk columns cannot crash it), and the submit
   template creates `logs/` up front.
 
-## New features
-
 * **Gate C: chunk provenance + single-SHA assertion** (#34). Every chunk file
   now carries a provenance header (R version, medsim + key dependency
   versions, hostname, code SHA, sec/rep, UTC timestamp). The SHA
