@@ -137,7 +137,9 @@
   (`.medsim_se_prod()`) used by the MC-CI and IPW adapters, and
   `medsim_method_bounds()` / `medsim_method_pmed_mbco()` fit their mediation
   regressions through the generalized `.medsim_md_fit_ab()` (named-coefficient
-  lookup, replacing fragile positional `coef()[k]` indexing). Estimates, SEs,
+  lookup, replacing fragile positional `coef()[k]` indexing; one edge-path
+  change: degenerate/collinear fits now error loudly instead of a silent
+  `se = 0.1` fallback). Estimates, SEs,
   CIs, and p-values are bit-identical to before.
 * Performance: `medsim_method_mbco_mi()` computes the three MBCO
   log-likelihoods once per imputation (`.medsim_mbco_lls()`) and derives both

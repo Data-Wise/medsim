@@ -42,7 +42,10 @@ make_interval_results <- function(n_rep = 20L) {
       theta_lower = rnorm(n_rep, -0.2, 0.01),
       theta_upper = rnorm(n_rep, 0.4, 0.01)
     ),
-    truth = data.frame(scenario = "sc1", theta = 0.1)
+    # truth near the upper bound so coverage is INTERIOR (0 < p < 1) -- with
+    # truth = 0.1 every interval covered, p was exactly 1 and the MCSE
+    # assertion degenerated to 0 == 0 (review F2).
+    truth = data.frame(scenario = "sc1", theta = 0.39)
   ), class = c("medsim_results", "list"))
 }
 
@@ -55,8 +58,9 @@ test_that("interval coverage emits coverage_mcse (overall and by-scenario)", {
   expect_true("coverage_mcse" %in% names(cov$by_scenario))
   p <- cov$coverage$coverage[1]
   n <- cov$coverage$n_valid[1]
+  expect_gt(p, 0); expect_lt(p, 1)   # guard: the fixture stays non-degenerate
   expect_equal(cov$coverage$coverage_mcse[1], sqrt(p * (1 - p) / n))
-  expect_false(is.na(cov$coverage$coverage_mcse[1]))
+  expect_gt(cov$coverage$coverage_mcse[1], 0)
 })
 
 test_that("interval coverage renders a non-empty coverage table with real MCSE", {

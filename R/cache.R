@@ -137,7 +137,7 @@ medsim_cache_save <- function(object,
 #' # fingerprinted format, the cached object is list(truth=, fingerprint=),
 #' # not the bare truth value -- unwrap it (legacy bare caches load as-is):
 #' cached <- medsim_cache_load("cache/truth_scenario1.rds")
-#' truth <- if (!is.null(cached$fingerprint)) cached$truth else cached
+#' truth <- if (is.list(cached) && !is.null(cached$fingerprint)) cached$truth else cached
 #'
 #' if (is.null(truth)) {
 #'   # Cache miss - compute and cache

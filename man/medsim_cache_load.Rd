@@ -49,12 +49,20 @@ if (is.null(result)) \{
   medsim_cache_save(result, "cache/truth.rds")
 \}
 }\if{html}{\out{</div>}}
+
+Note: ground-truth caches written by \code{\link[=medsim_run]{medsim_run()}} use a fingerprinted
+wrapper format \code{list(truth = , fingerprint = )} (so a scenario content
+change invalidates the cache) -- unwrap \verb{$truth} after loading, as in the
+example below.
 }
 }
 \examples{
 \dontrun{
-# Load from cache
-truth <- medsim_cache_load("cache/truth_scenario1.rds")
+# Load a ground-truth cache written by medsim_run(). Since the
+# fingerprinted format, the cached object is list(truth=, fingerprint=),
+# not the bare truth value -- unwrap it (legacy bare caches load as-is):
+cached <- medsim_cache_load("cache/truth_scenario1.rds")
+truth <- if (is.list(cached) && !is.null(cached$fingerprint)) cached$truth else cached
 
 if (is.null(truth)) {
   # Cache miss - compute and cache
