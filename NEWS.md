@@ -127,6 +127,27 @@
   fingerprinted ground-truth cache format `list(truth=, fingerprint=)` written
   by `medsim_run()` instead of treating the wrapper as the truth value.
 
+<!-- quality-fixes: duplication/refactor findings (R1/S3, R6+R3, E1, C1) -->
+* Internal refactor: `medsim_scenario_sobol()` and `medsim_scenario_gauge()`
+  now share one linear-Gaussian-with-interaction data generator
+  (`.medsim_lingauss_dgp()`) and one corner-mean truth helper
+  (`.medsim_corner_means()`) instead of duplicating them verbatim. Scenario
+  draws and closed-form truths are bit-identical to before.
+* Internal refactor: the delta-method product SE is now a single helper
+  (`.medsim_se_prod()`) used by the MC-CI and IPW adapters, and
+  `medsim_method_bounds()` / `medsim_method_pmed_mbco()` fit their mediation
+  regressions through the generalized `.medsim_md_fit_ab()` (named-coefficient
+  lookup, replacing fragile positional `coef()[k]` indexing). Estimates, SEs,
+  CIs, and p-values are bit-identical to before.
+* Performance: `medsim_method_mbco_mi()` computes the three MBCO
+  log-likelihoods once per imputation (`.medsim_mbco_lls()`) and derives both
+  the D4 LRT statistic and the union-null branch indicator from that triple --
+  about 6 instead of 10 `lm()` fits per imputation, with bit-identical
+  statistics, p-values, and `branch_switch` values.
+* Internal rename: `.gen_complete_med()` is now `.medsim_gen_complete_med()`,
+  matching the package's `.medsim_*` internal naming convention.
+<!-- end quality-fixes duplication/refactor -->
+
 # medsim 0.4.0
 
 ## Bug fixes

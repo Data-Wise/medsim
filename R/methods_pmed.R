@@ -47,15 +47,15 @@ medsim_method_pmed_mbco <- function(data, params,
 
   n <- nrow(data)
 
-  # Step 1: fit linear SEM
-  fit_m <- lm(M ~ A, data = data)
-  fit_y <- lm(Y ~ A + M, data = data)
+  # Step 1: fit linear SEM via the shared a/b-path fitter
+  # (.medsim_md_fit_ab, R/methods_missing.R)
+  fit <- .medsim_md_fit_ab(data, treatment = "A", mediator = "M", outcome = "Y")
 
-  alpha_hat <- unname(coef(fit_m)["A"])
-  beta_hat  <- unname(coef(fit_y)["M"])
-  gamma_hat <- unname(coef(fit_y)["A"])  # direct effect
-  sigma_m   <- sigma(fit_m)
-  sigma_y   <- sigma(fit_y)
+  alpha_hat <- fit$a
+  beta_hat  <- fit$b
+  gamma_hat <- fit$cprime  # direct effect
+  sigma_m   <- fit$sigma_m
+  sigma_y   <- fit$sigma_y
 
   # Step 2: estimate P_med via parametric bootstrap PO draw
   pmed_hat <- .medsim_pmed_boot(alpha_hat, beta_hat, gamma_hat,
@@ -70,9 +70,14 @@ medsim_method_pmed_mbco <- function(data, params,
   denom    <- sqrt(max(denom_sq, 1e-10))
   z_pmed   <- ab / denom
   dphi     <- dnorm(z_pmed)
+  # Delta-method SE of a*b -- same quantity as .medsim_se_prod(), but kept in
+  # the historical (b*se_a)^2 + (a*se_b)^2 grouping: the algebraically equal
+  # b^2*va + a^2*vb reordering shifts the last ulp of se_ab (and hence pmed_p)
+  # on some datasets, breaking bit-compatibility with published grids
+  # (verified 2026-07-31, quality-fixes refactor).
   se_ab    <- sqrt(
-    (beta_hat * summary(fit_m)$coefficients["A", "Std. Error"])^2 +
-    (alpha_hat * summary(fit_y)$coefficients["M", "Std. Error"])^2
+    (beta_hat * fit$se_a)^2 +
+    (alpha_hat * fit$se_b)^2
   )
   se_pmed  <- dphi / denom * se_ab
 

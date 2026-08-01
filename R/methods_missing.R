@@ -63,16 +63,21 @@ medsim_method_mbco_mi <- function(model, m = 20L, ...) {
         ## CI: Monte-Carlo product interval on the pooled (a, b) with Rubin totals.
         mc <- .medsim_md_mc_ci(a_hat, b_hat, va, vb)
 
+        ## Per-imputation MBCO log-likelihood triples, computed ONCE: both the
+        ## D4/chi-sq test and the branch indicator derive from them (~6 lm fits
+        ## per imputation instead of ~10).
+        lls_list <- lapply(implist, function(d) .medsim_mbco_lls(d, covs))
+
         ## P-value: the validated MBCO test (D4 pooling when K >= 2, else chi-sq).
         pval <- if (kk >= 2L) {
-          unname(.medsim_d4_mbco(implist, covs)[["p"]])
+          unname(.medsim_d4_mbco(implist, covs, lls_list = lls_list)[["p"]])
         } else {
-          tstat <- .medsim_mbco_T(implist[[1L]], covs)
+          tstat <- .medsim_mbco_T_from_lls(lls_list[[1L]])
           stats::pchisq(max(tstat, 0), df = 1, lower.tail = FALSE)
         }
 
         ## branch_switch: majority union-null branch (1 = the a = 0 branch wins).
-        branch <- mean(vapply(implist, function(d) .medsim_mbco_branch(d, covs), 0))
+        branch <- mean(vapply(lls_list, .medsim_mbco_branch_from_lls, 0))
         branch_switch <- as.integer(branch >= 0.5)
 
         list(
@@ -141,7 +146,7 @@ medsim_method_mc_ci <- function(model, m = 20L, ...) {
           mc <- .medsim_md_mc_ci(a_hat, b_hat, va, vb, n_draw)
         }
 
-        se_ab <- sqrt(b_hat^2 * va + a_hat^2 * vb)
+        se_ab <- .medsim_se_prod(a_hat, b_hat, va, vb)
         pval <- 2 * stats::pnorm(-abs(ab / se_ab))
 
         list(
@@ -197,7 +202,7 @@ medsim_method_ipw <- function(model, ...) {
         wcc <- wts[r]
         fit <- .medsim_md_fit_ab(dcc, covs, weights = wcc)
         ab <- fit$a * fit$b
-        se_ab <- sqrt(fit$b^2 * fit$va + fit$a^2 * fit$vb)
+        se_ab <- .medsim_se_prod(fit$a, fit$b, fit$va, fit$vb)
         z975 <- stats::qnorm(0.975)
         pval <- 2 * stats::pnorm(-abs(ab / se_ab))
 
@@ -238,11 +243,23 @@ medsim_method_ipw <- function(model, ...) {
   list(data[stats::complete.cases(data), , drop = FALSE])
 }
 
-# Fit lm(M ~ X [+ C]) and lm(Y ~ X + M [+ C]); return a, b and their variances.
-.medsim_md_fit_ab <- function(d, covs = character(0), weights = NULL) {
+# Delta-method (first-order) SE of the product a*b given the path variances
+# va = Var(a), vb = Var(b). Shared by the MC-CI / IPW adapters here and by
+# medsim_method_pmed_mbco() (R/methods_pmed.R).
+.medsim_se_prod <- function(a, b, va, vb) {
+  sqrt(b^2 * va + a^2 * vb)
+}
+
+# Fit lm(mediator ~ treatment [+ C]) and lm(outcome ~ treatment + mediator [+ C]);
+# return the a/b path coefficients with their SEs/variances, the direct effect
+# (`cprime`) with its SE, and the two residual SDs. Column names default to the
+# missing-data DGM convention (X/M/Y); medsim_method_bounds() (R/methods_dm.R)
+# and medsim_method_pmed_mbco() (R/methods_pmed.R) pass A/M/Y.
+.medsim_md_fit_ab <- function(d, covs = character(0), weights = NULL,
+                              treatment = "X", mediator = "M", outcome = "Y") {
   cterm <- if (length(covs)) paste("+", paste(covs, collapse = " + ")) else ""
-  fm <- stats::as.formula(paste("M ~ X", cterm))
-  fy <- stats::as.formula(paste("Y ~ X + M", cterm))
+  fm <- stats::as.formula(paste(mediator, "~", treatment, cterm))
+  fy <- stats::as.formula(paste(outcome, "~", treatment, "+", mediator, cterm))
   if (is.null(weights)) {
     mfit <- stats::lm(fm, data = d)
     yfit <- stats::lm(fy, data = d)
@@ -253,10 +270,16 @@ medsim_method_ipw <- function(model, ...) {
   sm <- summary(mfit)$coefficients
   sy <- summary(yfit)$coefficients
   list(
-    a = unname(sm["X", "Estimate"]),
-    b = unname(sy["M", "Estimate"]),
-    va = unname(sm["X", "Std. Error"]^2),
-    vb = unname(sy["M", "Std. Error"]^2)
+    a = unname(sm[treatment, "Estimate"]),
+    b = unname(sy[mediator, "Estimate"]),
+    va = unname(sm[treatment, "Std. Error"]^2),
+    vb = unname(sy[mediator, "Std. Error"]^2),
+    se_a = unname(sm[treatment, "Std. Error"]),
+    se_b = unname(sy[mediator, "Std. Error"]),
+    cprime = unname(sy[treatment, "Estimate"]),
+    se_cprime = unname(sy[treatment, "Std. Error"]),
+    sigma_m = stats::sigma(mfit),
+    sigma_y = stats::sigma(yfit)
   )
 }
 
@@ -285,21 +308,37 @@ medsim_method_ipw <- function(model, ...) {
     as.numeric(stats::logLik(stats::lm(fy, d)))
 }
 
-# Complete-data MBCO union-null LRT: T = 2 (llF - max(ll_{a=0}, ll_{b=0})).
-.medsim_mbco_T <- function(d, covs = character(0)) {
-  ll_full <- .medsim_mbco_ll(d, covs)
-  ll_null <- max(
-    .medsim_mbco_ll(d, covs, drop_a = TRUE),
-    .medsim_mbco_ll(d, covs, drop_b = TRUE)
+# All three MBCO log-likelihoods for one dataset: full model plus the two
+# union-null constrained models (a = 0, b = 0). One call = 6 lm fits; both the
+# LRT statistic and the branch indicator derive from this triple, so each
+# imputation is fit once (not refit separately for the branch flag).
+.medsim_mbco_lls <- function(d, covs = character(0)) {
+  c(
+    full = .medsim_mbco_ll(d, covs),
+    la   = .medsim_mbco_ll(d, covs, drop_a = TRUE),
+    lb   = .medsim_mbco_ll(d, covs, drop_b = TRUE)
   )
-  2 * (ll_full - ll_null)
 }
 
-# Which union-null branch wins: 1 = a = 0 branch, 0 = b = 0 branch.
+# MBCO union-null LRT statistic from a precomputed log-likelihood triple:
+# T = 2 (llF - max(ll_{a=0}, ll_{b=0})).
+.medsim_mbco_T_from_lls <- function(lls) {
+  2 * (lls[["full"]] - max(lls[["la"]], lls[["lb"]]))
+}
+
+# Union-null branch from a precomputed triple: 1 = a = 0 branch wins, 0 = b = 0.
+.medsim_mbco_branch_from_lls <- function(lls) {
+  if (lls[["la"]] >= lls[["lb"]]) 1 else 0
+}
+
+# Complete-data MBCO union-null LRT (convenience wrapper).
+.medsim_mbco_T <- function(d, covs = character(0)) {
+  .medsim_mbco_T_from_lls(.medsim_mbco_lls(d, covs))
+}
+
+# Which union-null branch wins (convenience wrapper).
 .medsim_mbco_branch <- function(d, covs = character(0)) {
-  la <- .medsim_mbco_ll(d, covs, drop_a = TRUE)
-  lb <- .medsim_mbco_ll(d, covs, drop_b = TRUE)
-  if (la >= lb) 1 else 0
+  .medsim_mbco_branch_from_lls(.medsim_mbco_lls(d, covs))
 }
 
 # D4 pooled test (Reiter 2007 / Chan & Meng 2022 / Grund et al. 2021) from the
@@ -318,10 +357,15 @@ medsim_method_ipw <- function(model, ...) {
   c(D4 = d4, p = stats::pf(d4, k, nu, lower.tail = FALSE), r4 = r4, nu = nu)
 }
 
-# D4-pooled MBCO p-value across an imputation list (requires K >= 2).
-.medsim_d4_mbco <- function(implist, covs = character(0)) {
+# D4-pooled MBCO p-value across an imputation list (requires K >= 2). Pass a
+# precomputed `lls_list` (one .medsim_mbco_lls() triple per imputation) to
+# avoid refitting the per-imputation models.
+.medsim_d4_mbco <- function(implist, covs = character(0), lls_list = NULL) {
   kk <- length(implist)
-  d_k <- vapply(implist, function(d) .medsim_mbco_T(d, covs), 0)
+  if (is.null(lls_list)) {
+    lls_list <- lapply(implist, function(d) .medsim_mbco_lls(d, covs))
+  }
+  d_k <- vapply(lls_list, .medsim_mbco_T_from_lls, 0)
   stacked <- do.call(rbind, implist)
   d_S <- .medsim_mbco_T(stacked, covs) / kk
   .medsim_d4_from_stats(d_k, d_S, k = 1)

@@ -33,17 +33,7 @@ medsim_scenario_gauge <- function(name, true_params = list()) {
 
   truth <- .medsim_gauge_truth(tp)
 
-  gen_fn <- local({
-    p <- tp
-    function(n) {
-      C <- rnorm(n)
-      A <- rbinom(n, 1L, p$p_a)
-      M <- p$beta_a * A + p$gamma_mc * C + rnorm(n)
-      Y <- p$tau_a * A + p$tau_m * M + p$kappa * A * M +
-        p$gamma_yc * C + rnorm(n)
-      data.frame(C = C, A = A, M = M, Y = Y)
-    }
-  })
+  gen_fn <- .medsim_lingauss_dgp(tp)
 
   estimand <- medsim_estimand("variance_share",
                               params = c("pmed", "w"),
@@ -62,12 +52,12 @@ medsim_scenario_gauge <- function(name, true_params = list()) {
 }
 
 # Closed-form corner means -> OE/IDE/IIE/R -> (P_med, W).
-# theta_{a,a'} = tau_a*a + (tau_m + kappa*a) * beta_a * a' (C centered).
+# Corner means via .medsim_corner_means() (R/scenarios_sobol.R, shared DGP).
 # Matches ward_residual()'s decomposition (probmed gauge-pmed.R lines 176-178).
 #' @noRd
 .medsim_gauge_truth <- function(tp) {
-  th  <- function(a, ap) tp$tau_a * a + (tp$tau_m + tp$kappa * a) * tp$beta_a * ap
-  t11 <- th(1, 1); t10 <- th(1, 0); t01 <- th(0, 1); t00 <- th(0, 0)
+  tm  <- .medsim_corner_means(tp)
+  t11 <- tm[["t11"]]; t10 <- tm[["t10"]]; t01 <- tm[["t01"]]; t00 <- tm[["t00"]]
   OE  <- t11 - t00; IDE <- t10 - t00; IIE <- t01 - t00; R <- OE - IDE - IIE
   if (abs(OE) < 1e-12) return(c(pmed = NA_real_, w = NA_real_))
   c(pmed = IIE / OE, w = R / OE)
