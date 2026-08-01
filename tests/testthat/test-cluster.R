@@ -409,13 +409,11 @@ test_that("medsim_run_chunk output is invariant to how the total is split into c
       medsim_run_chunk(list(sc), method, cfg, verbose = FALSE)
     }
     combined <- medsim_combine_chunks(tmp_dir, verbose = FALSE)
-    # NOTE: combined$results$replication is the per-chunk LOCAL rep_id (it
-    # collides across chunks -- e.g. every chunk's first row is labeled
-    # replication=1), so it cannot align rows to a common global order across
-    # different chunkings. Compare the drawn VALUES as a set instead, which
-    # sidesteps that ambiguity and still proves the real invariant: the same
-    # global draws occur regardless of chunk boundaries.
-    sort(combined$results$x1)
+    # Schema v2: `replication` is the GLOBAL rep id, so rows align to a common
+    # global order across different chunkings directly -- a strictly stronger
+    # assertion than the old sorted-values set comparison (which a permuted
+    # rep->draw mapping could have passed).
+    combined$results$x1[order(combined$results$replication)]
   }
 
   values_2_chunks <- run_all_chunks(n_chunks = 2L)

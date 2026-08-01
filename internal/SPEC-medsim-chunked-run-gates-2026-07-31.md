@@ -1,7 +1,7 @@
 # SPEC: Fail-Loud Gates for Chunked Runs (seed audit, output gating, provenance, pilot control)
 
 - **Issue:** #34
-- **Status:** Draft **v2** (amended 2026-07-31 pm after independent grill + 8-angle adversarial review)
+- **Status:** **IMPLEMENTED** — all increments (P1–P3, Gates A–D) landed on `feature/chunked-run-prereqs` (`dde3692` → `0e3b1b8`; suite 1077 PASS / 0 FAIL / 1 SKIP; `--as-cran` 0/0/1-known-NOTE). (v2 amended 2026-07-31 pm after independent grill + 8-angle adversarial review)
 - **Created:** 2026-07-31 · **Amended:** 2026-07-31
 - **Author:** medsim maintainer (drafted from #34 + code trace; hardened by grill B1–B9 + review R1–R10)
 - **Refs:** #28 (Part B **subsumes** its unshipped Part B), #25 (reporting vs gating), #27 (same "silent wrong data" class), #36 (rep-id collision — the prerequisite here IS its fix), #37 (Hopper shebang — fixed by Part B), #38 (chunk CSV clobber — fixed by Prerequisite 3), Morris/White/Crowther (2019)
@@ -352,6 +352,16 @@ coverage table, cache-doc example drift, `config$seed` no-op documentation.
 Feature-branch work off `dev`. Natural increments: **P1+P2+P3 first, one branch**
 (they share `runner.R`/`cluster.R` lines and are the #36/#37-adjacent/#38 fixes)
 → A → B (+ #37 exemplar sweep) → C → D. B and C remain independently shippable.
+
+---
+
+## Implementation log
+
+- **2026-07-31** — `dde3692` fix(chunked runs): Prerequisites P1–P3 landed — global replication ids / results schema v2, combine-step metadata rebuild, runner-owned uniform failure-row schema + logical-field fix, chunk-CSV skip. Fixes the two crashers plus #36 and #38; the breaking `expected_chunks` change shipped with its test update.
+- **2026-07-31** — `0fd0510` feat(audit): Gate A landed — combine-step seed-provenance audit (contiguity / collapse / seed-collision checks), `on_violation` control, data-carrying `medsim_combine_violation` condition, new `medsim_audit_results()` export, `.Rbuildignore` additions. Full suite 1038 PASS / 0 FAIL / 1 SKIP.
+- **2026-07-31** — `8e272d4` feat(template): Gate B landed — hardened login-shell template (fixes #37), no shell-side output gate (R3), exemplar sweep (R7), `.medsim_chunk_filename()`; + parallel 3-agent doc sync (vignette audit section, _pkgdown.yml index, bidirectional cross-refs). Suite 1056/0/1.
+- **2026-07-31** — `421f70e` fix(gates): pre-integration adversarial review returned FIX FIRST (4 blockers, all empirically confirmed) — all fixed + 4 non-blocking folds: A.2 name-based `collapse_exclude` (total-collapse blind spot), reserved `error` field guard, order-independent mixed-schema combine, `all_failed` violation, pilot numeric-n + NA-asymmetry, all-NA-SHA warn, harmonized combine rbind, `mkdir -p logs`. Suite 1097/0/0err/1skip. **Branch review-clean.**
+- **2026-07-31** — `0e3b1b8` feat(provenance): Gates C+D landed — chunk provenance header with auto-detected SHA + single-SHA combine assertion (B5/G8), pilot-subset positive control with identity-first assert (B3) and estimate-columns-only tolerance compare (R6/G4). Suite 1077/0/1. **Spec fully implemented.**
 
 ---
 

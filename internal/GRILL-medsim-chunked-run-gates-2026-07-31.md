@@ -7,6 +7,8 @@
 - **Relation to the spec's own Grill Ledger (G1–G9):** that was the *author's* self-grill,
   folded into the design pre-commit. This is an *independent* interactive pass that attacked the
   committed spec's residual decision branches. New findings below extend, not duplicate, G1–G9.
+- **Implementation started 2026-07-31** (P1–P3 + Gate A on `feature/chunked-run-prereqs`); note
+  B4's dual-column resolution and B9's shell output gate were superseded by the spec v2 architecture decision.
 
 ---
 
