@@ -24,7 +24,17 @@ and saves a single RDS file named \verb{chunk_<chunk_id>.rds} in \code{output_di
 Designed to be called from inside a SLURM array task script; \code{chunk_id} and
 \code{n_chunks} are auto-detected from \code{config} (which auto-reads
 \code{SLURM_ARRAY_TASK_ID}).
+
+The chunk \code{.rds} is the sole artifact: in chunk mode the intermediate
+per-scenario/summary CSVs that a standalone \code{\link[=medsim_run]{medsim_run()}} writes are
+skipped (concurrent array tasks sharing an \code{output_dir} would clobber the
+fixed-name files, leaving partial data that looks complete). Result rows
+record the \strong{global} replication id (schema v2): chunk 2 of a
+4-chunk/nsim-20 run writes \code{replication} 6..10, not 1..5, so ids never
+collide across chunks and \code{\link[=medsim_combine_chunks]{medsim_combine_chunks()}} can audit the combined
+grid.
 }
 \seealso{
-\code{\link[=medsim_combine_chunks]{medsim_combine_chunks()}}, \code{\link[=medsim_write_submit_script]{medsim_write_submit_script()}}
+\code{\link[=medsim_combine_chunks]{medsim_combine_chunks()}}, \code{\link[=medsim_audit_results]{medsim_audit_results()}},
+\code{\link[=medsim_write_submit_script]{medsim_write_submit_script()}}
 }

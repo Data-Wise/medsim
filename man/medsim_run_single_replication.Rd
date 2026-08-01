@@ -10,8 +10,9 @@ medsim_run_single_replication(scenario, rep_id, method, config)
 \item{scenario}{Scenario object}
 
 \item{rep_id}{Replication ID number (local to the current chunk, if any --
-offset by \code{config$rep_offset} internally to get the global id used for
-seeding)}
+offset by \code{config$rep_offset} internally to get the global id, which is
+both used for seeding and recorded as the row's \code{replication} value
+(schema v2: \code{replication} is the global rep id, never chunk-local))}
 
 \item{method}{User-defined method function}
 

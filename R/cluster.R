@@ -13,8 +13,19 @@
 #' job per scenario chunk; each task runs an R script that calls
 #' [medsim_run_chunk()].
 #'
+#' The emitted script is fail-loud (Gate B of the chunked-run integrity layer):
+#' a login shell (`#!/bin/bash -l` -- on Hopper `module` is only defined in
+#' login shells), `set -eo pipefail`, a hard-failing `module load` (never
+#' `|| true`), a `command -v Rscript` pre-check, `#SBATCH --requeue`, and the
+#' `Rscript` call as the final command so its exit code is the task's exit
+#' code. There is deliberately NO output-file gate in the script: the writer's
+#' config and the run script's runtime config are independent, so a baked-in
+#' path could fail successful tasks; completeness is audited at combine time by
+#' [medsim_combine_chunks()] instead. Set `config$array_throttle = K` to cap
+#' concurrently-running array tasks (`--array=1-N%K`).
+#'
 #' @param config A `medsim_config` object (from [medsim_config()]).  Must have
-#'   `n_chunks` > 0 and `mode == "cluster"`.
+#'   `n_chunks` > 0 and `mode == "cluster"`. Optional: `array_throttle`.
 #' @param run_script Character: path (on the cluster) to the per-chunk R script
 #'   (the one that calls [medsim_run_chunk()]).  Default `"run_simulation_chunk.R"`.
 #' @param output_file Character: where to write the bash script.  Default
@@ -57,22 +68,58 @@ medsim_write_submit_script <- function(config,
 
   account_line <- if (!is.null(account)) sprintf("#SBATCH --account=%s", account) else ""
 
+  # Optional array throttle: --array=1-N%K caps concurrently-running tasks.
+  throttle <- config$array_throttle
+  array_spec <- if (!is.null(throttle)) {
+    sprintf("1-%d%%%d", n_chunks, as.integer(throttle))
+  } else {
+    sprintf("1-%d", n_chunks)
+  }
+
+  # Hardened template (Gate B of SPEC-medsim-chunked-run-gates-2026-07-31;
+  # fixes #37, subsumes #28B):
+  # - `#!/bin/bash -l`: on Hopper `module` is a shell FUNCTION sourced only by
+  #   login-shell init; a plain `#!/bin/bash` batch shell has no `module` and
+  #   the load fails with "module: command not found" (see
+  #   inst/hopper-tests/submit_chunk.sh, where this was field-verified).
+  # - `set -eo pipefail` immediately; `set -u` only AFTER module init (module
+  #   init scripts on HPC systems routinely reference unset variables and
+  #   would trip nounset).
+  # - `module load` hard-fails (never `|| true` -- that plus a trailing echo
+  #   resetting $? was the historical COMPLETED/0:0/no-output mode).
+  # - NO output-path gate here: the writer's config and the run script's
+  #   runtime config are independent, so a baked path would exit 1 on every
+  #   successful task whenever they differ (and --requeue would loop).
+  #   Completeness is medsim_combine_chunks()'s job (the Gate A audit).
   lines <- c(
-    "#!/bin/bash",
+    "#!/bin/bash -l",
     "#SBATCH --job-name=medsim",
-    sprintf("#SBATCH --array=1-%d", n_chunks),
+    sprintf("#SBATCH --array=%s", array_spec),
     sprintf("#SBATCH --partition=%s", partition),
     sprintf("#SBATCH --time=%s", walltime),
     sprintf("#SBATCH --mem-per-cpu=%s", mem_per_cpu),
     sprintf("#SBATCH --cpus-per-task=%d", n_cores),
+    "#SBATCH --requeue",
     if (nchar(account_line) > 0L) account_line,
     "#SBATCH --output=logs/medsim_%A_%a.out",
     "#SBATCH --error=logs/medsim_%A_%a.err",
     "",
-    "# Load R module (UNM CARC Hopper)",
-    sprintf("module load %s", r_module),
+    "set -eo pipefail",
     "",
-    "# Run the chunk script -- $SLURM_ARRAY_TASK_ID is passed via environment",
+    "# Module init fallback (login shell above is the primary mechanism)",
+    "if ! command -v module >/dev/null 2>&1; then",
+    "  source /etc/profile.d/modules.sh 2>/dev/null || true",
+    "fi",
+    "",
+    "# Load R module (UNM CARC Hopper) -- hard fail, never silently continue",
+    sprintf("module load %s || { echo \"FATAL: module load %s failed\" >&2; exit 1; }",
+            r_module, r_module),
+    "",
+    "set -u",
+    "command -v Rscript >/dev/null || { echo \"FATAL: Rscript not on PATH\" >&2; exit 1; }",
+    "",
+    "# Run the chunk script -- $SLURM_ARRAY_TASK_ID is passed via environment.",
+    "# Last command: its exit code IS the task's exit code.",
     sprintf("Rscript %s", run_script)
   )
 
@@ -91,6 +138,15 @@ medsim_write_submit_script <- function(config,
 #' `n_chunks` are auto-detected from `config` (which auto-reads
 #' `SLURM_ARRAY_TASK_ID`).
 #'
+#' The chunk `.rds` is the sole artifact: in chunk mode the intermediate
+#' per-scenario/summary CSVs that a standalone [medsim_run()] writes are
+#' skipped (concurrent array tasks sharing an `output_dir` would clobber the
+#' fixed-name files, leaving partial data that looks complete). Result rows
+#' record the **global** replication id (schema v2): chunk 2 of a
+#' 4-chunk/nsim-20 run writes `replication` 6..10, not 1..5, so ids never
+#' collide across chunks and [medsim_combine_chunks()] can audit the combined
+#' grid.
+#'
 #' @param scenarios A list of [medsim_scenario()] objects.
 #' @param method A function with signature `method(data, params)`.
 #' @param config A `medsim_config` object with `chunk_id` and `n_chunks` set.
@@ -98,7 +154,8 @@ medsim_write_submit_script <- function(config,
 #'
 #' @return Invisibly, the path of the RDS file written.
 #'
-#' @seealso [medsim_combine_chunks()], [medsim_write_submit_script()]
+#' @seealso [medsim_combine_chunks()], [medsim_audit_results()],
+#'   [medsim_write_submit_script()]
 #'
 #' @export
 medsim_run_chunk <- function(scenarios, method, config, verbose = TRUE) {
@@ -129,7 +186,7 @@ medsim_run_chunk <- function(scenarios, method, config, verbose = TRUE) {
 
   output_dir  <- config$output_dir %||% "simulation_results"
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
-  out_path <- file.path(output_dir, sprintf("chunk_%04d.rds", chunk_id))
+  out_path <- file.path(output_dir, .medsim_chunk_filename(chunk_id))
   saveRDS(results, out_path)
 
   if (verbose) message(sprintf("[medsim_run_chunk] saved -> %s", out_path))
@@ -311,7 +368,7 @@ medsim_combine_chunks <- function(output_dir, pattern = "chunk_*.rds",
 #' @return Invisibly, the list of violations found (empty if clean). Signalling
 #'   follows `on_violation`, exactly as in [medsim_combine_chunks()].
 #'
-#' @seealso [medsim_combine_chunks()]
+#' @seealso [medsim_combine_chunks()], [medsim_run_chunk()]
 #'
 #' @export
 medsim_audit_results <- function(results,
@@ -493,6 +550,21 @@ medsim_audit_results <- function(results,
 }
 
 # -- internal --------------------------------------------------------------
+
+#' Chunk-file naming authority
+#'
+#' @description
+#' The single source of the `chunk_%04d.rds` convention, shared by the writer
+#' ([medsim_run_chunk()]) and matched by [medsim_combine_chunks()]'s default
+#' `pattern = "chunk_*.rds"` -- change the convention here (and that default)
+#' or the writer and the combiner silently stop finding each other's files.
+#'
+#' @param chunk_id Integer chunk id.
+#' @return Character filename, e.g. `"chunk_0007.rds"`.
+#' @keywords internal
+.medsim_chunk_filename <- function(chunk_id) {
+  sprintf("chunk_%04d.rds", as.integer(chunk_id))
+}
 
 # Split n_rep into n_chunks even-ish groups; return indices for chunk_id.
 .medsim_chunk_indices <- function(n_rep, n_chunks, chunk_id) {

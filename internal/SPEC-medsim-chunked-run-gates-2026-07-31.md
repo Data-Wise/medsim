@@ -1,7 +1,7 @@
 # SPEC: Fail-Loud Gates for Chunked Runs (seed audit, output gating, provenance, pilot control)
 
 - **Issue:** #34
-- **Status:** Draft **v2** (amended 2026-07-31 pm after independent grill + 8-angle adversarial review)
+- **Status:** Draft **v2** — IMPLEMENTING: P1–P3 + Gate A landed on `feature/chunked-run-prereqs` (`dde3692`, `0fd0510`; suite 1038 PASS / 0 FAIL / 1 SKIP); B/C/D remaining. (v2 amended 2026-07-31 pm after independent grill + 8-angle adversarial review)
 - **Created:** 2026-07-31 · **Amended:** 2026-07-31
 - **Author:** medsim maintainer (drafted from #34 + code trace; hardened by grill B1–B9 + review R1–R10)
 - **Refs:** #28 (Part B **subsumes** its unshipped Part B), #25 (reporting vs gating), #27 (same "silent wrong data" class), #36 (rep-id collision — the prerequisite here IS its fix), #37 (Hopper shebang — fixed by Part B), #38 (chunk CSV clobber — fixed by Prerequisite 3), Morris/White/Crowther (2019)
@@ -352,6 +352,13 @@ coverage table, cache-doc example drift, `config$seed` no-op documentation.
 Feature-branch work off `dev`. Natural increments: **P1+P2+P3 first, one branch**
 (they share `runner.R`/`cluster.R` lines and are the #36/#37-adjacent/#38 fixes)
 → A → B (+ #37 exemplar sweep) → C → D. B and C remain independently shippable.
+
+---
+
+## Implementation log
+
+- **2026-07-31** — `dde3692` fix(chunked runs): Prerequisites P1–P3 landed — global replication ids / results schema v2, combine-step metadata rebuild, runner-owned uniform failure-row schema + logical-field fix, chunk-CSV skip. Fixes the two crashers plus #36 and #38; the breaking `expected_chunks` change shipped with its test update.
+- **2026-07-31** — `0fd0510` feat(audit): Gate A landed — combine-step seed-provenance audit (contiguity / collapse / seed-collision checks), `on_violation` control, data-carrying `medsim_combine_violation` condition, new `medsim_audit_results()` export, `.Rbuildignore` additions. Full suite 1038 PASS / 0 FAIL / 1 SKIP.
 
 ---
 

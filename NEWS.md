@@ -2,6 +2,19 @@
 
 ## New features
 
+* **Gate B: hardened SLURM submit template** (#34, fixes #37).
+  `medsim_write_submit_script()` now emits a fail-loud script: `#!/bin/bash -l`
+  (on Hopper `module` is defined only in login shells -- the old plain
+  `#!/bin/bash` template failed there with "module: command not found"),
+  `set -eo pipefail`, a hard-failing `module load` (never `|| true`), a
+  `command -v Rscript` pre-check, `#SBATCH --requeue`, and `Rscript` as the
+  final command so its exit code is the task's exit code. Optional
+  `config$array_throttle = K` emits `--array=1-N%K`. There is deliberately no
+  shell-side output-file gate -- completeness is audited at combine time by
+  Gate A. The `inst/hopper-tests/submit_chunk.sh` exemplar is updated to the
+  same pattern, and the `chunk_%04d.rds` naming convention is centralized in
+  an internal helper shared by writer and combiner.
+
 * **Gate A: combine-step seed-provenance audit** (#34, SPEC-medsim-chunked-run-gates).
   `medsim_combine_chunks()` now audits the combined grid and the new
   `medsim_audit_results()` runs the same audit standalone: per-scenario

@@ -65,5 +65,5 @@ Frames without the schema-v2 stamp (produced before medsim 0.5.0, when
 and 3 with a warning -- they cannot be audited for id integrity.
 }
 \seealso{
-\code{\link[=medsim_combine_chunks]{medsim_combine_chunks()}}
+\code{\link[=medsim_combine_chunks]{medsim_combine_chunks()}}, \code{\link[=medsim_run_chunk]{medsim_run_chunk()}}
 }

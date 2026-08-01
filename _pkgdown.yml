@@ -183,13 +183,16 @@ reference:
 
 - title: Hopper / SLURM Cluster Harness
   desc: >
-    Three-piece pattern for chunked SLURM array jobs on UNM CARC Hopper.
+    Pattern for chunked SLURM array jobs on UNM CARC Hopper.
     Write a submit script, run one chunk per array task, then combine the
-    resulting RDS files into a single `medsim_results` object for analysis.
+    resulting RDS files -- under an integrity audit (rep-id contiguity,
+    collapse signature, seed collisions) -- into a single `medsim_results`
+    object for analysis.
   contents:
   - medsim_write_submit_script
   - medsim_run_chunk
   - medsim_combine_chunks
+  - medsim_audit_results
 
 - title: Result Analysis
   desc: >
