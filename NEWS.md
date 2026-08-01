@@ -1,5 +1,26 @@
 # medsim (development version)
 
+## New features
+
+* **Gate A: combine-step seed-provenance audit** (#34, SPEC-medsim-chunked-run-gates).
+  `medsim_combine_chunks()` now audits the combined grid and the new
+  `medsim_audit_results()` runs the same audit standalone: per-scenario
+  `replication` **contiguity** (gapless, duplicate-free `1..max`, equal across
+  scenarios -- self-validating, no external count needed; optional `nsim =`
+  pin), the **collapse signature** on every continuous estimate column
+  (`n_distinct > collapse_threshold * n_ok`; the 0.3.1 seed collapse produced
+  ~17 distinct outcomes in 1000 while every chunk exited 0), all-failed cells
+  reported as `cell_failed`, and **cross-scenario seed collisions** in
+  `.medsim_det_seed()`'s hash space. Violations route through one
+  `on_violation = c("stop", "warn", "ignore")` control; the default `"stop"`
+  signals a `medsim_combine_violation` condition that **carries the combined
+  results** (`tryCatch(..., medsim_combine_violation = function(e) e$results)`
+  recovers an hours-long run's good cells). **Breaking**: the old
+  `expected_chunks` warn-and-combine default is now a violation under the same
+  control -- for a deliberate partial combine (interim look at a running
+  array), pass `on_violation = "warn"`. Legacy (pre-schema-v2) frames skip the
+  id-based audits with a warning, never an error.
+
 ## Bug fixes
 
 * **Chunked runs: `replication` is now the GLOBAL rep id** (schema v2; #36,

@@ -149,8 +149,27 @@ medsim_run_chunk <- function(scenarios, method, config, verbose = TRUE) {
 #' @param pattern Character: glob pattern for chunk files.
 #'   Default `"chunk_*.rds"`.
 #' @param expected_chunks Integer or `NULL`: if supplied (e.g. the SLURM array
-#'   size), warn when fewer chunk files are found -- catching a failed/timed-out
-#'   task instead of silently combining a partial grid. Default `NULL` (no check).
+#'   size), a shortfall in chunk files is reported as an integrity violation
+#'   (see `on_violation`) -- catching a failed/timed-out task instead of
+#'   silently combining a partial grid. Default `NULL` (no check).
+#' @param on_violation One of `"stop"` (default), `"warn"`, `"ignore"`: what to
+#'   do when an integrity violation is found (missing chunks, duplicate or
+#'   gapped replication ids, ragged cells, output collapse, all-failed cells,
+#'   cross-scenario seed collisions). `"stop"` signals a
+#'   `medsim_combine_violation` condition that CARRIES the combined results --
+#'   recover an hours-long run's good cells with
+#'   `tryCatch(medsim_combine_chunks(...), medsim_combine_violation = function(e) e$results)`.
+#'   For a deliberate partial combine (an interim look at a still-running
+#'   array), pass `on_violation = "warn"`.
+#' @param nsim Integer or `NULL`: if supplied, additionally assert that every
+#'   scenario has exactly `nsim` replications (the contiguity audit is
+#'   otherwise self-validating and needs no external count).
+#' @param collapse_threshold,collapse_digits,collapse_min_cell Tuning for the
+#'   collapse-signature audit: per scenario and per continuous estimate column,
+#'   require `n_distinct(round(x, collapse_digits)) > collapse_threshold * n_ok`
+#'   (defaults 0.9 and 12; calibration: the 0.3.1 seed-collapse produced ~17
+#'   distinct outcomes in 1000). Cells with fewer than `collapse_min_cell`
+#'   non-NA values (default 30) are skipped as too small to diagnose.
 #' @param verbose Logical: print file counts.
 #'
 #' @return A `medsim_results` object with combined `$results` and `$truth`.
@@ -160,11 +179,20 @@ medsim_run_chunk <- function(scenarios, method, config, verbose = TRUE) {
 #' # combined <- medsim_combine_chunks("simulation_results/")
 #' # coverage <- medsim_analyze_coverage(combined)
 #'
-#' @seealso [medsim_run_chunk()], [medsim_analyze_coverage()]
+#' @seealso [medsim_run_chunk()], [medsim_audit_results()],
+#'   [medsim_analyze_coverage()]
 #'
 #' @export
 medsim_combine_chunks <- function(output_dir, pattern = "chunk_*.rds",
-                                   expected_chunks = NULL, verbose = TRUE) {
+                                   expected_chunks = NULL,
+                                   on_violation = c("stop", "warn", "ignore"),
+                                   nsim = NULL,
+                                   collapse_threshold = 0.9,
+                                   collapse_digits = 12L,
+                                   collapse_min_cell = 30L,
+                                   verbose = TRUE) {
+  on_violation <- match.arg(on_violation)
+
   # Convert glob to regex for list.files
   files <- list.files(output_dir, pattern = glob2rx(pattern), full.names = TRUE)
   files <- sort(files)
@@ -173,14 +201,18 @@ medsim_combine_chunks <- function(output_dir, pattern = "chunk_*.rds",
     stop(sprintf("No chunk files matching '%s' found in '%s'", pattern, output_dir))
   }
 
-  # Loudly flag a gap: a timed-out/failed SLURM array task leaves fewer chunk
-  # files than submitted, and silently combining a partial grid as if complete
-  # would bias every downstream number. Pass expected_chunks (= the array size)
-  # to catch this.
+  violations <- list()
+
+  # A timed-out/failed SLURM array task leaves fewer chunk files than
+  # submitted; silently combining a partial grid as if complete would bias
+  # every downstream number. Reported through the same on_violation control as
+  # the other integrity gates (a partial interim look is on_violation = "warn").
   if (!is.null(expected_chunks) && length(files) < expected_chunks) {
-    warning(sprintf(
-      "medsim_combine_chunks: expected %d chunk files but found %d -- a chunk is missing (failed/timed-out task?); combining the partial grid.",
-      as.integer(expected_chunks), length(files)))
+    violations[[length(violations) + 1L]] <- list(
+      type = "missing_chunks",
+      message = sprintf(
+        "expected %d chunk files but found %d -- a chunk is missing (failed/timed-out task?)",
+        as.integer(expected_chunks), length(files)))
   }
 
   if (verbose) message(sprintf("[medsim_combine_chunks] reading %d files", length(files)))
@@ -230,7 +262,234 @@ medsim_combine_chunks <- function(output_dir, pattern = "chunk_*.rds",
   combined$n_chunks_combined <- length(files)
 
   class(combined) <- c("medsim_results", "list")
+
+  # Gate A: seed-provenance audit (contiguity, collapse signature, cross-
+  # scenario seed collisions). Violations -- including the missing_chunks one
+  # collected above -- are signalled through one on_violation control; "stop"
+  # raises a condition that carries the combined object so no compute is lost.
+  violations <- c(violations, .medsim_audit_seed_provenance(
+    all_results,
+    nsim               = nsim,
+    collapse_threshold = collapse_threshold,
+    collapse_digits    = collapse_digits,
+    collapse_min_cell  = collapse_min_cell))
+  .medsim_signal_violations(violations, combined, on_violation,
+                            context = "medsim_combine_chunks")
+
   combined
+}
+
+# -- medsim_audit_results ---------------------------------------------------
+
+#' Audit a combined results object for chunked-run integrity violations
+#'
+#' @description
+#' Standalone entry point for Gate A of the chunked-run integrity layer
+#' (SPEC-medsim-chunked-run-gates-2026-07-31): run the same audit
+#' [medsim_combine_chunks()] performs, on an already-combined
+#' `medsim_results` object. Checks, per scenario:
+#'
+#' 1. **Contiguity** -- `replication` ids form a gapless, duplicate-free
+#'    `1..max` run, with the same `max` in every scenario (self-validating:
+#'    needs no external replication count).
+#' 2. **Collapse signature** -- every continuous estimate column has more than
+#'    `collapse_threshold * n_ok` distinct values (the 0.3.1 seed-collapse
+#'    produced ~17 distinct outcomes in 1000 while every chunk exited 0).
+#'    An all-failed cell (`n_ok == 0`) is reported as `cell_failed`, not
+#'    collapse.
+#' 3. **Seed-space collisions** -- no two scenarios map onto overlapping
+#'    [.medsim_det_seed()] sequences (the ~1e6-bucket name hash can collide).
+#'
+#' Frames without the schema-v2 stamp (produced before medsim 0.5.0, when
+#' `replication` was chunk-LOCAL and collided across chunks) skip checks 1
+#' and 3 with a warning -- they cannot be audited for id integrity.
+#'
+#' @param results A `medsim_results` object (e.g. from
+#'   [medsim_combine_chunks()]), or a bare results data.frame.
+#' @inheritParams medsim_combine_chunks
+#'
+#' @return Invisibly, the list of violations found (empty if clean). Signalling
+#'   follows `on_violation`, exactly as in [medsim_combine_chunks()].
+#'
+#' @seealso [medsim_combine_chunks()]
+#'
+#' @export
+medsim_audit_results <- function(results,
+                                 on_violation = c("stop", "warn", "ignore"),
+                                 nsim = NULL,
+                                 collapse_threshold = 0.9,
+                                 collapse_digits = 12L,
+                                 collapse_min_cell = 30L) {
+  on_violation <- match.arg(on_violation)
+  df <- if (is.data.frame(results)) results else results$results
+  if (is.null(df) || nrow(df) == 0L) {
+    stop("medsim_audit_results: no result rows to audit")
+  }
+  violations <- .medsim_audit_seed_provenance(
+    df, nsim = nsim,
+    collapse_threshold = collapse_threshold,
+    collapse_digits    = collapse_digits,
+    collapse_min_cell  = collapse_min_cell)
+  .medsim_signal_violations(violations, results, on_violation,
+                            context = "medsim_audit_results")
+  invisible(violations)
+}
+
+# -- Gate A internals -------------------------------------------------------
+
+#' Seed-provenance audit over a combined results frame (Gate A)
+#'
+#' @param df Combined results data.frame.
+#' @param nsim Optional integer: pin the absolute per-scenario rep count.
+#' @param collapse_threshold,collapse_digits,collapse_min_cell See
+#'   [medsim_combine_chunks()].
+#' @return List of violations, each `list(type =, scenario =, message =)`.
+#' @keywords internal
+.medsim_audit_seed_provenance <- function(df,
+                                          nsim = NULL,
+                                          collapse_threshold = 0.9,
+                                          collapse_digits = 12L,
+                                          collapse_min_cell = 30L) {
+  violations <- list()
+  add <- function(type, message, scenario = NA_character_) {
+    violations[[length(violations) + 1L]] <<-
+      list(type = type, scenario = scenario, message = message)
+  }
+
+  scenarios <- unique(df$scenario)
+  schema_v2 <- identical(attr(df, "medsim_schema", exact = TRUE), 2L)
+
+  # --- A.1 contiguity (schema v2 only: legacy local ids CANNOT be audited --
+  # they collide across chunks by construction) ------------------------------
+  if (schema_v2) {
+    maxima <- integer(0)
+    for (sc in scenarios) {
+      ids <- sort(df$replication[df$scenario == sc])
+      if (anyDuplicated(ids)) {
+        add("dup_rep_id", sprintf(
+          "scenario '%s': duplicated replication id(s) (e.g. %s) -- two chunks claimed the same rep",
+          sc, paste(utils::head(unique(ids[duplicated(ids)]), 3L), collapse = ", ")), sc)
+      }
+      expected <- seq_len(max(ids))
+      gaps <- setdiff(expected, ids)
+      if (length(gaps)) {
+        add("rep_gap", sprintf(
+          "scenario '%s': replication ids have %d gap(s) (missing e.g. %s) -- a chunk is missing or short",
+          sc, length(gaps), paste(utils::head(gaps, 3L), collapse = ", ")), sc)
+      }
+      if (!is.null(nsim) && length(unique(ids)) != as.integer(nsim)) {
+        add("nsim_mismatch", sprintf(
+          "scenario '%s': %d distinct replication ids, expected nsim = %d",
+          sc, length(unique(ids)), as.integer(nsim)), sc)
+      }
+      maxima[sc] <- max(ids)
+    }
+    if (length(unique(maxima)) > 1L) {
+      add("ragged_cells", sprintf(
+        "scenarios disagree on total replications (max ids: %s) -- ragged grid",
+        paste(sprintf("%s=%d", names(maxima), maxima), collapse = ", ")))
+    }
+  } else {
+    warning(paste(
+      "medsim_audit_results: results lack the schema-v2 stamp (produced by an",
+      "older medsim where `replication` was chunk-local); skipping the",
+      "contiguity and seed-collision audits. Re-run under medsim >= 0.5.0 for",
+      "full auditability."), call. = FALSE)
+  }
+
+  # --- A.2 collapse signature ----------------------------------------------
+  # Continuous estimate columns: the runner-declared metadata complement
+  # (legacy fallback: name subtraction), numeric, > 2 distinct values overall
+  # (structurally excludes 0/1 contract fields like converged/branch_switch).
+  meta_cols <- attr(df, "medsim_meta_cols", exact = TRUE) %||%
+    c("scenario", "replication", "elapsed", "error")
+  est_cols <- setdiff(names(df), meta_cols)
+  est_cols <- est_cols[vapply(est_cols, function(cl) {
+    is.numeric(df[[cl]]) &&
+      length(unique(df[[cl]][!is.na(df[[cl]])])) > 2L
+  }, logical(1))]
+
+  for (sc in scenarios) {
+    cell <- df[df$scenario == sc, , drop = FALSE]
+    for (cl in est_cols) {
+      x <- cell[[cl]][!is.na(cell[[cl]])]
+      n_ok <- length(x)
+      if (n_ok == 0L) {
+        # An all-failed cell is a convergence problem, not seed collapse --
+        # 0 > 0 is FALSE, so the naive threshold check would misreport it.
+        add("cell_failed", sprintf(
+          "scenario '%s', column '%s': all %d replications failed (no non-NA values)",
+          sc, cl, nrow(cell)), sc)
+        next
+      }
+      if (n_ok < collapse_min_cell) next  # too small to diagnose
+      n_dist <- length(unique(round(x, collapse_digits)))
+      if (n_dist <= collapse_threshold * n_ok) {
+        add("collapse", sprintf(
+          "scenario '%s', column '%s': only %d distinct values in %d non-NA replications -- the 0.3.1 seed-collapse signature (or a DGM calling set.seed() internally)",
+          sc, cl, n_dist, n_ok), sc)
+      }
+    }
+  }
+
+  # --- A.3 cross-scenario seed collisions (schema v2 only) -----------------
+  # Recompute each scenario's deterministic seed block THROUGH the real
+  # .medsim_det_seed() (no formula duplication): det_seed(name, 0L) recovers
+  # the scenario's base, and seeds are (base + rep) mod .Machine$integer.max.
+  if (schema_v2 && length(scenarios) > 1L) {
+    m <- .Machine$integer.max
+    seed_pool <- lapply(scenarios, function(sc) {
+      base <- as.numeric(.medsim_det_seed(sc, 0L)) - 1
+      reps <- unique(df$replication[df$scenario == sc])
+      (base + reps) %% m + 1
+    })
+    names(seed_pool) <- scenarios
+    all_seeds <- unlist(seed_pool, use.names = FALSE)
+    if (anyDuplicated(all_seeds)) {
+      dup_seed <- all_seeds[duplicated(all_seeds)][1L]
+      holders <- scenarios[vapply(seed_pool, function(s) dup_seed %in% s,
+                                  logical(1))]
+      add("seed_collision", sprintf(
+        "scenarios %s share RNG seed(s) (name-hash bucket collision in .medsim_det_seed) -- their draws are not independent; rename one scenario",
+        paste(sprintf("'%s'", holders), collapse = " and ")))
+    }
+  }
+
+  violations
+}
+
+#' Signal collected integrity violations per the on_violation control
+#'
+#' @param violations List of violations from [.medsim_audit_seed_provenance()].
+#' @param results The combined object to attach to a stop condition.
+#' @param on_violation `"stop"`, `"warn"`, or `"ignore"`.
+#' @param context Character: calling-function name for messages.
+#' @keywords internal
+.medsim_signal_violations <- function(violations, results, on_violation,
+                                      context = "medsim_combine_chunks") {
+  if (length(violations) == 0L || on_violation == "ignore") {
+    return(invisible())
+  }
+  msg <- paste0(
+    context, ": ", length(violations), " integrity violation(s):\n",
+    paste0("  - [", vapply(violations, `[[`, "", "type"), "] ",
+           vapply(violations, `[[`, "", "message"), collapse = "\n"))
+  if (on_violation == "warn") {
+    warning(msg, call. = FALSE)
+    return(invisible())
+  }
+  # Data-carrying condition: the combined results ride along so an unguarded
+  # call fails loud while a tryCatch recovers hours of cluster compute:
+  #   tryCatch(medsim_combine_chunks(...),
+  #            medsim_combine_violation = function(e) e$results)
+  cond <- structure(
+    class = c("medsim_combine_violation", "medsim_error", "error", "condition"),
+    list(message = paste0(
+           msg, "\n(Partial results are attached to this condition: ",
+           "tryCatch(..., medsim_combine_violation = function(e) e$results). ",
+           "For a deliberate partial combine use on_violation = \"warn\".)"),
+         call = NULL, results = results, violations = violations))
+  stop(cond)
 }
 
 # -- internal --------------------------------------------------------------
