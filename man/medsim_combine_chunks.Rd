@@ -13,6 +13,8 @@ medsim_combine_chunks(
   collapse_threshold = 0.9,
   collapse_digits = 12L,
   collapse_min_cell = 30L,
+  pilot_reference = NULL,
+  pilot_tol = 1e-09,
   verbose = TRUE
 )
 }
@@ -47,6 +49,24 @@ require \code{n_distinct(round(x, collapse_digits)) > collapse_threshold * n_ok}
 (defaults 0.9 and 12; calibration: the 0.3.1 seed-collapse produced ~17
 distinct outcomes in 1000). Cells with fewer than \code{collapse_min_cell}
 non-NA values (default 30) are skipped as too small to diagnose.}
+
+\item{pilot_reference}{Character path (or \code{medsim_results} object): an
+archived pilot run to use as a positive control (Gate D). Because seeds
+depend only on \verb{(scenario, replication)}, the full run's replications
+\verb{1..B_pilot} are draw-identical to the pilot -- a free regression check
+that harness, environment, and seeding are unchanged since the pilot
+passed. Identity is asserted FIRST (same sample size \code{n}, same scenario
+generator/params via fingerprint) so a stale or mis-configured pilot
+fails loud as \code{pilot_config_differs} instead of masquerading as a
+seeding regression; then estimate columns (only -- never \code{elapsed} or
+other metadata) are compared within \code{pilot_tol}. Default \code{NULL} (no
+pilot check).}
+
+\item{pilot_tol}{Numeric: absolute per-value tolerance for the pilot
+comparison (default \code{1e-9}). Byte-equality is deliberately NOT required:
+a different BLAS/R build can legitimately differ in low-order bits on
+correct code (FORK-reproducibility scope). For a rebuilt environment,
+loosen the tolerance or use \code{on_violation = "warn"}.}
 
 \item{verbose}{Logical: print file counts.}
 }

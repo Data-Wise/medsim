@@ -4,7 +4,7 @@
 \alias{medsim_run_chunk}
 \title{Run one chunk of a chunked SLURM array simulation}
 \usage{
-medsim_run_chunk(scenarios, method, config, verbose = TRUE)
+medsim_run_chunk(scenarios, method, config, verbose = TRUE, code_sha = NULL)
 }
 \arguments{
 \item{scenarios}{A list of \code{\link[=medsim_scenario]{medsim_scenario()}} objects.}
@@ -14,6 +14,11 @@ medsim_run_chunk(scenarios, method, config, verbose = TRUE)
 \item{config}{A \code{medsim_config} object with \code{chunk_id} and \code{n_chunks} set.}
 
 \item{verbose}{Logical: print progress messages.}
+
+\item{code_sha}{Character or \code{NULL}: code-state identifier stamped into the
+chunk's provenance. \code{NULL} (default) auto-detects via
+\verb{git rev-parse HEAD} in the running script's directory, degrading to
+\verb{pkg:medsim-<version>} outside a git tree.}
 }
 \value{
 Invisibly, the path of the RDS file written.
@@ -33,6 +38,15 @@ record the \strong{global} replication id (schema v2): chunk 2 of a
 4-chunk/nsim-20 run writes \code{replication} 6..10, not 1..5, so ids never
 collide across chunks and \code{\link[=medsim_combine_chunks]{medsim_combine_chunks()}} can audit the combined
 grid.
+
+Each chunk file also carries a provenance attribute (Gate C):
+R version, medsim + key dependency versions, hostname, a code SHA, and
+seconds-per-replication timing. The SHA is auto-detected from the run
+script's git tree (falling back to a \verb{pkg:medsim-<version>} tag outside
+git); pass \code{code_sha} to stamp explicitly. \code{\link[=medsim_combine_chunks]{medsim_combine_chunks()}}
+asserts a single SHA across all chunks -- catching a mid-run code edit plus
+partial resubmit, which would silently mix results from two different
+code states.
 }
 \seealso{
 \code{\link[=medsim_combine_chunks]{medsim_combine_chunks()}}, \code{\link[=medsim_audit_results]{medsim_audit_results()}},

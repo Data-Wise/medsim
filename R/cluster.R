@@ -147,10 +147,23 @@ medsim_write_submit_script <- function(config,
 #' collide across chunks and [medsim_combine_chunks()] can audit the combined
 #' grid.
 #'
+#' Each chunk file also carries a provenance attribute (Gate C):
+#' R version, medsim + key dependency versions, hostname, a code SHA, and
+#' seconds-per-replication timing. The SHA is auto-detected from the run
+#' script's git tree (falling back to a `pkg:medsim-<version>` tag outside
+#' git); pass `code_sha` to stamp explicitly. [medsim_combine_chunks()]
+#' asserts a single SHA across all chunks -- catching a mid-run code edit plus
+#' partial resubmit, which would silently mix results from two different
+#' code states.
+#'
 #' @param scenarios A list of [medsim_scenario()] objects.
 #' @param method A function with signature `method(data, params)`.
 #' @param config A `medsim_config` object with `chunk_id` and `n_chunks` set.
 #' @param verbose Logical: print progress messages.
+#' @param code_sha Character or `NULL`: code-state identifier stamped into the
+#'   chunk's provenance. `NULL` (default) auto-detects via
+#'   `git rev-parse HEAD` in the running script's directory, degrading to
+#'   `pkg:medsim-<version>` outside a git tree.
 #'
 #' @return Invisibly, the path of the RDS file written.
 #'
@@ -158,7 +171,8 @@ medsim_write_submit_script <- function(config,
 #'   [medsim_write_submit_script()]
 #'
 #' @export
-medsim_run_chunk <- function(scenarios, method, config, verbose = TRUE) {
+medsim_run_chunk <- function(scenarios, method, config, verbose = TRUE,
+                             code_sha = NULL) {
   if (!inherits(config, "medsim_config")) {
     stop("config must be a medsim_config object")
   }
@@ -183,6 +197,20 @@ medsim_run_chunk <- function(scenarios, method, config, verbose = TRUE) {
   chunk_config$rep_offset     <- indices[1L] - 1L
 
   results <- medsim_run(method, scenarios, chunk_config)
+
+  # Gate C: provenance header. Auto-detect the code SHA unless caller-stamped
+  # (an opt-in-only SHA would leave the combine assertion inert -- grill B5).
+  if (is.null(code_sha)) code_sha <- .medsim_detect_code_sha()
+  n_rows <- if (is.null(results$results)) 0L else nrow(results$results)
+  attr(results, "provenance") <- list(
+    r_version      = as.character(getRversion()),
+    medsim_version = as.character(utils::packageVersion("medsim")),
+    dep_versions   = .medsim_dep_versions(),
+    hostname       = Sys.info()[["nodename"]],
+    code_sha       = code_sha,
+    sec_per_rep    = if (n_rows > 0L) mean(results$results$elapsed) else NA_real_,
+    timestamp_utc  = format(Sys.time(), tz = "UTC", usetz = TRUE)
+  )
 
   output_dir  <- config$output_dir %||% "simulation_results"
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
@@ -227,6 +255,22 @@ medsim_run_chunk <- function(scenarios, method, config, verbose = TRUE) {
 #'   (defaults 0.9 and 12; calibration: the 0.3.1 seed-collapse produced ~17
 #'   distinct outcomes in 1000). Cells with fewer than `collapse_min_cell`
 #'   non-NA values (default 30) are skipped as too small to diagnose.
+#' @param pilot_reference Character path (or `medsim_results` object): an
+#'   archived pilot run to use as a positive control (Gate D). Because seeds
+#'   depend only on `(scenario, replication)`, the full run's replications
+#'   `1..B_pilot` are draw-identical to the pilot -- a free regression check
+#'   that harness, environment, and seeding are unchanged since the pilot
+#'   passed. Identity is asserted FIRST (same sample size `n`, same scenario
+#'   generator/params via fingerprint) so a stale or mis-configured pilot
+#'   fails loud as `pilot_config_differs` instead of masquerading as a
+#'   seeding regression; then estimate columns (only -- never `elapsed` or
+#'   other metadata) are compared within `pilot_tol`. Default `NULL` (no
+#'   pilot check).
+#' @param pilot_tol Numeric: absolute per-value tolerance for the pilot
+#'   comparison (default `1e-9`). Byte-equality is deliberately NOT required:
+#'   a different BLAS/R build can legitimately differ in low-order bits on
+#'   correct code (FORK-reproducibility scope). For a rebuilt environment,
+#'   loosen the tolerance or use `on_violation = "warn"`.
 #' @param verbose Logical: print file counts.
 #'
 #' @return A `medsim_results` object with combined `$results` and `$truth`.
@@ -247,6 +291,8 @@ medsim_combine_chunks <- function(output_dir, pattern = "chunk_*.rds",
                                    collapse_threshold = 0.9,
                                    collapse_digits = 12L,
                                    collapse_min_cell = 30L,
+                                   pilot_reference = NULL,
+                                   pilot_tol = 1e-9,
                                    verbose = TRUE) {
   on_violation <- match.arg(on_violation)
 
@@ -320,6 +366,31 @@ medsim_combine_chunks <- function(output_dir, pattern = "chunk_*.rds",
 
   class(combined) <- c("medsim_results", "list")
 
+  # Gate C: single-SHA assertion. A mid-run code edit + partial resubmit
+  # silently mixes results from two code states; distinct non-NA SHAs across
+  # chunks catch exactly that. Chunks without provenance (pre-Gate-C files)
+  # degrade to a warning, never a stop; a deliberate mixed-SHA resubmit is
+  # on_violation = "warn".
+  provs <- lapply(chunks, function(ch) attr(ch, "provenance", exact = TRUE))
+  combined$chunk_provenance <- provs
+  shas <- vapply(provs, function(p) {
+    if (is.null(p) || is.null(p$code_sha)) NA_character_ else p$code_sha
+  }, character(1))
+  if (anyNA(shas) && any(!is.na(shas))) {
+    warning(paste("medsim_combine_chunks: some chunk files lack provenance",
+                  "(written by an older medsim?); SHA consistency checked on",
+                  "the stamped chunks only."), call. = FALSE)
+  }
+  distinct_shas <- unique(shas[!is.na(shas)])
+  if (length(distinct_shas) > 1L) {
+    violations[[length(violations) + 1L]] <- list(
+      type = "sha_mismatch",
+      message = sprintf(
+        "chunks were produced by %d different code states (%s) -- mid-run code edit + partial resubmit?",
+        length(distinct_shas),
+        paste(substr(distinct_shas, 1L, 12L), collapse = ", ")))
+  }
+
   # Gate A: seed-provenance audit (contiguity, collapse signature, cross-
   # scenario seed collisions). Violations -- including the missing_chunks one
   # collected above -- are signalled through one on_violation control; "stop"
@@ -330,6 +401,13 @@ medsim_combine_chunks <- function(output_dir, pattern = "chunk_*.rds",
     collapse_threshold = collapse_threshold,
     collapse_digits    = collapse_digits,
     collapse_min_cell  = collapse_min_cell))
+
+  # Gate D: pilot-subset positive control (identity first, then values).
+  if (!is.null(pilot_reference)) {
+    violations <- c(violations,
+                    .medsim_pilot_check(combined, pilot_reference, pilot_tol))
+  }
+
   .medsim_signal_violations(violations, combined, on_violation,
                             context = "medsim_combine_chunks")
 
@@ -550,6 +628,168 @@ medsim_audit_results <- function(results,
 }
 
 # -- internal --------------------------------------------------------------
+
+#' Content fingerprint of a scenario (name + params + generator source)
+#'
+#' @description
+#' Like [.medsim_truth_fingerprint()] but without a truth function -- the
+#' identity Gate D asserts between a pilot run's scenarios and the full run's.
+#' Deparse (not closure serialization) for environment-independence; values a
+#' generator depends on live in `params` by medsim convention.
+#'
+#' @param scenario A `medsim_scenario`.
+#' @return A raw vector (compare with `identical()`).
+#' @keywords internal
+.medsim_scenario_fingerprint <- function(scenario) {
+  serialize(
+    list(name   = scenario$name,
+         params = scenario$params,
+         dgm    = deparse(scenario$data_generator)),
+    connection = NULL
+  )
+}
+
+#' Pilot-subset positive control (Gate D)
+#'
+#' @description
+#' Asserts a full run's replications `1..B_pilot` reproduce an archived pilot:
+#' (1) IDENTITY -- same sample size `n` and same scenario fingerprints, so a
+#' stale/mis-configured pilot fails as `pilot_config_differs` rather than
+#' masquerading as a seeding regression (the seed ignores `n`: same rep id at
+#' a different `n` draws different-length data on CORRECT code); then
+#' (2) VALUES -- estimate columns only (never `elapsed`/metadata), joined on
+#' `(scenario, replication)`, within `pilot_tol`.
+#'
+#' @param combined The combined `medsim_results` object.
+#' @param pilot_reference Path to a pilot RDS, or a `medsim_results` object.
+#' @param pilot_tol Absolute tolerance for value agreement.
+#' @return List of violations (empty if the control passes).
+#' @keywords internal
+.medsim_pilot_check <- function(combined, pilot_reference, pilot_tol = 1e-9) {
+  violations <- list()
+  add <- function(type, message) {
+    violations[[length(violations) + 1L]] <<-
+      list(type = type, scenario = NA_character_, message = message)
+  }
+
+  pilot <- if (is.character(pilot_reference)) {
+    readRDS(pilot_reference)
+  } else {
+    pilot_reference
+  }
+  pdf <- pilot$results
+  cdf <- combined$results
+
+  if (is.null(pdf) || nrow(pdf) == 0L) {
+    add("pilot_config_differs", "pilot reference contains no result rows")
+    return(violations)
+  }
+  if (!identical(attr(pdf, "medsim_schema", exact = TRUE), 2L)) {
+    warning(paste("medsim pilot check: pilot lacks the schema-v2 stamp",
+                  "(pre-0.5.0 chunk-local replication ids); skipping the",
+                  "pilot positive control."), call. = FALSE)
+    return(violations)
+  }
+
+  # --- (1) identity ---------------------------------------------------------
+  pilot_n <- pilot$config$n %||% NA
+  full_n  <- combined$config$n %||% NA
+  if (!identical(pilot_n, full_n)) {
+    add("pilot_config_differs", sprintf(
+      "pilot sample size n = %s but full run n = %s -- same seeds draw different data; re-pilot at the full run's n",
+      format(pilot_n), format(full_n)))
+  }
+  pilot_sc <- pilot$scenarios %||% list()
+  full_sc  <- combined$scenarios %||% list()
+  names(pilot_sc) <- vapply(pilot_sc, function(s) s$name, character(1))
+  names(full_sc)  <- vapply(full_sc, function(s) s$name, character(1))
+  for (nm in intersect(names(pilot_sc), names(full_sc))) {
+    if (!identical(.medsim_scenario_fingerprint(pilot_sc[[nm]]),
+                   .medsim_scenario_fingerprint(full_sc[[nm]]))) {
+      add("pilot_config_differs", sprintf(
+        "scenario '%s': generator/params differ between pilot and full run", nm))
+    }
+  }
+  if (length(violations)) {
+    return(violations)  # identity failed; value comparison would mislead
+  }
+
+  # --- (2) values: estimate columns only, within tolerance ------------------
+  meta_cols <- attr(cdf, "medsim_meta_cols", exact = TRUE) %||%
+    c("scenario", "replication", "elapsed", "error")
+  est_cols <- intersect(setdiff(names(cdf), meta_cols), names(pdf))
+  est_cols <- est_cols[vapply(est_cols, function(cl) is.numeric(cdf[[cl]]),
+                              logical(1))]
+
+  key_p <- paste(pdf$scenario, pdf$replication)
+  key_c <- paste(cdf$scenario, cdf$replication)
+  shared <- intersect(key_p, key_c)
+  if (length(shared) == 0L) {
+    add("pilot_config_differs",
+        "no overlapping (scenario, replication) rows between pilot and full run")
+    return(violations)
+  }
+  pi <- match(shared, key_p)
+  ci <- match(shared, key_c)
+
+  for (cl in est_cols) {
+    dv <- abs(pdf[[cl]][pi] - cdf[[cl]][ci])
+    bad <- which(!is.na(dv) & dv > pilot_tol)
+    if (length(bad)) {
+      add("pilot_mismatch", sprintf(
+        "column '%s': %d of %d overlapping replications differ from the pilot beyond tol %g (max |diff| = %g, first at %s) -- harness/seeding changed since the pilot passed",
+        cl, length(bad), length(shared), pilot_tol, max(dv[bad]), shared[bad[1L]]))
+    }
+  }
+
+  violations
+}
+
+#' Auto-detect a code-state identifier for chunk provenance (Gate C)
+#'
+#' @description
+#' `git rev-parse HEAD` in the running script's directory (from
+#' `commandArgs(--file=)`, falling back to `getwd()` for interactive use --
+#' the RUN SCRIPT's tree, not wherever R happened to start). Outside a git
+#' tree, degrades to a `pkg:medsim-<version>` tag: stable across chunks of one
+#' submission (so the combine assertion stays quiet) but unable to distinguish
+#' code states -- true mid-run-edit detection needs git.
+#'
+#' @return Character scalar: a 40-hex SHA or a `pkg:medsim-<version>` tag.
+#' @keywords internal
+.medsim_detect_code_sha <- function() {
+  script <- sub("^--file=", "",
+                grep("^--file=", commandArgs(FALSE), value = TRUE))
+  dir <- if (length(script) > 0L) {
+    dirname(normalizePath(script[1L], mustWork = FALSE))
+  } else {
+    getwd()
+  }
+  sha <- suppressWarnings(tryCatch(
+    system2("git", c("-C", shQuote(dir), "rev-parse", "HEAD"),
+            stdout = TRUE, stderr = FALSE),
+    error = function(e) character(0)))
+  if (length(sha) == 1L && grepl("^[0-9a-f]{40}$", sha)) {
+    return(sha)
+  }
+  sprintf("pkg:medsim-%s", as.character(utils::packageVersion("medsim")))
+}
+
+#' Installed versions of medsim's key soft dependencies
+#'
+#' @return Named character vector (absent packages omitted).
+#' @keywords internal
+.medsim_dep_versions <- function() {
+  deps <- c("mice", "RMediation", "mitml", "probmed", "medfit")
+  found <- vapply(deps, function(p) {
+    if (requireNamespace(p, quietly = TRUE)) {
+      as.character(utils::packageVersion(p))
+    } else {
+      NA_character_
+    }
+  }, character(1))
+  found[!is.na(found)]
+}
 
 #' Chunk-file naming authority
 #'

@@ -2,6 +2,25 @@
 
 ## New features
 
+* **Gate C: chunk provenance + single-SHA assertion** (#34). Every chunk file
+  now carries a provenance header (R version, medsim + key dependency
+  versions, hostname, code SHA, sec/rep, UTC timestamp). The SHA
+  **auto-detects** via `git rev-parse HEAD` in the running script's directory
+  (explicit `code_sha =` overrides; `pkg:medsim-<version>` tag outside git).
+  `medsim_combine_chunks()` asserts one SHA across all chunks -- catching a
+  mid-run code edit + partial resubmit that would silently mix two code
+  states. Provenance-less legacy chunks warn, never stop.
+
+* **Gate D: pilot-subset positive control** (#34). Because seeds depend only
+  on `(scenario, replication)`, a full run's reps `1..B_pilot` are
+  draw-identical to an archived pilot at the same `n`.
+  `medsim_combine_chunks(pilot_reference =, pilot_tol = 1e-9)` asserts
+  **identity first** (sample size + scenario fingerprints -- a stale pilot
+  fails as `pilot_config_differs`, never masquerading as a seeding
+  regression), then compares estimate columns only (never `elapsed`) within
+  tolerance -- a free regression check that harness, environment, and seeding
+  are unchanged since the pilot passed.
+
 * **Gate B: hardened SLURM submit template** (#34, fixes #37).
   `medsim_write_submit_script()` now emits a fail-loud script: `#!/bin/bash -l`
   (on Hopper `module` is defined only in login shells -- the old plain
