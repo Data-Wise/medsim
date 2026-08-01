@@ -73,7 +73,15 @@ test_that("an all-NA chunk yields failure_rate 1 and non-poisoned coverage", {
   cfg <- medsim_config("test", chunk_id = 1L, n_chunks = 1L,
                        n_replications = 5L, n_cores = 1L, output_dir = out)
   medsim_run_chunk(list(.edge_scenario()), na_method, cfg, verbose = FALSE)
-  combined <- medsim_combine_chunks(out, verbose = FALSE)
+  # Gate A: an all-NA cell now fires cell_failed under the default stop
+  # posture -- the deliberate all-NA method must opt out via "warn" (and the
+  # violation itself is asserted).
+  expect_error(medsim_combine_chunks(out, verbose = FALSE),
+               class = "medsim_combine_violation")
+  expect_warning(
+    combined <- medsim_combine_chunks(out, on_violation = "warn",
+                                      verbose = FALSE),
+    "cell_failed|failed")
   combined$truth <- data.frame(scenario = "edge", theta = 0, stringsAsFactors = FALSE)
   est <- medsim_estimand("interval", params = "theta", ci = "standard",
                          truth = function(s) c(theta = 0))

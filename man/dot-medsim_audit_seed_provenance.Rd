@@ -9,7 +9,8 @@
   nsim = NULL,
   collapse_threshold = 0.9,
   collapse_digits = 12L,
-  collapse_min_cell = 30L
+  collapse_min_cell = 30L,
+  collapse_exclude = c("converged", "branch_switch")
 )
 }
 \arguments{

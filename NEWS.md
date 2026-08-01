@@ -2,6 +2,24 @@
 
 ## New features
 
+* **Pre-integration review hardening** (7 confirmed findings). The collapse
+  audit excludes discrete contract fields BY NAME (`collapse_exclude`,
+  default `converged`/`branch_switch`) instead of by observed distinctness --
+  a TOTALLY collapsed estimate column (1-2 distinct values) is no longer
+  invisible to the very check built for it. An all-failed run now fires an
+  `all_failed` violation instead of combining clean. Mixed legacy+v2 chunk
+  directories are order-independent (attributes stripped + one warning; the
+  audit never mis-stops on legacy ids). `error` is a documented RESERVED
+  method-field name -- a method returning it stops immediately instead of
+  having `converged` silently forced to 0. Pilot checks: `n` compared
+  numerically (200L vs 200 no longer false-positives) and NA-vs-value
+  asymmetries against the pilot are mismatches. All-provenance-less chunk
+  sets warn about the skipped SHA assertion. The combine `rbind` is
+  schema-harmonized (ragged chunk columns cannot crash it), and the submit
+  template creates `logs/` up front.
+
+## New features
+
 * **Gate C: chunk provenance + single-SHA assertion** (#34). Every chunk file
   now carries a provenance header (R version, medsim + key dependency
   versions, hostname, code SHA, sec/rep, UTC timestamp). The SHA

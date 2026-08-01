@@ -106,6 +106,10 @@ medsim_write_submit_script <- function(config,
     "",
     "set -eo pipefail",
     "",
+    "# SBATCH --output/--error point into logs/ -- SLURM fails the task if the",
+    "# directory is missing, so create it up front (harmless if present).",
+    "mkdir -p logs",
+    "",
     "# Module init fallback (login shell above is the primary mechanism)",
     "if ! command -v module >/dev/null 2>&1; then",
     "  source /etc/profile.d/modules.sh 2>/dev/null || true",
@@ -255,6 +259,11 @@ medsim_run_chunk <- function(scenarios, method, config, verbose = TRUE,
 #'   (defaults 0.9 and 12; calibration: the 0.3.1 seed-collapse produced ~17
 #'   distinct outcomes in 1000). Cells with fewer than `collapse_min_cell`
 #'   non-NA values (default 30) are skipped as too small to diagnose.
+#' @param collapse_exclude Character: DISCRETE method-contract fields excluded
+#'   from the collapse audit BY NAME (default `converged`, `branch_switch`).
+#'   Name-based (not distinctness-based) so a totally collapsed estimate
+#'   column cannot exempt itself; add any custom discrete field your method
+#'   emits.
 #' @param pilot_reference Character path (or `medsim_results` object): an
 #'   archived pilot run to use as a positive control (Gate D). Because seeds
 #'   depend only on `(scenario, replication)`, the full run's replications
@@ -291,6 +300,7 @@ medsim_combine_chunks <- function(output_dir, pattern = "chunk_*.rds",
                                    collapse_threshold = 0.9,
                                    collapse_digits = 12L,
                                    collapse_min_cell = 30L,
+                                   collapse_exclude = c("converged", "branch_switch"),
                                    pilot_reference = NULL,
                                    pilot_tol = 1e-9,
                                    verbose = TRUE) {
@@ -322,8 +332,11 @@ medsim_combine_chunks <- function(output_dir, pattern = "chunk_*.rds",
 
   chunks <- lapply(files, readRDS)
 
-  # Merge results data frames
-  all_results <- do.call(rbind, lapply(chunks, function(ch) ch$results))
+  # Merge results data frames. .medsim_rbind_reps (not bare rbind): chunks
+  # whose column sets differ -- a method emitting a conditional field in some
+  # chunks only -- would crash bare rbind with 'names do not match previous
+  # names', the same ragged class fixed within-run by P3.
+  all_results <- .medsim_rbind_reps(lapply(chunks, function(ch) ch$results))
 
   # Truth is scenario-level (same across chunks) -- use the first chunk's
   truth <- chunks[[1L]]$truth
@@ -341,15 +354,30 @@ medsim_combine_chunks <- function(output_dir, pattern = "chunk_*.rds",
   # quarter-run statistics as the study. Rebuild both over the combined frame.
   combined <- chunks[[1L]]
 
-  # rbind drops attributes; restore the schema/provenance stamps when every
-  # chunk carries them (schema v2: `replication` is the global rep id).
-  schema_v2 <- all(vapply(chunks, function(ch) {
+  # rbind drops attributes -- EXCEPT that base rbind.data.frame keeps the
+  # FIRST frame's custom attributes, which made mixed legacy+v2 dirs
+  # order-dependent (v2 chunk sorted first => stale schema stamp on a frame
+  # holding colliding legacy ids => the audit hard-stopped with a misdiagnosed
+  # dup_rep_id, violating the never-stop-on-legacy promise). Stamp when ALL
+  # chunks are v2; otherwise STRIP whatever rbind inherited and warn once.
+  chunk_v2 <- vapply(chunks, function(ch) {
     identical(attr(ch$results, "medsim_schema", exact = TRUE), 2L)
-  }, logical(1)))
+  }, logical(1))
+  schema_v2 <- all(chunk_v2)
   if (schema_v2) {
     attr(all_results, "medsim_schema") <- 2L
     attr(all_results, "medsim_meta_cols") <-
       attr(chunks[[1L]]$results, "medsim_meta_cols", exact = TRUE)
+  } else {
+    attr(all_results, "medsim_schema") <- NULL
+    attr(all_results, "medsim_meta_cols") <- NULL
+    warning(sprintf(paste(
+      "medsim_combine_chunks: %d of %d chunk files lack the schema-v2 stamp",
+      "(written by an older medsim; `replication` ids are chunk-local and",
+      "collide across chunks). Id-based audits are skipped and rows are NOT",
+      "uniquely identifiable -- re-run the chunks under this medsim version",
+      "for full auditability."),
+      sum(!chunk_v2), length(chunks)), call. = FALSE)
   }
 
   combined$results <- all_results
@@ -380,6 +408,11 @@ medsim_combine_chunks <- function(output_dir, pattern = "chunk_*.rds",
     warning(paste("medsim_combine_chunks: some chunk files lack provenance",
                   "(written by an older medsim?); SHA consistency checked on",
                   "the stamped chunks only."), call. = FALSE)
+  } else if (all(is.na(shas))) {
+    # Spec Gate C: all-NA => skip the assertion + WARN (not silently skip).
+    warning(paste("medsim_combine_chunks: no chunk carries a code SHA",
+                  "(provenance absent -- pre-Gate-C files?); the single-SHA",
+                  "consistency assertion was skipped."), call. = FALSE)
   }
   distinct_shas <- unique(shas[!is.na(shas)])
   if (length(distinct_shas) > 1L) {
@@ -400,7 +433,8 @@ medsim_combine_chunks <- function(output_dir, pattern = "chunk_*.rds",
     nsim               = nsim,
     collapse_threshold = collapse_threshold,
     collapse_digits    = collapse_digits,
-    collapse_min_cell  = collapse_min_cell))
+    collapse_min_cell  = collapse_min_cell,
+    collapse_exclude   = collapse_exclude))
 
   # Gate D: pilot-subset positive control (identity first, then values).
   if (!is.null(pilot_reference)) {
@@ -454,7 +488,8 @@ medsim_audit_results <- function(results,
                                  nsim = NULL,
                                  collapse_threshold = 0.9,
                                  collapse_digits = 12L,
-                                 collapse_min_cell = 30L) {
+                                 collapse_min_cell = 30L,
+                                 collapse_exclude = c("converged", "branch_switch")) {
   on_violation <- match.arg(on_violation)
   df <- if (is.data.frame(results)) results else results$results
   if (is.null(df) || nrow(df) == 0L) {
@@ -464,7 +499,8 @@ medsim_audit_results <- function(results,
     df, nsim = nsim,
     collapse_threshold = collapse_threshold,
     collapse_digits    = collapse_digits,
-    collapse_min_cell  = collapse_min_cell)
+    collapse_min_cell  = collapse_min_cell,
+    collapse_exclude   = collapse_exclude)
   .medsim_signal_violations(violations, results, on_violation,
                             context = "medsim_audit_results")
   invisible(violations)
@@ -484,7 +520,8 @@ medsim_audit_results <- function(results,
                                           nsim = NULL,
                                           collapse_threshold = 0.9,
                                           collapse_digits = 12L,
-                                          collapse_min_cell = 30L) {
+                                          collapse_min_cell = 30L,
+                                          collapse_exclude = c("converged", "branch_switch")) {
   violations <- list()
   add <- function(type, message, scenario = NA_character_) {
     violations[[length(violations) + 1L]] <<-
@@ -528,21 +565,37 @@ medsim_audit_results <- function(results,
     warning(paste(
       "medsim_audit_results: results lack the schema-v2 stamp (produced by an",
       "older medsim where `replication` was chunk-local); skipping the",
-      "contiguity and seed-collision audits. Re-run under medsim >= 0.5.0 for",
-      "full auditability."), call. = FALSE)
+      "contiguity and seed-collision audits. Re-run the chunks under a",
+      "schema-v2 medsim (this version or later) for full auditability."),
+      call. = FALSE)
   }
 
   # --- A.2 collapse signature ----------------------------------------------
   # Continuous estimate columns: the runner-declared metadata complement
-  # (legacy fallback: name subtraction), numeric, > 2 distinct values overall
-  # (structurally excludes 0/1 contract fields like converged/branch_switch).
+  # (legacy fallback: name subtraction), numeric, minus the documented
+  # DISCRETE contract fields (collapse_exclude; default converged +
+  # branch_switch). Exclusion is BY NAME, not by observed distinctness: a
+  # ">2 distinct values" filter looked equivalent but silently exempted a
+  # TOTALLY collapsed column (1-2 distinct values in 1000 reps) from the very
+  # check built to catch it -- the worst-case form of the defect was the one
+  # invisible form (pre-integration review, blocker 1). A user method
+  # emitting a custom discrete field should list it in collapse_exclude.
   meta_cols <- attr(df, "medsim_meta_cols", exact = TRUE) %||%
     c("scenario", "replication", "elapsed", "error")
-  est_cols <- setdiff(names(df), meta_cols)
-  est_cols <- est_cols[vapply(est_cols, function(cl) {
-    is.numeric(df[[cl]]) &&
-      length(unique(df[[cl]][!is.na(df[[cl]])])) > 2L
-  }, logical(1))]
+  est_cols <- setdiff(names(df), c(meta_cols, collapse_exclude))
+  est_cols <- est_cols[vapply(est_cols, function(cl) is.numeric(df[[cl]]),
+                              logical(1))]
+
+  # An ALL-failed run has no estimate columns at all (failure rows carry only
+  # metadata + error) -- without this check it would combine with zero
+  # violations: the 0.3.1 trap shape, all-green pipeline and no usable data
+  # (pre-integration review, blocker 4).
+  if (length(est_cols) == 0L && "error" %in% names(df) &&
+      any(!is.na(df$error))) {
+    add("all_failed", sprintf(
+      "no estimate columns present and %d of %d rows carry an error -- every replication failed; nothing to analyze",
+      sum(!is.na(df$error)), nrow(df)))
+  }
 
   for (sc in scenarios) {
     cell <- df[df$scenario == sc, , drop = FALSE]
@@ -694,7 +747,13 @@ medsim_audit_results <- function(results,
   # --- (1) identity ---------------------------------------------------------
   pilot_n <- pilot$config$n %||% NA
   full_n  <- combined$config$n %||% NA
-  if (!identical(pilot_n, full_n)) {
+  n_differs <- if (is.na(pilot_n) || is.na(full_n)) {
+    !(is.na(pilot_n) && is.na(full_n))  # one set, one not
+  } else {
+    # numeric compare, not identical(): 200L vs 200 must NOT differ
+    !isTRUE(all.equal(as.numeric(pilot_n), as.numeric(full_n)))
+  }
+  if (n_differs) {
     add("pilot_config_differs", sprintf(
       "pilot sample size n = %s but full run n = %s -- same seeds draw different data; re-pilot at the full run's n",
       format(pilot_n), format(full_n)))
@@ -733,12 +792,18 @@ medsim_audit_results <- function(results,
   ci <- match(shared, key_c)
 
   for (cl in est_cols) {
-    dv <- abs(pdf[[cl]][pi] - cdf[[cl]][ci])
-    bad <- which(!is.na(dv) & dv > pilot_tol)
+    pv <- pdf[[cl]][pi]
+    cv <- cdf[[cl]][ci]
+    dv <- abs(pv - cv)
+    # NA asymmetry IS a mismatch: under the seeding contract the pilot subset
+    # must reproduce the full run INCLUDING its failure pattern -- a rep that
+    # failed in one and 'succeeded' in the other is a harness change.
+    bad <- which((!is.na(dv) & dv > pilot_tol) | xor(is.na(pv), is.na(cv)))
     if (length(bad)) {
       add("pilot_mismatch", sprintf(
         "column '%s': %d of %d overlapping replications differ from the pilot beyond tol %g (max |diff| = %g, first at %s) -- harness/seeding changed since the pilot passed",
-        cl, length(bad), length(shared), pilot_tol, max(dv[bad]), shared[bad[1L]]))
+        cl, length(bad), length(shared), pilot_tol,
+        suppressWarnings(max(dv[bad], na.rm = TRUE)), shared[bad[1L]]))
     }
   }
 

@@ -110,7 +110,7 @@ medsim_analyze <- function(results,
   # runner wrote, so new bookkeeping columns can never be silently analyzed as
   # method estimates. The hardcoded list is the legacy (schema v1) fallback.
   metadata_cols <- attr(results$results, "medsim_meta_cols", exact = TRUE) %||%
-    c("scenario", "replication", "elapsed")
+    c("scenario", "replication", "elapsed", "error")
   estimate_cols <- setdiff(names(results$results), metadata_cols)
 
   # --- Compute Metrics ---

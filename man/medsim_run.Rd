@@ -55,6 +55,9 @@ The \code{method} function must:
 \item Accept \code{data} (data.frame) as first argument
 \item Accept \code{params} (list) as second argument
 \item Return a named list with at least one numeric element
+\item NOT use the reserved field name \code{error} -- it marks failed replications
+in the results schema (a non-NA \code{error} forces \code{converged = 0}); a
+method returning it stops with an informative error
 }
 
 Example:

@@ -36,6 +36,9 @@
 #' - Accept `data` (data.frame) as first argument
 #' - Accept `params` (list) as second argument
 #' - Return a named list with at least one numeric element
+#' - NOT use the reserved field name `error` -- it marks failed replications
+#'   in the results schema (a non-NA `error` forces `converged = 0`); a
+#'   method returning it stops with an informative error
 #'
 #' Example:
 #' ```r
@@ -406,14 +409,30 @@ medsim_run_single_replication <- function(scenario, rep_id, method, config) {
   # Time the method
   start_time <- Sys.time()
 
+  method_failed <- FALSE
   result <- tryCatch(
     method(data, scenario$params),
     error = function(e) {
       warning(sprintf("Method failed for %s, rep %d: %s",
                       scenario$name, rep_id, e$message))
+      method_failed <<- TRUE
       list(error = e$message)
     }
   )
+
+  # `error` is a RESERVED field name: the failure-row schema uses it to mark
+  # failed replications (non-NA error => converged forced to 0, column treated
+  # as metadata). A method returning its own `error` field on success would be
+  # silently corrupted -- refuse loudly instead. Fires deterministically on
+  # the first replication, so this is an immediate contract error, not a
+  # mid-run surprise.
+  if (!method_failed && "error" %in% names(result)) {
+    stop(sprintf(paste(
+      "method() for scenario '%s' returned a field named 'error' -- that name",
+      "is reserved for medsim's failure-row schema (a non-NA value marks a",
+      "FAILED replication and forces converged = 0). Rename the field",
+      "(e.g. 'est_error')."), scenario$name), call. = FALSE)
+  }
 
   end_time <- Sys.time()
   elapsed_time <- as.numeric(difftime(end_time, start_time, units = "secs"))

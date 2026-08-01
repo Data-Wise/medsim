@@ -10,7 +10,8 @@ medsim_audit_results(
   nsim = NULL,
   collapse_threshold = 0.9,
   collapse_digits = 12L,
-  collapse_min_cell = 30L
+  collapse_min_cell = 30L,
+  collapse_exclude = c("converged", "branch_switch")
 )
 }
 \arguments{
@@ -37,6 +38,12 @@ require \code{n_distinct(round(x, collapse_digits)) > collapse_threshold * n_ok}
 (defaults 0.9 and 12; calibration: the 0.3.1 seed-collapse produced ~17
 distinct outcomes in 1000). Cells with fewer than \code{collapse_min_cell}
 non-NA values (default 30) are skipped as too small to diagnose.}
+
+\item{collapse_exclude}{Character: DISCRETE method-contract fields excluded
+from the collapse audit BY NAME (default \code{converged}, \code{branch_switch}).
+Name-based (not distinctness-based) so a totally collapsed estimate
+column cannot exempt itself; add any custom discrete field your method
+emits.}
 }
 \value{
 Invisibly, the list of violations found (empty if clean). Signalling
