@@ -1,5 +1,19 @@
 # medsim (development version)
 
+## New features
+
+* `medsim_method_mbco_mi()` gains `ariv = c("own", "fixed")` and always emits
+  additive branch diagnostics alongside the method contract: `indirect_p_fixed`
+  (D4 p-value with the ARIV `r4` recomputed on the branch the *stacked*
+  constrained fit selected), `branch_mix` (imputations disagree on the
+  constrained branch), `p_branch_a`, `stacked_branch`, `r4`, `r4_fixed`.
+  `.medsim_d4_mbco()` gains `fixed_branch =` and returns `stacked_branch`.
+  Motivation: the standard Chan–Meng `r4` averages per-imputation MBCO
+  statistics each computed on its own winning branch, so branch disagreement
+  pulls the average down and under-estimates the ARIV (Missing Effect
+  comparator pilot, 2026-08-16). Default `ariv = "own"` keeps legacy behavior;
+  `indirect_p` is unchanged unless `ariv = "fixed"`.
+
 # medsim 0.5.0
 
 ## New features

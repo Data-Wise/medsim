@@ -135,3 +135,63 @@ test_that("D4 pooling reproduces mitml::testModels(method = 'D4') [acceptance]",
   # stochastic variation in mice imputations causes ~5-10% relative p difference.
   expect_equal(unname(mine[["p"]]), unname(ref$test[1, "P(>F)"]), tolerance = 0.1)
 })
+
+# -- fixed-branch ARIV + branch-mixing diagnostics (2026-08-17) -----------------
+# Motivation: Missing Effect ms:check 2026-08-16 (Fable KO #2) + the local
+# comparator pilot (code/pilot-comparators-2026-08-16.R): the Chan-Meng r4 pools
+# per-imputation MBCO statistics each computed on its OWN branch, so branch
+# disagreement pulls dbar down and under-estimates the ARIV. The fixed-branch
+# variant recomputes d_k on the stacked fit's branch. Both p-values are emitted.
+
+diag_fields <- c("indirect_p_fixed", "branch_mix", "p_branch_a",
+                 "stacked_branch", "r4", "r4_fixed")
+
+test_that("MBCO-MI emits the additive branch diagnostics alongside the contract", {
+  skip_if_not_installed("mice")
+  set.seed(31)
+  out <- medsim_method_mbco_mi(model, m = 5)(toy(), list())
+  expect_contract(out)
+  expect_true(all(diag_fields %in% names(out)))
+  expect_true(out$branch_mix %in% c(0, 1))
+  expect_true(out$stacked_branch %in% c(0, 1))
+  expect_true(out$p_branch_a >= 0 && out$p_branch_a <= 1)
+  expect_true(out$indirect_p_fixed >= 0 && out$indirect_p_fixed <= 1)
+  expect_true(out$r4 >= 0 && out$r4_fixed >= 0)
+})
+
+test_that("ariv = 'fixed' routes the fixed-branch p-value into indirect_p", {
+  skip_if_not_installed("mice")
+  set.seed(32)
+  d <- toy(200, a = 0.3, b = 0)      # interior null: b = 0 -> branch disagreement likely
+  set.seed(1)
+  own <- medsim_method_mbco_mi(model, m = 8, ariv = "own")(d, list())
+  set.seed(1)
+  fix <- medsim_method_mbco_mi(model, m = 8, ariv = "fixed")(d, list())
+  expect_equal(fix$indirect_p, fix$indirect_p_fixed)
+  expect_equal(own$indirect_p_fixed, fix$indirect_p_fixed)
+  expect_equal(own$indirect, fix$indirect)          # point estimate unaffected
+})
+
+test_that(".medsim_d4_mbco fixed_branch never lowers r4 below own-branch (same numerator)", {
+  skip_if_not_installed("mice")
+  set.seed(33)
+  d <- toy(150, a = 0.3, b = 0)
+  covs <- character(0)
+  imp <- mice::mice(d, m = 6, method = "norm", printFlag = FALSE)
+  implist <- mice::complete(imp, "all")
+  own <- .medsim_d4_mbco(implist, covs)
+  fix <- .medsim_d4_mbco(implist, covs, fixed_branch = TRUE)
+  # d_k on the stacked branch >= d_k on the own (max-likelihood) branch for every k,
+  # so dbar_fixed >= dbar_own and r4_fixed >= r4_own; the numerator d_S is shared.
+  expect_gte(fix[["r4"]], own[["r4"]])
+  expect_true(fix[["stacked_branch"]] %in% c(0, 1))
+  expect_equal(unname(fix[["stacked_branch"]]), unname(own[["stacked_branch"]]))
+})
+
+test_that("with a single imputation (complete data) both p-values coincide", {
+  set.seed(34)
+  d <- toy(); d <- d[stats::complete.cases(d), ]
+  out <- medsim_method_mbco_mi(model, m = 5)(d, list())
+  expect_equal(out$indirect_p, out$indirect_p_fixed)
+  expect_equal(out$branch_mix, 0)
+})

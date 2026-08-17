@@ -4,13 +4,22 @@
 \alias{medsim_method_mbco_mi}
 \title{MBCO-MI estimator adapter}
 \usage{
-medsim_method_mbco_mi(model, m = 20L, ...)
+medsim_method_mbco_mi(model, m = 20L, ariv = c("own", "fixed"), ...)
 }
 \arguments{
 \item{model}{Mediation model spec (accepted for API symmetry; the estimator
 reads the \code{X}, \code{M}, \code{Y} (+ optional \verb{C*}) columns of \code{data}).}
 
 \item{m}{Integer number of imputations.}
+
+\item{ariv}{Which relative-increase-in-variance (ARIV) estimate feeds the
+\code{indirect_p} column: \code{"own"} (default, legacy) pools per-imputation MBCO
+statistics each computed on its own winning branch (standard Chan-Meng
+\code{r4}); \code{"fixed"} recomputes every per-imputation statistic on the branch
+the stacked constrained fit selected, so branch disagreement across
+imputations cannot pull the ARIV down. Both p-values are always emitted
+(\code{indirect_p} and \code{indirect_p_fixed}), together with the branch-mixing
+diagnostics \code{branch_mix}, \code{p_branch_a}, \code{stacked_branch}, \code{r4}, \code{r4_fixed}.}
 
 \item{...}{Reserved for future MI / MBCO options.}
 }
