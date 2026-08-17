@@ -11,8 +11,7 @@ merged-2026-08-17: PR #44 (`feature/mbco-fixed-branch-ariv`, squash `c748d1b` on
   `~/.git-worktrees/medsim/feature-mbco-fixed-branch-ariv` still present (delete when convenient).
   Pre-release adversarial review (3 lenses, 2026-08-17): 1 BLOCKER (Gate A.2 collapse audit
   flagged the new diagnostics), 2 SHOULD-FIX, NITs — all fixed + README/pkgdown refresh in
-  PR #45, MERGED (squash 68a2a18). Worktrees `feature-mbco-fixed-branch-ariv` and
-  `feature-release-0.5.1-review-fixes` still on disk (branches merged; remove when convenient).
+  PR #45, MERGED (squash 68a2a18). Both worktrees + local/remote branches removed 2026-08-17.
   v0.5.1 RELEASED 2026-08-17 (merge a000108, tag v0.5.1, GitHub release published); dev bumped to
   0.5.1.9000. Missing Effect fixed-branch Hopper re-run is UNBLOCKED (install from r-universe once
   it serves 0.5.1.9000, or `pak::pak("Data-Wise/medsim@v0.5.1")`).
