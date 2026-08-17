@@ -11,7 +11,7 @@ medsim_audit_results(
   collapse_threshold = 0.9,
   collapse_digits = 12L,
   collapse_min_cell = 30L,
-  collapse_exclude = c("converged", "branch_switch")
+  collapse_exclude = .medsim_collapse_exclude_default
 )
 }
 \arguments{
@@ -40,10 +40,13 @@ distinct outcomes in 1000). Cells with fewer than \code{collapse_min_cell}
 non-NA values (default 30) are skipped as too small to diagnose.}
 
 \item{collapse_exclude}{Character: DISCRETE method-contract fields excluded
-from the collapse audit BY NAME (default \code{converged}, \code{branch_switch}).
-Name-based (not distinctness-based) so a totally collapsed estimate
-column cannot exempt itself; add any custom discrete field your method
-emits.}
+from the collapse audit BY NAME (default: \code{converged}, \code{branch_switch},
+plus the \code{medsim_method_mbco_mi()} branch diagnostics \code{branch_mix},
+\code{stacked_branch}, \code{p_branch_a}, \code{r4}, \code{r4_fixed} -- 0/1 flags, an
+\code{m}-valued share, and ARIVs with point mass at 0, all legitimately
+low-cardinality). Name-based (not distinctness-based) so a totally
+collapsed estimate column cannot exempt itself; add any custom discrete
+field your method emits.}
 }
 \value{
 Invisibly, the list of violations found (empty if clean). Signalling

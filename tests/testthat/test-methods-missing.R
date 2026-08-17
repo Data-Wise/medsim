@@ -195,3 +195,57 @@ test_that("with a single imputation (complete data) both p-values coincide", {
   expect_equal(out$indirect_p, out$indirect_p_fixed)
   expect_equal(out$branch_mix, 0)
 })
+
+test_that(".medsim_d4_mbco fixed_branch changes r4 exactly as designed (hand-built triples)", {
+  # Two imputations that DISAGREE on the constrained branch; the stacked fit
+  # picks the a = 0 branch. Own-branch: d_k = 2*(0 - (-1)) = 2 for both,
+  # d_S = 2*(0 - (-2))/2 = 2 -> dbar == d_S -> r4 = 0.
+  # Fixed-branch (key = "la"): d_1 = 2, d_2 = 6 -> dbar = 4 ->
+  # r4 = (kk+1)/(k*(kk-1)) * (dbar - d_S) = 3/1 * 2 = 6.
+  # A build that ignores fixed_branch (or hard-wires the own p) fails here.
+  lls_list <- list(c(full = 0, la = -1, lb = -3), c(full = 0, la = -3, lb = -1))
+  lls_S <- c(full = 0, la = -2, lb = -4)
+  implist <- list(1, 2)   # only length(implist) is used when lls_* are supplied
+  own <- .medsim_d4_mbco(implist, lls_list = lls_list, lls_S = lls_S)
+  fix <- .medsim_d4_mbco(implist, lls_list = lls_list, lls_S = lls_S,
+                         fixed_branch = TRUE)
+  expect_equal(unname(own[["r4"]]), 0)
+  expect_equal(unname(fix[["r4"]]), 6)
+  expect_equal(unname(own[["stacked_branch"]]), 1)
+  expect_equal(unname(fix[["stacked_branch"]]), 1)
+  expect_equal(unname(own[["D4"]]), 2)              # d_S / (k * (1 + 0))
+  expect_equal(unname(fix[["D4"]]), 2 / 7)          # d_S / (k * (1 + 6))
+  expect_gt(unname(fix[["p"]]), unname(own[["p"]]))
+})
+
+test_that("Gate A.2 collapse audit accepts the mbco_mi branch diagnostics by default", {
+  # A realistic MBCO-MI result frame: continuous estimates plus the six
+  # low-cardinality diagnostics (0/1 flags, an m-valued share, ARIVs with
+  # mass at 0). Before these names joined collapse_exclude, this frame raised
+  # 4 [collapse] violations and medsim_combine_chunks() refused it.
+  set.seed(7)
+  n <- 40L
+  df <- data.frame(
+    scenario = "s1", replication = seq_len(n), elapsed = runif(n),
+    error = NA_character_,
+    indirect = rnorm(n), indirect_ci_lower = rnorm(n), indirect_ci_upper = rnorm(n),
+    indirect_p = runif(n), indirect_p_fixed = runif(n),
+    branch_switch = rbinom(n, 1, 0.5), converged = 1,
+    branch_mix = rbinom(n, 1, 0.3), stacked_branch = rbinom(n, 1, 0.5),
+    p_branch_a = sample(0:5, n, replace = TRUE) / 5,
+    r4 = pmax(0, rnorm(n, 0, 0.3)), r4_fixed = pmax(0, rnorm(n, 0.2, 0.3)),
+    stringsAsFactors = FALSE
+  )
+  df$r4[1:10] <- 0                                   # point mass at zero
+  attr(df, "medsim_schema") <- 2L
+  attr(df, "medsim_meta_cols") <- c("scenario", "replication", "elapsed", "error")
+  expect_silent(medsim_audit_results(df))
+  # positive control: with the pre-0.5.1 exclude list the same frame IS flagged
+  v0 <- suppressWarnings(medsim_audit_results(
+    df, on_violation = "warn", collapse_exclude = c("converged", "branch_switch")))
+  expect_true("collapse" %in% vapply(v0, `[[`, "", "type"))
+  # the default is name-based: an unknown 0/1 field is still flagged
+  df$my_flag <- rep_len(c(0, 1), n)
+  v <- suppressWarnings(medsim_audit_results(df, on_violation = "warn"))
+  expect_true("collapse" %in% vapply(v, `[[`, "", "type"))
+})

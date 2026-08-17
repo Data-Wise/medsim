@@ -10,7 +10,7 @@
   collapse_threshold = 0.9,
   collapse_digits = 12L,
   collapse_min_cell = 30L,
-  collapse_exclude = c("converged", "branch_switch")
+  collapse_exclude = .medsim_collapse_exclude_default
 )
 }
 \arguments{

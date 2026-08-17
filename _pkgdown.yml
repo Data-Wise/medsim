@@ -222,6 +222,8 @@ reference:
   desc: >
     Data-generating utilities and missing-data mediation estimator adapters for
     simulations under missingness and nonnormality (the Missing Effect study).
+    `medsim_method_mbco_mi()` offers own- or fixed-branch ARIV pooling
+    (`ariv =`) and always emits branch-mixing diagnostics.
   contents:
   - medsim_rnonnormal
   - medsim_amputate
