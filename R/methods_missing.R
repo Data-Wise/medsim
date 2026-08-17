@@ -11,6 +11,14 @@
 #       branch_switch     = <0/1>,   # MBCO union-null diagnostic (ab=0); NA for MC-CI/IPW
 #       converged         = <0/1>    # drop non-converged rows in analyze
 #     )
+#   medsim_method_mbco_mi() ADDITIONALLY emits (2026-08-17, additive; consumers may ignore):
+#       indirect_p_fixed  = <num>,   # D4 p with the ARIV r4 computed on the STACKED fit's branch
+#       branch_mix        = <0/1>,   # 1 = imputations disagree on the constrained branch
+#       p_branch_a        = <num>,   # share of imputations constrained on the a = 0 branch
+#       stacked_branch    = <0/1>,   # branch selected by the stacked (D4) constrained fit (K = 1: the single fit's branch)
+#       r4                = <num>,   # own-branch ARIV (standard Chan-Meng)
+#       r4_fixed          = <num>    # fixed-branch ARIV
+#   `ariv = "fixed"` swaps which p-value populates `indirect_p` (default "own" = legacy).
 #
 # VERIFIED 2026-06-11 (R/runner.R:329): method is invoked as `method(data, scenario$params)`,
 #   i.e. the contract is `function(data, params)` where `params` IS the scenario's params list.
@@ -32,16 +40,30 @@
 #' @param model Mediation model spec (accepted for API symmetry; the estimator
 #'   reads the `X`, `M`, `Y` (+ optional `C*`) columns of `data`).
 #' @param m Integer number of imputations.
+#' @param ariv Which relative-increase-in-variance (ARIV) estimate feeds the
+#'   `indirect_p` column: `"own"` (default, legacy) pools per-imputation MBCO
+#'   statistics each computed on its own winning branch (standard Chan-Meng
+#'   `r4`); `"fixed"` recomputes every per-imputation statistic on the branch
+#'   the stacked constrained fit selected, so branch disagreement across
+#'   imputations cannot pull the ARIV down. Both p-values are always emitted
+#'   (`indirect_p` and `indirect_p_fixed`), together with the branch-mixing
+#'   diagnostics `branch_mix`, `p_branch_a`, `stacked_branch`, `r4`, `r4_fixed`
+#'   (with a single imputation there is no stacked fit: `stacked_branch` is
+#'   that fit's branch and `r4 = r4_fixed = 0`; on the error path all six are
+#'   `NA`).
 #' @param ... Reserved for future MI / MBCO options.
 #' @return A `function(data, params)` returning the shared method contract (see file header).
 #' @export
-medsim_method_mbco_mi <- function(model, m = 20L, ...) {
+medsim_method_mbco_mi <- function(model, m = 20L, ariv = c("own", "fixed"), ...) {
   m <- as.integer(m)
+  ariv <- match.arg(ariv)
   function(data, params) {
     out <- list(
       indirect = NA_real_, indirect_ci_lower = NA_real_,
       indirect_ci_upper = NA_real_, indirect_p = NA_real_,
-      branch_switch = 0, converged = 0
+      branch_switch = 0, converged = 0,
+      indirect_p_fixed = NA_real_, branch_mix = NA_real_, p_branch_a = NA_real_,
+      stacked_branch = NA_real_, r4 = NA_real_, r4_fixed = NA_real_
     )
     res <- tryCatch(
       {
@@ -68,21 +90,40 @@ medsim_method_mbco_mi <- function(model, m = 20L, ...) {
         ## per imputation instead of ~10).
         lls_list <- lapply(implist, function(d) .medsim_mbco_lls(d, covs))
 
-        ## P-value: the validated MBCO test (D4 pooling when K >= 2, else chi-sq).
-        pval <- if (kk >= 2L) {
-          unname(.medsim_d4_mbco(implist, covs, lls_list = lls_list)[["p"]])
+        ## P-values: the validated MBCO test (D4 pooling when K >= 2, else chi-sq),
+        ## with the ARIV computed on each imputation's OWN branch (legacy) and on
+        ## the STACKED fit's branch (fixed) -- both always emitted.
+        branches <- vapply(lls_list, .medsim_mbco_branch_from_lls, 0)
+        if (kk >= 2L) {
+          ## The stacked-fit triple is shared: fit it once, reuse for both ARIVs.
+          lls_S <- .medsim_mbco_lls(do.call(rbind, implist), covs)
+          d4_own <- .medsim_d4_mbco(implist, covs, lls_list = lls_list,
+                                    lls_S = lls_S)
+          d4_fix <- .medsim_d4_mbco(implist, covs, lls_list = lls_list,
+                                    lls_S = lls_S, fixed_branch = TRUE)
+          p_own <- unname(d4_own[["p"]])
+          p_fix <- unname(d4_fix[["p"]])
+          r4_own <- unname(d4_own[["r4"]])
+          r4_fix <- unname(d4_fix[["r4"]])
+          stacked_branch <- unname(d4_fix[["stacked_branch"]])
         } else {
           tstat <- .medsim_mbco_T_from_lls(lls_list[[1L]])
-          stats::pchisq(max(tstat, 0), df = 1, lower.tail = FALSE)
+          p_own <- p_fix <- stats::pchisq(max(tstat, 0), df = 1, lower.tail = FALSE)
+          r4_own <- r4_fix <- 0
+          stacked_branch <- branches[[1L]]
         }
+        pval <- if (ariv == "fixed") p_fix else p_own
 
         ## branch_switch: majority union-null branch (1 = the a = 0 branch wins).
-        branch <- mean(vapply(lls_list, .medsim_mbco_branch_from_lls, 0))
-        branch_switch <- as.integer(branch >= 0.5)
+        p_branch_a <- mean(branches)
+        branch_switch <- as.integer(p_branch_a >= 0.5)
+        branch_mix <- as.integer(length(unique(branches)) > 1L)
 
         list(
           indirect = ab, indirect_ci_lower = mc[1L], indirect_ci_upper = mc[2L],
-          indirect_p = pval, branch_switch = branch_switch, converged = 1
+          indirect_p = pval, branch_switch = branch_switch, converged = 1,
+          indirect_p_fixed = p_fix, branch_mix = branch_mix, p_branch_a = p_branch_a,
+          stacked_branch = stacked_branch, r4 = r4_own, r4_fixed = r4_fix
         )
       },
       error = function(e) NULL
@@ -331,11 +372,6 @@ medsim_method_ipw <- function(model, ...) {
   if (lls[["la"]] >= lls[["lb"]]) 1 else 0
 }
 
-# Complete-data MBCO union-null LRT (convenience wrapper).
-.medsim_mbco_T <- function(d, covs = character(0)) {
-  .medsim_mbco_T_from_lls(.medsim_mbco_lls(d, covs))
-}
-
 # Which union-null branch wins (convenience wrapper).
 .medsim_mbco_branch <- function(d, covs = character(0)) {
   .medsim_mbco_branch_from_lls(.medsim_mbco_lls(d, covs))
@@ -359,16 +395,33 @@ medsim_method_ipw <- function(model, ...) {
 
 # D4-pooled MBCO p-value across an imputation list (requires K >= 2). Pass a
 # precomputed `lls_list` (one .medsim_mbco_lls() triple per imputation) to
-# avoid refitting the per-imputation models.
-.medsim_d4_mbco <- function(implist, covs = character(0), lls_list = NULL) {
+# avoid refitting the per-imputation models; `lls_S` (stacked-data triple) can
+# likewise be passed in so own- and fixed-branch calls share one stacked fit.
+#
+# `fixed_branch = FALSE` (default, Chan-Meng): the per-imputation statistics d_k
+# entering the ARIV are each computed on that imputation's own winning branch.
+# `fixed_branch = TRUE`: d_k are recomputed on the branch selected by the STACKED
+# constrained fit, so branch disagreement across imputations cannot pull dbar
+# (and hence r4) down. The numerator d_S is identical in both cases. Returns the
+# stacked branch (1 = a = 0) as `stacked_branch` either way.
+.medsim_d4_mbco <- function(implist, covs = character(0), lls_list = NULL,
+                            fixed_branch = FALSE, lls_S = NULL) {
   kk <- length(implist)
   if (is.null(lls_list)) {
     lls_list <- lapply(implist, function(d) .medsim_mbco_lls(d, covs))
   }
-  d_k <- vapply(lls_list, .medsim_mbco_T_from_lls, 0)
-  stacked <- do.call(rbind, implist)
-  d_S <- .medsim_mbco_T(stacked, covs) / kk
-  .medsim_d4_from_stats(d_k, d_S, k = 1)
+  if (is.null(lls_S)) {
+    lls_S <- .medsim_mbco_lls(do.call(rbind, implist), covs)
+  }
+  d_S <- .medsim_mbco_T_from_lls(lls_S) / kk
+  stacked_branch <- .medsim_mbco_branch_from_lls(lls_S)
+  d_k <- if (fixed_branch) {
+    key <- if (stacked_branch == 1) "la" else "lb"
+    vapply(lls_list, function(l) 2 * (l[["full"]] - l[[key]]), 0)
+  } else {
+    vapply(lls_list, .medsim_mbco_T_from_lls, 0)
+  }
+  c(.medsim_d4_from_stats(d_k, d_S, k = 1), stacked_branch = stacked_branch)
 }
 
 # Base-R Monte-Carlo CI for the product a*b given (a,b) ~ independent normals.

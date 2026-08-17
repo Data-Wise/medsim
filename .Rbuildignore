@@ -29,3 +29,4 @@
 ^\.flow$
 ^AGENTS\.md$
 ^CLAUDE\.md$
+^\.token-optimizer$

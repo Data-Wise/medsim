@@ -100,8 +100,11 @@ length(grid)
 ## Step 4: Run Both Estimators
 
 Both `medsim_method_mbco_mi()` and `medsim_method_mc_ci()` follow the
-`method(data, params)` contract and return the same 6-field result — this is
-what lets `medsim_run()` compare them scenario-for-scenario:
+`method(data, params)` contract and return the same 6-field core result — this
+is what lets `medsim_run()` compare them scenario-for-scenario. (MBCO-MI
+additionally emits branch-mixing diagnostics — `indirect_p_fixed`, `branch_mix`,
+`p_branch_a`, `stacked_branch`, `r4`, `r4_fixed` — which `medsim_run()` NA-pads
+for the MC-CI rows.)
 
 ```{r}
 #| label: run

@@ -24,7 +24,12 @@
   (`medsim_nsim_for_mcse()`) following Morris, White & Crowther (2019)
 - **Publication-Ready Output**: Figures and LaTeX tables with one function call
 - **Missing Data & Nonnormality**: MCAR/MAR/MNAR amputation, target skew/kurtosis
-  generators, and validated D4-MBCO multiple-imputation inference
+  generators, and validated D4-MBCO multiple-imputation inference (own- or
+  fixed-branch ARIV, with branch-mixing diagnostics)
+- **Chunked HPC Runs with Integrity Audit**: `medsim_run_chunk()` /
+  `medsim_combine_chunks()` for SLURM array jobs, combined under fail-loud
+  gates (rep-id contiguity, seed-collapse detection, schema vote, pilot
+  positive control) so a silently broken run cannot look green
 
 ## Mediationverse Ecosystem
 
@@ -185,12 +190,20 @@ results <- medsim_run(
 )
 
 medsim_summarize_branch_switch(results)  # MBCO union-null branch-switch rate
+
+# ariv = "fixed" recomputes the D4 ARIV on the branch the STACKED constrained
+# fit selects, so imputations that disagree on the branch cannot deflate it.
+# Both p-values (indirect_p, indirect_p_fixed) and the branch-mixing
+# diagnostics (branch_mix, p_branch_a, stacked_branch, r4, r4_fixed) are
+# always emitted; the default ariv = "own" is the legacy Chan-Meng pooling.
+medsim_method_mbco_mi(model = NULL, m = 20, ariv = "fixed")
 ```
 
 The generators (`medsim_rnonnormal()`, `medsim_amputate()`,
 `medsim_scenario_missing()`) are domain-agnostic and reusable across studies;
 the estimator adapters (`medsim_method_mbco_mi()`, `medsim_method_mc_ci()`,
-`medsim_method_ipw()`) return the standard coverage/power contract.
+`medsim_method_ipw()`) return the standard coverage/power contract (MBCO-MI
+adds its branch diagnostics on top; other methods' rows are NA-padded).
 
 ## Estimand Kinds
 
