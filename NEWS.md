@@ -16,6 +16,17 @@
   The stacked D4 model is fit once per replication and shared by both ARIV
   computations (#44).
 
+## Bug fixes
+
+* Gate A.2 (seed-collapse audit in `medsim_combine_chunks()` /
+  `medsim_audit_results()`) no longer flags the `medsim_method_mbco_mi()`
+  branch diagnostics: `branch_mix`, `stacked_branch`, `p_branch_a`, `r4`,
+  `r4_fixed` join `converged`/`branch_switch` in the default
+  `collapse_exclude` (they are legitimately low-cardinality — 0/1 flags, an
+  `m`-valued share, ARIVs clamped at 0). Without this, a chunked MBCO-MI run
+  raised `[collapse]` violations and the default `on_violation = "stop"`
+  refused to combine it (pre-release adversarial review, #44 follow-up).
+
 # medsim 0.5.0
 
 ## New features

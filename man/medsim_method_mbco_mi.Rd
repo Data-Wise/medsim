@@ -19,7 +19,10 @@ statistics each computed on its own winning branch (standard Chan-Meng
 the stacked constrained fit selected, so branch disagreement across
 imputations cannot pull the ARIV down. Both p-values are always emitted
 (\code{indirect_p} and \code{indirect_p_fixed}), together with the branch-mixing
-diagnostics \code{branch_mix}, \code{p_branch_a}, \code{stacked_branch}, \code{r4}, \code{r4_fixed}.}
+diagnostics \code{branch_mix}, \code{p_branch_a}, \code{stacked_branch}, \code{r4}, \code{r4_fixed}
+(with a single imputation there is no stacked fit: \code{stacked_branch} is
+that fit's branch and \code{r4 = r4_fixed = 0}; on the error path all six are
+\code{NA}).}
 
 \item{...}{Reserved for future MI / MBCO options.}
 }

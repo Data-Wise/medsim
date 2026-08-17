@@ -260,10 +260,13 @@ medsim_run_chunk <- function(scenarios, method, config, verbose = TRUE,
 #'   distinct outcomes in 1000). Cells with fewer than `collapse_min_cell`
 #'   non-NA values (default 30) are skipped as too small to diagnose.
 #' @param collapse_exclude Character: DISCRETE method-contract fields excluded
-#'   from the collapse audit BY NAME (default `converged`, `branch_switch`).
-#'   Name-based (not distinctness-based) so a totally collapsed estimate
-#'   column cannot exempt itself; add any custom discrete field your method
-#'   emits.
+#'   from the collapse audit BY NAME (default: `converged`, `branch_switch`,
+#'   plus the `medsim_method_mbco_mi()` branch diagnostics `branch_mix`,
+#'   `stacked_branch`, `p_branch_a`, `r4`, `r4_fixed` -- 0/1 flags, an
+#'   `m`-valued share, and ARIVs with point mass at 0, all legitimately
+#'   low-cardinality). Name-based (not distinctness-based) so a totally
+#'   collapsed estimate column cannot exempt itself; add any custom discrete
+#'   field your method emits.
 #' @param pilot_reference Character path (or `medsim_results` object): an
 #'   archived pilot run to use as a positive control (Gate D). Because seeds
 #'   depend only on `(scenario, replication)`, the full run's replications
@@ -300,7 +303,7 @@ medsim_combine_chunks <- function(output_dir, pattern = "chunk_*.rds",
                                    collapse_threshold = 0.9,
                                    collapse_digits = 12L,
                                    collapse_min_cell = 30L,
-                                   collapse_exclude = c("converged", "branch_switch"),
+                                   collapse_exclude = .medsim_collapse_exclude_default,
                                    pilot_reference = NULL,
                                    pilot_tol = 1e-9,
                                    verbose = TRUE) {
@@ -489,7 +492,7 @@ medsim_audit_results <- function(results,
                                  collapse_threshold = 0.9,
                                  collapse_digits = 12L,
                                  collapse_min_cell = 30L,
-                                 collapse_exclude = c("converged", "branch_switch")) {
+                                 collapse_exclude = .medsim_collapse_exclude_default) {
   on_violation <- match.arg(on_violation)
   df <- if (is.data.frame(results)) results else results$results
   if (is.null(df) || nrow(df) == 0L) {
@@ -508,6 +511,15 @@ medsim_audit_results <- function(results,
 
 # -- Gate A internals -------------------------------------------------------
 
+# Default name-based exclusions for the Gate A.2 collapse audit: the two
+# method-contract flags plus the medsim_method_mbco_mi() branch diagnostics
+# (0/1 flags, an m-valued share, ARIVs clamped at 0). Shared by
+# medsim_combine_chunks(), medsim_audit_results(), .medsim_audit_seed_provenance().
+.medsim_collapse_exclude_default <- c(
+  "converged", "branch_switch",
+  "branch_mix", "stacked_branch", "p_branch_a", "r4", "r4_fixed"
+)
+
 #' Seed-provenance audit over a combined results frame (Gate A)
 #'
 #' @param df Combined results data.frame.
@@ -521,7 +533,7 @@ medsim_audit_results <- function(results,
                                           collapse_threshold = 0.9,
                                           collapse_digits = 12L,
                                           collapse_min_cell = 30L,
-                                          collapse_exclude = c("converged", "branch_switch")) {
+                                          collapse_exclude = .medsim_collapse_exclude_default) {
   violations <- list()
   add <- function(type, message, scenario = NA_character_) {
     violations[[length(violations) + 1L]] <<-
