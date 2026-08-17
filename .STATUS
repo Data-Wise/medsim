@@ -10,10 +10,10 @@ merged-2026-08-17: PR #44 (`feature/mbco-fixed-branch-ariv`, squash `c748d1b` on
   positives verified. goodpractice: 31 package-wide advisories, none PR-introduced. Worktree
   `~/.git-worktrees/medsim/feature-mbco-fixed-branch-ariv` still present (delete when convenient).
   Pre-release adversarial review (3 lenses, 2026-08-17): 1 BLOCKER (Gate A.2 collapse audit
-  flagged the new diagnostics), 2 SHOULD-FIX, NITs — all fixed in PR #45
-  (`feature/release-0.5.1-review-fixes`, worktree `~/.git-worktrees/medsim/feature-release-0.5.1-review-fixes`,
-  commit b6cf128; 1131 pass / 0 fail; rcmdcheck 0/0/1 baseline NOTE). MERGE #45, then release 0.5.1.
-  NEXT for this track: merge #45 -> release 0.5.1 (dev→main) so the Missing Effect fixed-branch Hopper re-run can go.
+  flagged the new diagnostics), 2 SHOULD-FIX, NITs — all fixed + README/pkgdown refresh in
+  PR #45, MERGED (squash 68a2a18). Worktrees `feature-mbco-fixed-branch-ariv` and
+  `feature-release-0.5.1-review-fixes` still on disk (branches merged; remove when convenient).
+  NEXT for this track: release 0.5.1 (dev→main) so the Missing Effect fixed-branch Hopper re-run can go.
 next: 🔴 ONE DECISION PENDING — branch `claude/pensive-goodall-3e2dfb` (worktree
   `~/.git-worktrees/medsim/pensive-goodall-3e2dfb`, commit 987d176, clean, 4 behind dev, NO PR)
   is held at FIX-FIRST after adversarial review. Its `est_error` rename is clean and fixes a live
