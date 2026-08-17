@@ -1,0 +1,224 @@
+# Cluster Testing: the two-tier model (Tier A on CRAN, Tier B on Hopper)
+
+Every R chunk in this vignette is **shown, not run**
+(`execute: eval: false`). The Tier-B suite it documents runs on a SLURM
+cluster, not inside `R CMD check`, so building this vignette adds
+negligible time to a CRAN check and never launches a cluster job.
+Outputs shown below are **static transcripts** captured from a real
+Hopper run.
+
+## Why two tiers
+
+medsim’s simulation and parallel code has two kinds of correctness
+property, and they cannot both be checked in the same place:
+
+|  | **Tier A** | **Tier B** |
+|----|----|----|
+| Lives in | `tests/testthat/` | `inst/hopper-tests/` |
+| Run by | `R CMD check`, `devtools::test()`, CI — **always** | manually on Hopper (`run-all.sh`) — **never by check** |
+| Cores | 1 (`n_cores = 1`) | many (real FORK cluster) |
+| Cost | seconds | a full SLURM array |
+| Guards | pipeline correctness invariants: coverage discrimination, failure-rate accounting, truth-cache invalidation, chunk boundary cases | *at-scale* behaviour: many-core FORK RNG independence, production-grid seed collisions, full coverage at production reps |
+
+`inst/` is installed with the package but **not executed** by
+`R CMD check` (check runs only top-level `tests/*.R`), so the Tier-B
+scripts ship with the package as runnable, documented artifacts yet cost
+the CRAN check nothing.
+
+### The structural reason FORK-RNG can only be Tier B
+
+The single most important guard — that parallel workers draw
+**independent** random streams — cannot be tested in Tier A. Under
+`R CMD check`, `_R_CHECK_LIMIT_CORES_=TRUE` is set, and medsim’s
+`parallel.R` deliberately forces sequential execution in that case:
+
+``` r
+
+# R/parallel.R (paraphrased): under a CRAN check, never fan out.
+if (isTRUE(as.logical(Sys.getenv("_R_CHECK_LIMIT_CORES_", "FALSE")))) {
+  n_cores <- 1L   # forced sequential -> the FORK code path never executes
+}
+```
+
+A Tier-A test therefore *cannot* exercise a real multi-core FORK cluster
+— the one code path that the chunked-RNG bug lived in. That guard (B4
+below) is Tier-B by necessity, not by preference. Every other
+correctness invariant lives in Tier A, where it runs on every commit.
+
+## The self-contained synthetic study
+
+Tier B does **not** depend on any downstream research kernel (e.g. the
+product-of-three test-inversion CDF). It runs a self-contained
+**Wald-CI-for-a-normal-mean** study: six scenarios with known true
+means, a correct method, and a deliberately-broken control. This keeps
+the suite fast, dependency-free, and independently checkable — the real
+research study stays external as the genuine integration test.
+
+``` r
+
+# inst/hopper-tests/tier_b_synthetic.R (excerpt)
+TIER_B_THETAS <- c(s1 = -1.0, s2 = -0.4, s3 = 0.0, s4 = 0.3, s5 = 1.0, s6 = 2.5)
+
+# Correct method: a nominal 95% Wald interval for the mean.
+tier_b_method_nominal <- function(data, params) {
+  m  <- mean(data$x)
+  se <- stats::sd(data$x) / sqrt(nrow(data))
+  list(theta_lower = m - 1.96 * se, theta_upper = m + 1.96 * se)
+}
+
+# Planted defect: a 1/3-width interval that MUST undercover. This is the
+# dogfood's can-fail control -- if coverage came out ~0.95 here, the whole
+# harness would be silently broken.
+tier_b_method_narrow <- function(data, params) {
+  m  <- mean(data$x)
+  se <- stats::sd(data$x) / sqrt(nrow(data))
+  list(theta_lower = m - 1.96 * se / 3, theta_upper = m + 1.96 * se / 3)
+}
+```
+
+## Running Tier B
+
+On Hopper, after `R CMD INSTALL` of the current medsim, from
+`inst/hopper-tests/`:
+
+``` r
+
+# Submits PILOTS ONLY (<=4 array tasks each) -- never a full run.
+# ./run-all.sh
+```
+
+`run-all.sh` submits small pilots and prints how to examine and combine
+them. **Scaling to a full run is a deliberate, human-approved step** —
+see “Pilot before scale” below.
+
+### B2 — end-to-end coverage (the real number)
+
+Runs `medsim_run_chunk` → `medsim_combine_chunks` →
+`medsim_analyze_coverage` across a chunked array with the correct
+method; coverage must land near the nominal 0.95.
+
+``` r
+
+# TIER_B_METHOD=nominal, then:
+# Rscript combine_analyze.R tier_b_nominal nominal
+```
+
+Static transcript (full run, 20 chunks × 2000 reps):
+
+    === Tier-B coverage (nominal), outdir=tier_b_nominal ===
+      scenario parameter coverage n_valid n_failed failure_rate mean_width
+    1       s1     theta   0.9460    2000        0            0     0.2767
+    2       s2     theta   0.9455    2000        0            0     0.2769
+    3       s3     theta   0.9410    2000        0            0     0.2769
+    4       s4     theta   0.9500    2000        0            0     0.2769
+    5       s5     theta   0.9445    2000        0            0     0.2775
+    6       s6     theta   0.9525    2000        0            0     0.2768
+    overall mean coverage: 0.947  (n reps total: 12000)
+    verdict: PASS (near-nominal)
+
+#### Combining runs under an integrity audit
+
+[`medsim_combine_chunks()`](https://data-wise.github.io/medsim/reference/medsim_combine_chunks.md)
+does more than concatenate: it rebuilds `$summary` and `$config` over
+the combined frame and **audits the grid** — per-scenario `replication`
+contiguity (ids are *global* across chunks under schema v2, so gaps,
+duplicates, and ragged cells are all detectable), the seed-collapse
+signature on every continuous estimate column, and cross-scenario seed
+collisions. By default a violation **stops** the combine, signalling a
+`medsim_combine_violation` condition that carries the combined object —
+no cluster compute is lost:
+
+``` r
+
+# Deliberate interim look at a still-running array (e.g. 58/60 chunks done):
+partial <- medsim_combine_chunks("tier_b_nominal", on_violation = "warn")
+
+# Recover the good cells from a stopped combine instead of losing the run:
+combined <- tryCatch(
+  medsim_combine_chunks("tier_b_nominal", expected_chunks = 20),
+  medsim_combine_violation = function(e) e$results
+)
+
+# The same audit, standalone, on an already-combined object:
+medsim_audit_results(combined, nsim = 2000)
+```
+
+### B3 — the can-fail dogfood (planted defect)
+
+The same pipeline with the 1/3-width `narrow` method. If this *did not*
+undercover, the harness could not detect a broken interval — so a pass
+here is a pass of the **detector**, not just the method.
+
+``` r
+
+# TIER_B_METHOD=narrow, then:
+# Rscript combine_analyze.R tier_b_narrow narrow
+```
+
+    === Tier-B coverage (narrow), outdir=tier_b_narrow ===
+    overall mean coverage: 0.480  (n reps total: 12000)
+    verdict: PASS (control undercovers as designed)
+
+### B4 — many-core FORK RNG realism (the sole FORK guard)
+
+A real FORK cluster over multiple cores: across the run, no two
+replications may share a random draw, and re-running with the same seed
+must reproduce exactly. This is the guard Tier A structurally cannot
+provide.
+
+``` r
+
+# Rscript fork_rng_realism.R   (TIER_B_N_REPLICATIONS controls the count)
+```
+
+    reproducible (run1 == run2): TRUE
+    verdict: PASS
+
+### B5 — production-grid seed-collision check
+
+Verifies
+[`.medsim_det_seed()`](https://data-wise.github.io/medsim/reference/dot-medsim_det_seed.md)
+(the order-sensitive polynomial rolling hash that fixed the chunked-RNG
+bug) produces **zero** collisions across the entire production grid —
+not merely across the six sample scenario names.
+
+``` r
+
+# Rscript grid_collision_check.R tier_b_nominal
+```
+
+    grid rows: 12000   distinct (scenario,CI): 12000
+    no cross-grid draw collision: TRUE
+    no .medsim_det_seed collision within any scenario: TRUE
+    verdict: PASS
+
+## Pilot before scale
+
+No full-scale cluster job is ever submitted cold. Every Tier-B check
+first runs a **pilot** of ≤4 array tasks; the full run happens **only**
+after the pilot is clean (all `COMPLETED`, `MaxRSS` within the
+`mem-per-cpu` envelope, nominal coverage ~0.95, narrow control \< 0.80,
+no collisions) **and** with explicit approval. A failed or surprising
+pilot blocks the full run — fix and re-pilot.
+
+``` r
+
+# After the pilot: confirm State/MaxRSS/Elapsed before scaling up.
+# sacct -j <jobid> --format=JobID,State,MaxRSS,Elapsed
+```
+
+The full run recorded above (jobs on UNM CARC Hopper, R 4.4.0) completed
+all 41 tasks in 2–4 s each with every check green. `MaxRSS` read below
+SLURM’s ~30 s sampler floor because the synthetic Wald workload is
+memory-trivial; a heavier real-kernel study would register a meaningful
+`MaxRSS`, and the envelope should be re-checked then.
+
+## Summary
+
+- **Tier A** (`tests/testthat/`, on CRAN) guards every pipeline
+  correctness invariant that can run single-core in seconds.
+- **Tier B** (`inst/hopper-tests/`, on Hopper) guards the at-scale and
+  many-core-FORK properties that CRAN structurally cannot exercise.
+- Building this vignette adds no measurable time to `R CMD check` and
+  launches nothing — the cluster suite is documented here but run
+  deliberately, by hand, behind a pilot gate.
