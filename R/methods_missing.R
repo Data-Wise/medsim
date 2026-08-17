@@ -92,9 +92,12 @@ medsim_method_mbco_mi <- function(model, m = 20L, ariv = c("own", "fixed"), ...)
         ## the STACKED fit's branch (fixed) -- both always emitted.
         branches <- vapply(lls_list, .medsim_mbco_branch_from_lls, 0)
         if (kk >= 2L) {
-          d4_own <- .medsim_d4_mbco(implist, covs, lls_list = lls_list)
+          ## The stacked-fit triple is shared: fit it once, reuse for both ARIVs.
+          lls_S <- .medsim_mbco_lls(do.call(rbind, implist), covs)
+          d4_own <- .medsim_d4_mbco(implist, covs, lls_list = lls_list,
+                                    lls_S = lls_S)
           d4_fix <- .medsim_d4_mbco(implist, covs, lls_list = lls_list,
-                                    fixed_branch = TRUE)
+                                    lls_S = lls_S, fixed_branch = TRUE)
           p_own <- unname(d4_own[["p"]]); p_fix <- unname(d4_fix[["p"]])
           r4_own <- unname(d4_own[["r4"]]); r4_fix <- unname(d4_fix[["r4"]])
           stacked_branch <- unname(d4_fix[["stacked_branch"]])
@@ -392,7 +395,8 @@ medsim_method_ipw <- function(model, ...) {
 
 # D4-pooled MBCO p-value across an imputation list (requires K >= 2). Pass a
 # precomputed `lls_list` (one .medsim_mbco_lls() triple per imputation) to
-# avoid refitting the per-imputation models.
+# avoid refitting the per-imputation models; `lls_S` (stacked-data triple) can
+# likewise be passed in so own- and fixed-branch calls share one stacked fit.
 #
 # `fixed_branch = FALSE` (default, Chan-Meng): the per-imputation statistics d_k
 # entering the ARIV are each computed on that imputation's own winning branch.
@@ -401,13 +405,14 @@ medsim_method_ipw <- function(model, ...) {
 # (and hence r4) down. The numerator d_S is identical in both cases. Returns the
 # stacked branch (1 = a = 0) as `stacked_branch` either way.
 .medsim_d4_mbco <- function(implist, covs = character(0), lls_list = NULL,
-                            fixed_branch = FALSE) {
+                            fixed_branch = FALSE, lls_S = NULL) {
   kk <- length(implist)
   if (is.null(lls_list)) {
     lls_list <- lapply(implist, function(d) .medsim_mbco_lls(d, covs))
   }
-  stacked <- do.call(rbind, implist)
-  lls_S <- .medsim_mbco_lls(stacked, covs)
+  if (is.null(lls_S)) {
+    lls_S <- .medsim_mbco_lls(do.call(rbind, implist), covs)
+  }
   d_S <- .medsim_mbco_T_from_lls(lls_S) / kk
   stacked_branch <- .medsim_mbco_branch_from_lls(lls_S)
   d_k <- if (fixed_branch) {
