@@ -3,6 +3,12 @@ priority: P1
 progress: 99
 kind: package
 cran_state: dev
+worktree-2026-08-17: `~/.git-worktrees/medsim/feature-mbco-fixed-branch-ariv` (branch
+  feature/mbco-fixed-branch-ariv, commit c6b9c33, PUSHED, no PR yet) — medsim_method_mbco_mi()
+  ariv=c("own","fixed") + additive branch diagnostics (indirect_p_fixed, branch_mix, p_branch_a,
+  stacked_branch, r4, r4_fixed); .medsim_d4_mbco(fixed_branch=). 1137 pass / 0 fail. Motivation:
+  Missing Effect ms:check 2026-08-16 (own-branch r4 under-estimates ARIV under branch mixing).
+  Next for it: PR -> dev, release 0.5.1 so the Missing Effect fixed-branch Hopper re-run can go.
 next: 🔴 ONE DECISION PENDING — branch `claude/pensive-goodall-3e2dfb` (worktree
   `~/.git-worktrees/medsim/pensive-goodall-3e2dfb`, commit 987d176, clean, 4 behind dev, NO PR)
   is held at FIX-FIRST after adversarial review. Its `est_error` rename is clean and fixes a live
