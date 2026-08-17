@@ -13,6 +13,8 @@
   pulls the average down and under-estimates the ARIV (Missing Effect
   comparator pilot, 2026-08-16). Default `ariv = "own"` keeps legacy behavior;
   `indirect_p` is unchanged unless `ariv = "fixed"`.
+  The stacked D4 model is fit once per replication and shared by both ARIV
+  computations (#44).
 
 # medsim 0.5.0
 
