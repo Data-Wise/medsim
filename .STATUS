@@ -13,7 +13,9 @@ merged-2026-08-17: PR #44 (`feature/mbco-fixed-branch-ariv`, squash `c748d1b` on
   flagged the new diagnostics), 2 SHOULD-FIX, NITs — all fixed + README/pkgdown refresh in
   PR #45, MERGED (squash 68a2a18). Worktrees `feature-mbco-fixed-branch-ariv` and
   `feature-release-0.5.1-review-fixes` still on disk (branches merged; remove when convenient).
-  NEXT for this track: release 0.5.1 (dev→main) so the Missing Effect fixed-branch Hopper re-run can go.
+  v0.5.1 RELEASED 2026-08-17 (merge a000108, tag v0.5.1, GitHub release published); dev bumped to
+  0.5.1.9000. Missing Effect fixed-branch Hopper re-run is UNBLOCKED (install from r-universe once
+  it serves 0.5.1.9000, or `pak::pak("Data-Wise/medsim@v0.5.1")`).
 next: 🔴 ONE DECISION PENDING — branch `claude/pensive-goodall-3e2dfb` (worktree
   `~/.git-worktrees/medsim/pensive-goodall-3e2dfb`, commit 987d176, clean, 4 behind dev, NO PR)
   is held at FIX-FIRST after adversarial review. Its `est_error` rename is clean and fixes a live
