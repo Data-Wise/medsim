@@ -10,6 +10,25 @@
   written. The mandatory column is now `est_error` (breaking only for code
   written against the never-runnable v0.5.0 contract).
 
+* **`medsim_combine_chunks()` schema-vote fixed to not be vetoed by an empty
+  chunk.** A single legitimately empty chunk (e.g. `n_chunks > n_reps`)
+  counted as "not schema-v2" in the whole-combine vote, stripping the
+  schema-v2 stamp and silently skipping the replication-id contiguity and
+  cross-scenario seed-collision audits for every chunk, not just the empty
+  one. Empty chunks are now exempted from the vote.
+
+* **New `partial_chunk` integrity violation.** A chunk written by a task that
+  failed mid-run can still present a clean, contiguous id block (e.g. 1-15 of
+  an intended 20) that the contiguity audit alone cannot distinguish from a
+  genuinely complete chunk. `medsim_combine_chunks()`/`medsim_audit_results()`
+  now flag any chunk whose provenance is marked `partial = TRUE`.
+
+* **New `dgp_failure` Gate A violation.** A `data_generator()` failure row
+  (introduced alongside this fix) still carries a valid, contiguous global
+  replication id, so the contiguity audit alone can no longer detect it as
+  missing data. `medsim_combine_chunks()`/`medsim_audit_results()` now report
+  the count of `data_generator()`-failure rows directly.
+
 # medsim 0.5.1
 
 ## New features
