@@ -126,7 +126,7 @@ reference:
   desc: >
     Scenario factory for numerical accuracy and timing studies (e.g., the
     product-of-three CI comparison).  Uses `estimand$kind = "numeric"` —
-    no DGM, no coverage/power analysis; only `error`, `abs_error`,
+    no DGM, no coverage/power analysis; only `est_error`, `abs_error`,
     `elapsed_sec` result columns and timing tables.
   contents:
   - medsim_scenario_numeric
