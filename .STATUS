@@ -16,7 +16,7 @@ merged-2026-08-17: PR #44 (`feature/mbco-fixed-branch-ariv`, squash `c748d1b` on
   0.5.1.9000. Missing Effect fixed-branch Hopper re-run is UNBLOCKED (install from r-universe once
   it serves 0.5.1.9000, or `pak::pak("Data-Wise/medsim@v0.5.1")`).
 grounded-2026-08-22: Reviewed all open PRs/issues against live GitHub + git state (no drift
-  vs memory except one correction below). 0 open PRs (confirmed). 5 open issues unchanged:
+  vs memory except one correction below). 0 open PRs (confirmed). 5 open issues found:
   #28, #29, #35, #41, #43. Branch-cleanup entry `(3)` further down in this file (dated
   "[DONE 2026-07-11]") was WRONG — corrected in place; the 7 old feature branches are still
   on origin, unmerged. #35's "blocked-upstream" status (probmed#32, BCa for ward_residual)
@@ -26,17 +26,32 @@ grounded-2026-08-22: Reviewed all open PRs/issues against live GitHub + git stat
   review: the whole Phase-2 bootstrap-replacement approach is refuted by measurement, verdict
   "must not be executed as written"). Do not act on #35 assuming probmed#32 is settled either
   direction — re-check probmed#32 before picking #35 back up.
-next: 🔴 ONE DECISION PENDING — branch `claude/pensive-goodall-3e2dfb` (worktree
-  `~/.git-worktrees/medsim/pensive-goodall-3e2dfb`, commit 987d176, clean, 4 behind dev, NO PR)
-  is held at FIX-FIRST after adversarial review. Its `est_error` rename is clean and fixes a live
-  v0.5.0 regression; its bundled parallel re-raise is NOT — a plain stop() converts partial data
-  loss into TOTAL loss (A/B: dev returns 15 of 20 rows, branch discards all 15). Recommended:
-  SPLIT — land the rename (needs `_pkgdown.yml:129` still saying `error`, + the re-raise test
-  fixed to n_cores>=2/n_reps>=4, since n_cores=1 routes to the sequential path), and move the
-  re-raise into PR-B as the data-carrying `medsim_run_failure` condition. THEN: PR-A
-  (`feature/combine-gate-fixes` — schema-vote exemption + partial_chunk + MANDATORY dgp_failure
-  violation) is unblocked and can start now; PR-B follows. Design: internal/GRILL-medsim-43-parallel-fail-loud-2026-07-31.md.
-  v0.5.0 RELEASED 2026-07-31 (chunked-run integrity; BREAKING expected_chunks default), dev at 0.5.0.9000; r-universe serving 0.5.0.9000 (sha 9b0b74d, verified 23:15). Only real
+closed-2026-08-22: **Issue #43 CLOSED** — full fix landed same-day across 3 merged PRs
+  (design: `internal/GRILL-medsim-43-parallel-fail-loud-2026-07-31.md`). The held branch
+  `claude/pensive-goodall-3e2dfb` was split per its adversarial review rather than merged as-is
+  (its bundled parallel re-raise would have converted partial data loss into total loss).
+  - PR #47 (`feature/est-error-rename`, squash `523ce14`) — clean half of the split: numeric-kind
+    mandatory column `error` → `est_error` (fixes a v0.5.0 regression: the two `error` meanings
+    collided and made the documented contract unusable), `_pkgdown.yml:129` fixed, new e2e
+    regression test.
+  - PR #48 (`feature/combine-gate-fixes`, squash `43946e9`) — Gate A combine hardening:
+    schema-vote no longer vetoed by a legit empty chunk, new `partial_chunk` violation, new
+    mandatory `dgp_failure` violation. `/code-review` caught a real hard crash
+    (`attr(NULL, ...) <- 2L` errors, unlike a no-op `NULL` assignment) in the all-empty-chunks
+    edge case — fixed + regression test before merge.
+  - PR #49 (`feature/parallel-fail-loud`, squash `8ed4c1f`) — the re-raise done right:
+    `medsim_run()`/`medsim_run_chunk()` stop loud with a data-carrying `medsim_run_failure`
+    condition on task-level errors (serial + parallel, identical shape), rescuing partial
+    results via `e$results` instead of discarding them. Rebased onto #48's squashed tip before
+    merge to keep the diff clean (`git rebase --onto`, one commit auto-dropped as
+    already-upstream). 12 verification cases per the design doc's §5.
+  Net: 1197 pass / 0 fail, R CMD check 0/0/0 on the final merged `dev` state. All 3 worktrees +
+  local/remote branches removed. `pensive-goodall-3e2dfb` worktree/branch still needs cleanup
+  (superseded by the split — safe to delete, nothing from it was merged directly).
+next:
+  v0.5.0 RELEASED 2026-07-31 (chunked-run integrity; BREAKING expected_chunks default), dev at
+  0.5.1.9000 (post-#43); r-universe serving dev tip once it rebuilds (~hourly cron, verify via
+  the packages.json curl check in CLAUDE.md before assuming it's caught up). Only real
   next action: CRAN submission is BLOCKED on medrobust (not in mainstream repos, re-verified
   2026-07-11) — check `available.packages(repos="https://cloud.r-project.org")` for
   "medrobust"; once TRUE, run `devtools::submit_cran()` from a clean `main` checkout (bump
