@@ -48,6 +48,20 @@ closed-2026-08-22: **Issue #43 CLOSED** — full fix landed same-day across 3 me
   Net: 1197 pass / 0 fail, R CMD check 0/0/0 on the final merged `dev` state. All 3 worktrees +
   local/remote branches removed. `pensive-goodall-3e2dfb` worktree/branch still needs cleanup
   (superseded by the split — safe to delete, nothing from it was merged directly).
+grilled-2026-08-22: All 4 remaining open issues grounded + grilled (7 branches, GD1-GD7).
+  Canonical designs — do NOT re-derive from the issue bodies, several of which are wrong:
+  `internal/GRILL-medsim-41-chunk-truth-atomic-cache-2026-08-22.md` (implementation-ready),
+  `internal/GRILL-medsim-35-gauge-probmed-exposure-2026-08-22.md`,
+  `internal/GRILL-medsim-28-cluster-vignette-2026-08-22.md`,
+  `internal/GRILL-medsim-29-prod3-adapter-2026-08-22.md` (DEFERRED, no consumer).
+  Two NEW correctness findings, both live on dev right now, neither previously filed:
+  (a) **truth-cache poisoning** — a failed `truth_function()` warns, then its error sentinel is
+      written to the truth cache (`R/runner.R:696-707`) and silently reused by every later run
+      with NO warning; folded into #41 as item 4. (b) **gauge/probmed exposure** — probmed's
+      per-row IPW weight fix (PR #34) merged to probmed's **dev, not main**; only release v0.3.0
+      predates it; medsim's Remotes resolves to main and Suggests has no floor ⇒ every install
+      route runs gauge coverage against the buggy estimator (upstream measured ~0.85-0.90 vs
+      0.936/0.972 corrected). #35 rescoped around it. Priority order now: #41 → #35 → #28 → (#29 deferred).
 next:
   v0.5.0 RELEASED 2026-07-31 (chunked-run integrity; BREAKING expected_chunks default), dev at
   0.5.1.9000 (post-#43); r-universe serving dev tip once it rebuilds (~hourly cron, verify via
