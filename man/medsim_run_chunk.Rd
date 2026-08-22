@@ -21,7 +21,13 @@ chunk's provenance. \code{NULL} (default) auto-detects via
 \verb{pkg:medsim-<version>} outside a git tree.}
 }
 \value{
-Invisibly, the path of the RDS file written.
+Invisibly, the path of the RDS file written. If a task-level error
+(a \code{medsim_run_failure} from \code{\link[=medsim_run]{medsim_run()}}) interrupts the chunk, its
+completed replications are still written -- atomically, with provenance
+\code{partial = TRUE} -- before this function re-\code{stop()}s so the array task
+still exits nonzero (\code{sacct} visibility, not a \code{--requeue} signal).
+\code{\link[=medsim_combine_chunks]{medsim_combine_chunks()}}/\code{\link[=medsim_audit_results]{medsim_audit_results()}} flag any such chunk
+via the \code{partial_chunk} violation.
 }
 \description{
 Runs replications \verb{[(chunk_id-1)*chunk_size+1 .. chunk_id*chunk_size]}

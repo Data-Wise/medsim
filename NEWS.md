@@ -29,6 +29,46 @@
   missing data. `medsim_combine_chunks()`/`medsim_audit_results()` now report
   the count of `data_generator()`-failure rows directly.
 
+* **`medsim_run(parallel = TRUE)` no longer silently drops replications on a
+  task-level error.** An error escaping a replication task -- a contract
+  violation (the reserved-`error`-field stop) or an infrastructure error, as
+  opposed to a `method()`/`data_generator()` failure (both of which already
+  became failure rows) -- was caught internally and then silently dropped by
+  `.medsim_rbind_reps()`'s row filter: the run "succeeded" with fewer rows and
+  no diagnostic. `medsim_run()` now stops with a `medsim_run_failure`
+  condition (subclass of `medsim_error`) carrying whatever completed before
+  the failure -- recover it with
+  `tryCatch(medsim_run(...), medsim_run_failure = function(e) e$results)`.
+  Serial (`parallel = FALSE`) execution gets the same per-task handling, so
+  both modes now behave identically on a task-level error.
+
+* **`data_generator()` failures are now failure rows, not silent aborts (or
+  crashes) that stop the whole run.** A failing `data_generator()` produces a
+  failure row (`error = "data_generator error: <msg>"`, distinct from a
+  `method()` failure's plain message) and the run continues; the estimator
+  correctly never runs for that replication, and `converged` stays `NA`
+  rather than being forced to `0` (which would have poisoned
+  `converged_mean`). `medsim_analyze_coverage()`'s output gains
+  `n_dgp_failed`/`dgp_failure_rate` alongside the existing
+  `n_failed`/`failure_rate` (now conditional on `data_generator()` having
+  succeeded) -- the two rates use different denominators and do not sum, by
+  design.
+
+* **`medsim_run_chunk()` rescues partial results on a task-level failure.** A
+  chunk interrupted by a `medsim_run_failure` now writes its completed
+  replications atomically (with provenance `partial = TRUE`) before
+  re-`stop()`ing, instead of losing the whole chunk. The array task still
+  exits nonzero for `sacct` visibility -- this is forensics, not a
+  `--requeue` signal.
+
+* **`medsim_check_results(list())` no longer errors** on the supported
+  `n_replications == 0` case (empty task list).
+
+* **`medsim_summarize_results()` reports `NA`, not `Inf`/`-Inf`, for an
+  all-`NA` cell** (e.g. every replication in a scenario a `data_generator()`
+  failure) -- `min()`/`max()` no longer emit a "no non-missing arguments"
+  warning for a cell with genuinely nothing to summarize.
+
 # medsim 0.5.1
 
 ## New features

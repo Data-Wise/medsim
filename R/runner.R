@@ -75,6 +75,26 @@
 #' - Used to calculate errors/bias in results
 #' - Can use Monte Carlo or analytical methods
 #'
+#' ## Task-level failures
+#'
+#' An error that escapes a replication task -- a contract violation (e.g. the
+#' reserved-`error`-field stop) or an infrastructure error, as opposed to a
+#' `method()` or `data_generator()` failure (both of which become failure
+#' rows and let the run continue) -- stops [medsim_run()] with a
+#' `medsim_run_failure` condition (subclass of `medsim_error`) rather than
+#' silently dropping the failed replications. The condition carries whatever
+#' completed before the failure: `$results` is a partial `medsim_results`
+#' object (prior scenarios complete, the failing scenario's successful reps
+#' included, later scenarios never started), and `$errors` is a list of
+#' `list(scenario, global_rep_id, message)`. Recover the partial run instead
+#' of losing it:
+#' ```r
+#' partial <- tryCatch(
+#'   medsim_run(method, scenarios, config),
+#'   medsim_run_failure = function(e) e$results
+#' )
+#' ```
+#'
 #' @examples
 #' \dontrun{
 #' # Define method
@@ -222,14 +242,86 @@ medsim_run <- function(method,
         packages = NULL  # Add if method requires specific packages
       )
     } else {
+      # Wrapped exactly like medsim_run_parallel()'s own per-task tryCatch
+      # (#43 R3/case 6: serial and parallel must produce the SAME classed
+      # object on a task-level error -- the reserved-`error` contract stop,
+      # an error inside .medsim_det_seed()/set.seed(), or one escaping
+      # result_df assembly. Previously these aborted medsim_run() immediately
+      # here, unlike the parallel path, where the same error was silently
+      # DROPPED instead (#43's core defect) -- neither behavior is the fix;
+      # the sweep below is.
       scenario_results <- lapply(seq_len(nrow(param_grid)), function(i) {
-        medsim_run_single_replication(
-          scenario = scenario,
-          rep_id = param_grid$replication[i],
-          method = method,
-          config = config
+        tryCatch(
+          medsim_run_single_replication(
+            scenario = scenario,
+            rep_id = param_grid$replication[i],
+            method = method,
+            config = config
+          ),
+          error = function(e) {
+            structure(
+              list(message = e$message, task = i),
+              class = c("medsim_error", "error", "condition")
+            )
+          }
         )
       })
+    }
+
+    # Sweep for task-level errors BEFORE combining (#43 §2). A medsim_error
+    # condition object reaching .medsim_rbind_reps() would be silently
+    # dropped by its nrow() filter -- the core defect this fix closes. No
+    # fail-fast machinery is needed (Q2): stop()ping here already unwinds out
+    # of this scenario loop, so a later scenario simply never starts.
+    is_task_error <- vapply(scenario_results, inherits, logical(1),
+                            what = "medsim_error")
+    if (any(is_task_error)) {
+      good_df <- .medsim_rbind_reps(scenario_results[!is_task_error])
+      all_results[[s_idx]] <- good_df
+      partial_df <- .medsim_stamp_schema_v2(.medsim_rbind_reps(all_results))
+      partial_summary <- if (is.null(partial_df) || nrow(partial_df) == 0L) {
+        NULL
+      } else {
+        suppressWarnings(medsim_summarize_results(partial_df))
+      }
+      partial_results <- list(
+        results     = partial_df,
+        summary     = partial_summary,
+        truth       = truth_results,
+        config      = config,
+        scenarios   = scenarios,
+        method_name = deparse(substitute(method))[1],
+        timestamp   = Sys.time()
+      )
+      class(partial_results) <- c("medsim_results", "list")
+
+      failed_tasks <- scenario_results[is_task_error]
+      task_ids <- vapply(failed_tasks, function(e) e$task, integer(1))
+      errors <- lapply(seq_along(failed_tasks), function(k) {
+        list(
+          scenario      = scenario$name,
+          global_rep_id = (config$rep_offset %||% 0L) +
+                           param_grid$replication[task_ids[k]],
+          message       = failed_tasks[[k]]$message
+        )
+      })
+
+      cond <- structure(
+        class = c("medsim_run_failure", "medsim_error", "error", "condition"),
+        list(
+          message = sprintf(paste(
+            "medsim_run: scenario '%s': %d of %d replication task(s) failed",
+            "with an unrecoverable error. First error (global rep %d): %s",
+            "\n(Partial results are attached to this condition:",
+            "tryCatch(..., medsim_run_failure = function(e) e$results).)"),
+            scenario$name, length(failed_tasks), nrow(param_grid),
+            errors[[1L]]$global_rep_id, errors[[1L]]$message),
+          call    = NULL,
+          results = partial_results,
+          errors  = errors
+        )
+      )
+      stop(cond)
     }
 
     # Combine results. .medsim_rbind_reps harmonizes row schemas first: a
@@ -266,17 +358,7 @@ medsim_run <- function(method,
   # scenario-dependent columns).
   all_results_df <- .medsim_rbind_reps(all_results)
 
-  # Schema stamp (v2: `replication` is the GLOBAL rep id) + column provenance.
-  # medsim_meta_cols records which columns the RUNNER wrote, so analyze/audit
-  # code can identify estimate columns by declared provenance instead of
-  # guessing by name subtraction (which silently mis-classified every new
-  # bookkeeping column as an estimate).
-  if (!is.null(all_results_df)) {
-    attr(all_results_df, "medsim_schema") <- 2L
-    attr(all_results_df, "medsim_meta_cols") <-
-      intersect(c("scenario", "replication", "elapsed", "error"),
-                names(all_results_df))
-  }
+  all_results_df <- .medsim_stamp_schema_v2(all_results_df)
 
   # --- Step 3: Store Ground Truth (if available) ---
   # Note: truth_results columns are plain (no _truth suffix)
@@ -383,7 +465,15 @@ medsim_run <- function(method,
 #' @param method User-defined method function
 #' @param config Configuration object
 #'
-#' @return data.frame with results for this replication
+#' @return data.frame with results for this replication. A `data_generator()`
+#'   failure returns a failure row (`error = "data_generator error: <msg>"`,
+#'   `elapsed = NA_real_`, no `converged`) without ever calling `method()`. A
+#'   `method()` failure returns a failure row with the plain error message
+#'   (no prefix). Anything else escaping this function (a non-function
+#'   `data_generator`, an error inside [.medsim_det_seed()]/`set.seed()`, or
+#'   one during result-row assembly) is a contract/infrastructure error and
+#'   propagates uncaught -- [medsim_run()]'s per-task sweep is what turns
+#'   that into a `medsim_run_failure` condition, not this function.
 #'
 #' @keywords internal
 medsim_run_single_replication <- function(scenario, rep_id, method, config) {
@@ -403,8 +493,48 @@ medsim_run_single_replication <- function(scenario, rep_id, method, config) {
   # (schema v2, SPEC-medsim-chunked-run-gates-2026-07-31): one honest global id,
   # not a chunk-local one that collides across chunks (#36).
 
-  # Generate data
-  data <- scenario$data_generator(n = config$n %||% 200)
+  # Contract error, not a runtime failure: a non-function data_generator
+  # would otherwise silently become nsim rows of garbage inside the tryCatch
+  # below instead of failing loudly here (#43 review finding). Deterministic
+  # on the first replication.
+  if (!is.function(scenario$data_generator)) {
+    stop(sprintf(
+      "scenario '%s': data_generator must be a function(n), not %s",
+      scenario$name, class(scenario$data_generator)[1L]), call. = FALSE)
+  }
+
+  # Generate data. A data_generator() failure is a REAL but distinct failure
+  # mode from a method() failure: the estimator never even ran. Tagged with a
+  # "data_generator error: " prefix (method() failures are NOT prefixed) so
+  # downstream accounting (medsim_analyze) and combine-time auditing (Gate
+  # A.4's dgp_failure violation) can tell the two apart -- without the tag a
+  # DGP failure looked identical to a method failure and their rates could
+  # not be reported separately (#43 G1/G3).
+  dgp_failed  <- FALSE
+  dgp_message <- NA_character_
+  data <- tryCatch(
+    scenario$data_generator(n = config$n %||% 200),
+    error = function(e) {
+      warning(sprintf("data_generator failed for %s, rep %d: %s",
+                      scenario$name, rep_id, e$message))
+      dgp_failed  <<- TRUE
+      dgp_message <<- e$message
+      NULL
+    }
+  )
+
+  if (dgp_failed) {
+    # method() never runs, so this row carries NO `converged` field --
+    # forcing converged = 0 here poisoned converged_mean (measured 0 with 2
+    # of 3 reps actually succeeding, #43 review round 4).
+    return(data.frame(
+      scenario    = scenario$name,
+      replication = global_rep_id,
+      elapsed     = NA_real_,
+      error       = paste0("data_generator error: ", dgp_message),
+      stringsAsFactors = FALSE
+    ))
+  }
 
   # Time the method
   start_time <- Sys.time()
@@ -638,6 +768,13 @@ medsim_summarize_results <- function(results, by = "scenario") {
   # Compute summary statistics
   summary_list <- list()
 
+  # An all-NA cell (e.g. every replication in a scenario is a
+  # data_generator() failure, #43) makes min(x, na.rm = TRUE)/max(...) warn
+  # "no non-missing arguments" and return +-Inf. NA_real_ is the honest value
+  # for "nothing to summarize here", not a fabricated infinity.
+  safe_min <- function(x) if (all(is.na(x))) NA_real_ else min(x, na.rm = TRUE)
+  safe_max <- function(x) if (all(is.na(x))) NA_real_ else max(x, na.rm = TRUE)
+
   for (col in numeric_cols) {
     col_summary <- aggregate(
       results[[col]],
@@ -647,8 +784,8 @@ medsim_summarize_results <- function(results, by = "scenario") {
           mean = mean(x, na.rm = TRUE),
           median = median(x, na.rm = TRUE),
           sd = sd(x, na.rm = TRUE),
-          min = min(x, na.rm = TRUE),
-          max = max(x, na.rm = TRUE),
+          min = safe_min(x),
+          max = safe_max(x),
           q25 = quantile(x, 0.25, na.rm = TRUE),
           q75 = quantile(x, 0.75, na.rm = TRUE)
         )
@@ -728,6 +865,24 @@ summary.medsim_results <- function(object, ...) {
   invisible(object$summary)
 }
 
+#' Stamp a combined results frame with the schema-v2 attributes
+#'
+#' @description
+#' Shared between [medsim_run()]'s normal completion and its `medsim_run_failure`
+#' partial payload (#43) -- both need the SAME schema-v2 stamp
+#' (`replication` is the GLOBAL rep id) + `medsim_meta_cols` provenance, so
+#' combine-time auditing treats a partial run exactly like a complete one.
+#' @param df A combined results data.frame, or `NULL`.
+#' @return `df` with the schema-v2 attributes set, or `NULL` unchanged.
+#' @keywords internal
+.medsim_stamp_schema_v2 <- function(df) {
+  if (is.null(df)) return(df)
+  attr(df, "medsim_schema") <- 2L
+  attr(df, "medsim_meta_cols") <-
+    intersect(c("scenario", "replication", "elapsed", "error"), names(df))
+  df
+}
+
 #' Schema-harmonized rbind of replication rows
 #'
 #' @description
@@ -746,6 +901,17 @@ summary.medsim_results <- function(object, ...) {
 #' @return One combined data.frame (0-row frames are dropped).
 #' @keywords internal
 .medsim_rbind_reps <- function(rows) {
+  # Defense in depth (#43 D3/§3): real callers can no longer reach this after
+  # medsim_run()'s per-scenario sweep intercepts task-level errors first, but
+  # stopping loud here beats nrow(<condition object>) silently evaluating to
+  # NULL and the failed replication vanishing through the filter below.
+  # Pinned by a direct unit test since normal use can no longer trigger it.
+  if (any(vapply(rows, inherits, logical(1), what = "medsim_error"))) {
+    stop(paste(
+      ".medsim_rbind_reps: received a medsim_error condition object --",
+      "the caller must intercept task-level errors before combining rows",
+      "(see medsim_run()'s per-scenario sweep)."), call. = FALSE)
+  }
   rows <- Filter(function(d) !is.null(d) && nrow(d) > 0L, rows)
   # NULL (not a 0x0 data.frame) preserves the pre-existing empty-chunk
   # semantics: do.call(rbind, list()) was NULL, and downstream code
@@ -767,9 +933,13 @@ summary.medsim_results <- function(object, ...) {
   # ROW-wise failure semantics (this helper is applied twice -- per scenario,
   # then across scenarios -- so it must be idempotent and must never treat a
   # multi-row frame as one failure): rows whose error is non-NA report
-  # converged = 0 (the documented contract) when the contract field exists.
+  # converged = 0 (the documented contract) when the contract field exists --
+  # EXCEPT a data_generator() failure (#43 G1/round 4), where method() never
+  # ran at all: forcing converged = 0 there poisons converged_mean (measured
+  # 0 with 2 of 3 reps actually succeeding). Those rows keep converged = NA.
   if ("converged" %in% names(out)) {
-    out$converged[!is.na(out$error)] <- 0
+    force_zero <- !is.na(out$error) & !.medsim_is_dgp_failure(out$error)
+    out$converged[force_zero] <- 0
   }
   out
 }

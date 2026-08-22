@@ -501,6 +501,13 @@ medsim_estimate_speedup <- function(n_tasks, n_cores, overhead = 0.1) {
 #' @export
 medsim_check_results <- function(results, stop_on_error = FALSE) {
 
+  # sapply(list(), ...) returns list() (not logical(0)), and sum(list())
+  # errors -- hit by the supported n_replications == 0 case (#43).
+  if (length(results) == 0L) {
+    message("* No tasks to check (empty results)")
+    return(invisible(integer(0)))
+  }
+
   # Find errors
   is_error <- sapply(results, inherits, "medsim_error")
   n_errors <- sum(is_error)

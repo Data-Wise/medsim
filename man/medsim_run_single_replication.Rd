@@ -19,7 +19,15 @@ both used for seeding and recorded as the row's \code{replication} value
 \item{config}{Configuration object}
 }
 \value{
-data.frame with results for this replication
+data.frame with results for this replication. A \code{data_generator()}
+failure returns a failure row (\code{error = "data_generator error: <msg>"},
+\code{elapsed = NA_real_}, no \code{converged}) without ever calling \code{method()}. A
+\code{method()} failure returns a failure row with the plain error message
+(no prefix). Anything else escaping this function (a non-function
+\code{data_generator}, an error inside \code{\link[=.medsim_det_seed]{.medsim_det_seed()}}/\code{set.seed()}, or
+one during result-row assembly) is a contract/infrastructure error and
+propagates uncaught -- \code{\link[=medsim_run]{medsim_run()}}'s per-task sweep is what turns
+that into a \code{medsim_run_failure} condition, not this function.
 }
 \description{
 Internal function to run a single replication of a simulation. This is

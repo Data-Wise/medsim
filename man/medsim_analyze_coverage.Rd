@@ -32,7 +32,11 @@ Default NULL uses standard CI-column-based coverage.}
 \value{
 A list with class "medsim_coverage" containing:
 \itemize{
-\item \code{coverage}: data.frame with coverage rates
+\item \code{coverage}: data.frame with coverage rates, plus \code{n_failed}/\code{failure_rate}
+(\code{method()} failures, conditional on \code{data_generator()} having
+succeeded) and \code{n_dgp_failed}/\code{dgp_failure_rate} (\code{data_generator()}
+failures, unconditional -- the two rates use different denominators
+and do not sum, by design; see \code{\link[=.medsim_failure_split]{.medsim_failure_split()}})
 \item \code{by_scenario}: data.frame with coverage by scenario (if by_scenario=TRUE)
 \item \code{summary}: Overall summary statistics
 }
