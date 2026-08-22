@@ -244,7 +244,8 @@ medsim_run_chunk <- function(scenarios, method, config, verbose = TRUE,
 #' @param on_violation One of `"stop"` (default), `"warn"`, `"ignore"`: what to
 #'   do when an integrity violation is found (missing chunks, duplicate or
 #'   gapped replication ids, ragged cells, output collapse, all-failed cells,
-#'   cross-scenario seed collisions). `"stop"` signals a
+#'   cross-scenario seed collisions, a chunk flagged partial by a failed
+#'   task, or a nonzero count of `data_generator()` failures). `"stop"` signals a
 #'   `medsim_combine_violation` condition that CARRIES the combined results --
 #'   recover an hours-long run's good cells with
 #'   `tryCatch(medsim_combine_chunks(...), medsim_combine_violation = function(e) e$results)`.
@@ -363,24 +364,37 @@ medsim_combine_chunks <- function(output_dir, pattern = "chunk_*.rds",
   # holding colliding legacy ids => the audit hard-stopped with a misdiagnosed
   # dup_rep_id, violating the never-stop-on-legacy promise). Stamp when ALL
   # chunks are v2; otherwise STRIP whatever rbind inherited and warn once.
-  chunk_v2 <- vapply(chunks, function(ch) {
+  # A NULL/zero-row chunk (a supported case: n_chunks > n_reps, or the empty
+  # tail of an uneven split) carries no schema stamp either way -- voting it
+  # as "not v2" struck schema-v2 status, and with it Gate A.1/A.3, from the
+  # ENTIRE combine over one legitimately empty chunk. Exempt empty chunks from
+  # the vote; only non-empty chunks' actual stamps decide schema_v2.
+  chunk_is_empty <- vapply(chunks, function(ch) {
+    is.null(ch$results) || nrow(ch$results) == 0L
+  }, logical(1))
+  chunk_v2 <- vapply(chunks[!chunk_is_empty], function(ch) {
     identical(attr(ch$results, "medsim_schema", exact = TRUE), 2L)
   }, logical(1))
-  schema_v2 <- all(chunk_v2)
+  schema_v2 <- length(chunk_v2) == 0L || all(chunk_v2)
+  non_empty_idx <- which(!chunk_is_empty)
   if (schema_v2) {
     attr(all_results, "medsim_schema") <- 2L
-    attr(all_results, "medsim_meta_cols") <-
-      attr(chunks[[1L]]$results, "medsim_meta_cols", exact = TRUE)
+    attr(all_results, "medsim_meta_cols") <- if (length(non_empty_idx) > 0L) {
+      attr(chunks[[non_empty_idx[1L]]]$results, "medsim_meta_cols",
+           exact = TRUE)
+    } else {
+      NULL
+    }
   } else {
     attr(all_results, "medsim_schema") <- NULL
     attr(all_results, "medsim_meta_cols") <- NULL
     warning(sprintf(paste(
-      "medsim_combine_chunks: %d of %d chunk files lack the schema-v2 stamp",
-      "(written by an older medsim; `replication` ids are chunk-local and",
-      "collide across chunks). Id-based audits are skipped and rows are NOT",
-      "uniquely identifiable -- re-run the chunks under this medsim version",
-      "for full auditability."),
-      sum(!chunk_v2), length(chunks)), call. = FALSE)
+      "medsim_combine_chunks: %d of %d non-empty chunk files lack the",
+      "schema-v2 stamp (written by an older medsim; `replication` ids are",
+      "chunk-local and collide across chunks). Id-based audits are skipped",
+      "and rows are NOT uniquely identifiable -- re-run the chunks under",
+      "this medsim version for full auditability."),
+      sum(!chunk_v2), length(chunk_v2)), call. = FALSE)
   }
 
   combined$results <- all_results
@@ -404,6 +418,25 @@ medsim_combine_chunks <- function(output_dir, pattern = "chunk_*.rds",
   # on_violation = "warn".
   provs <- lapply(chunks, function(ch) attr(ch, "provenance", exact = TRUE))
   combined$chunk_provenance <- provs
+
+  # A task that fails mid-run writes what it has and flags its chunk
+  # `partial = TRUE` (R/runner.R, on the failure path). Gate A.1's contiguity
+  # check cannot catch this on its own: `expected <- seq_len(max(ids))` is
+  # self-validating only up to the highest id actually present, so a
+  # truncation (e.g. 20 reps intended, 15 written) that still lands a
+  # contiguous 1..15 block produces ZERO contiguity violations without an
+  # external `nsim` (empirically confirmed). The provenance marker is the
+  # only reliable signal that a chunk is short by design, not by construction.
+  partial_flags <- vapply(provs, function(p) isTRUE(p$partial), logical(1))
+  if (any(partial_flags)) {
+    violations[[length(violations) + 1L]] <- list(
+      type = "partial_chunk",
+      message = sprintf(paste(
+        "%d of %d chunk file(s) are flagged partial (a replication task",
+        "failed mid-run and the chunk holds only its completed reps) --",
+        "results are missing, not just truncated"),
+        sum(partial_flags), length(partial_flags)))
+  }
   shas <- vapply(provs, function(p) {
     if (is.null(p) || is.null(p$code_sha)) NA_character_ else p$code_sha
   }, character(1))
@@ -507,6 +540,24 @@ medsim_audit_results <- function(results,
   .medsim_signal_violations(violations, results, on_violation,
                             context = "medsim_audit_results")
   invisible(violations)
+}
+
+#' Test whether failure-row error messages are data_generator() failures
+#'
+#' @description
+#' `medsim_run()`/`medsim_run_chunk()` tag a `data_generator()` failure
+#' differently from a `method()` failure (message prefix
+#' `"data_generator error: "`) so combine-time diagnostics can distinguish
+#' "the estimator failed" from "the estimator never ran." Contract: `NULL` in
+#' (a legacy or user-built frame with no `error` column) returns `logical(0)`,
+#' matching the empty-input behavior callers already rely on for `error`.
+#'
+#' @param error Character vector (typically `df$error`), or `NULL`.
+#' @return Logical vector the same length as `error`.
+#' @keywords internal
+.medsim_is_dgp_failure <- function(error) {
+  if (is.null(error)) return(logical(0))
+  !is.na(error) & startsWith(error, "data_generator error: ")
 }
 
 # -- Gate A internals -------------------------------------------------------
@@ -653,6 +704,20 @@ medsim_audit_results <- function(results,
         "scenarios %s share RNG seed(s) (name-hash bucket collision in .medsim_det_seed) -- their draws are not independent; rename one scenario",
         paste(sprintf("'%s'", holders), collapse = " and ")))
     }
+  }
+
+  # --- A.4 DGP-failure count (#43 Q1, mandatory) ----------------------------
+  # A data_generator() failure row still carries a valid, contiguous global
+  # rep id -- so once such rows are produced (the runner side of #43), A.1's
+  # contiguity check alone no longer flags them as missing (a real detector
+  # this fix would otherwise silently disable, per the 40-rep/4-DGP-failure
+  # regression). Surfacing the count here restores that visibility. Inert
+  # today: nothing yet writes the "data_generator error: " prefix.
+  n_dgp_failed <- sum(.medsim_is_dgp_failure(df$error))
+  if (n_dgp_failed > 0L) {
+    add("dgp_failure", sprintf(
+      "%d of %d rows are data_generator() failures (estimator never ran for these reps) -- see dgp_failure_rate in medsim_analyze()",
+      n_dgp_failed, nrow(df)))
   }
 
   violations

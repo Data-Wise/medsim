@@ -134,8 +134,12 @@ verdict: PASS (near-nominal)
 and `$config` over the combined frame and **audits the grid** — per-scenario
 `replication` contiguity (ids are *global* across chunks under schema v2, so
 gaps, duplicates, and ragged cells are all detectable), the seed-collapse
-signature on every continuous estimate column, and cross-scenario seed
-collisions. By default a violation **stops** the combine, signalling a
+signature on every continuous estimate column, cross-scenario seed
+collisions, any chunk flagged partial by a failed task (contiguity alone
+cannot catch a clean-but-short truncation), and a nonzero count of
+`data_generator()` failures (which still land as contiguous rows, so they
+would otherwise be invisible to the contiguity check). By default a
+violation **stops** the combine, signalling a
 `medsim_combine_violation` condition that carries the combined object — no
 cluster compute is lost:
 
