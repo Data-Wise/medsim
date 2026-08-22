@@ -377,7 +377,11 @@ medsim_combine_chunks <- function(output_dir, pattern = "chunk_*.rds",
   }, logical(1))
   schema_v2 <- length(chunk_v2) == 0L || all(chunk_v2)
   non_empty_idx <- which(!chunk_is_empty)
-  if (schema_v2) {
+  # all_results is NULL when every chunk is empty (.medsim_rbind_reps drops
+  # them all) -- attr<-() errors on NULL for a non-NULL value (works fine for
+  # NULL, which is why the pre-fix all-FALSE vote never hit this), so the
+  # vacuous schema_v2 = TRUE from an empty chunk_v2 must not try to stamp it.
+  if (schema_v2 && !is.null(all_results)) {
     attr(all_results, "medsim_schema") <- 2L
     attr(all_results, "medsim_meta_cols") <- if (length(non_empty_idx) > 0L) {
       attr(chunks[[non_empty_idx[1L]]]$results, "medsim_meta_cols",
@@ -385,7 +389,7 @@ medsim_combine_chunks <- function(output_dir, pattern = "chunk_*.rds",
     } else {
       NULL
     }
-  } else {
+  } else if (!schema_v2) {
     attr(all_results, "medsim_schema") <- NULL
     attr(all_results, "medsim_meta_cols") <- NULL
     warning(sprintf(paste(

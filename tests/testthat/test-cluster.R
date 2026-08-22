@@ -335,6 +335,24 @@ test_that("medsim_combine_chunks: an empty chunk does not disable schema-v2 audi
   expect_identical(attr(combined$results, "medsim_schema"), 2L)
 })
 
+test_that("medsim_combine_chunks does not error when EVERY chunk is empty (schema-vote vacuous truth)", {
+  tmp_dir <- tempfile()
+  dir.create(tmp_dir)
+  on.exit(unlink(tmp_dir, recursive = TRUE))
+
+  # chunk_v2 has length 0 when every chunk is empty -> schema_v2 is vacuously
+  # TRUE, but all_results is NULL (.medsim_rbind_reps drops every input) --
+  # attr(NULL, ...) <- 2L errors, unlike attr(NULL, ...) <- NULL, which is
+  # why the pre-fix all-FALSE vote never hit this.
+  saveRDS(make_empty_v2_chunk(), file.path(tmp_dir, "chunk_0001.rds"))
+  saveRDS(make_empty_v2_chunk(), file.path(tmp_dir, "chunk_0002.rds"))
+
+  combined <- suppressWarnings(
+    medsim_combine_chunks(tmp_dir, on_violation = "warn", verbose = FALSE)
+  )
+  expect_true(is.null(combined$results))
+})
+
 test_that(".medsim_is_dgp_failure handles NULL, absent, and present error columns (#43)", {
   expect_equal(.medsim_is_dgp_failure(NULL), logical(0))
   expect_equal(
