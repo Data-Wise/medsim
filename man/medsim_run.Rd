@@ -101,6 +101,27 @@ If \code{compute_truth} is provided:
 \item Can use Monte Carlo or analytical methods
 }
 }
+
+\subsection{Task-level failures}{
+
+An error that escapes a replication task -- a contract violation (e.g. the
+reserved-\code{error}-field stop) or an infrastructure error, as opposed to a
+\code{method()} or \code{data_generator()} failure (both of which become failure
+rows and let the run continue) -- stops \code{\link[=medsim_run]{medsim_run()}} with a
+\code{medsim_run_failure} condition (subclass of \code{medsim_error}) rather than
+silently dropping the failed replications. The condition carries whatever
+completed before the failure: \verb{$results} is a partial \code{medsim_results}
+object (prior scenarios complete, the failing scenario's successful reps
+included, later scenarios never started), and \verb{$errors} is a list of
+\code{list(scenario, global_rep_id, message)}. Recover the partial run instead
+of losing it:
+
+\if{html}{\out{<div class="sourceCode r">}}\preformatted{partial <- tryCatch(
+  medsim_run(method, scenarios, config),
+  medsim_run_failure = function(e) e$results
+)
+}\if{html}{\out{</div>}}
+}
 }
 \examples{
 \dontrun{

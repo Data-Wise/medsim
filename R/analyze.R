@@ -255,6 +255,38 @@ medsim_analyze <- function(results,
   return(analysis)
 }
 
+#' Split a failure count into data_generator() vs method() failures (#43 G3)
+#'
+#' @description
+#' A `data_generator()` failure row (`error` prefixed `"data_generator
+#' error: "`) means the estimator never ran for that replication -- lumping
+#' it into the same `failure_rate` as a `method()` failure (estimator ran,
+#' produced no usable CI) conflates two different reliability signals.
+#' `failure_rate` and `dgp_failure_rate` deliberately use DIFFERENT
+#' denominators and do not sum to an overall failure fraction: `failure_rate`
+#' is conditional on the DGP having succeeded (excludes DGP-failure reps from
+#' both numerator and denominator); `dgp_failure_rate` is unconditional
+#' (always over `n_total`).
+#'
+#' @param error_vec The (possibly `NULL`) `error` column for these rows,
+#'   BEFORE any NA-based valid/invalid subsetting.
+#' @param n_valid Count of rows with a usable (non-NA) CI/truth (post-filter).
+#' @param n_total Total row count for this parameter/scenario, before
+#'   filtering (same basis `error_vec` is indexed against).
+#' @return `list(n_failed, failure_rate, n_dgp_failed, dgp_failure_rate)`.
+#' @keywords internal
+.medsim_failure_split <- function(error_vec, n_valid, n_total) {
+  n_dgp_failed <- sum(.medsim_is_dgp_failure(error_vec))
+  denom <- n_total - n_dgp_failed
+  n_failed <- denom - n_valid
+  list(
+    n_failed         = n_failed,
+    failure_rate     = if (denom > 0L) n_failed / denom else NA_real_,
+    n_dgp_failed     = n_dgp_failed,
+    dgp_failure_rate = if (n_total > 0L) n_dgp_failed / n_total else NA_real_
+  )
+}
+
 #' Analyze Coverage Rates
 #'
 #' @description
@@ -275,7 +307,11 @@ medsim_analyze <- function(results,
 #'   Default NULL uses standard CI-column-based coverage.
 #'
 #' @return A list with class "medsim_coverage" containing:
-#'   - `coverage`: data.frame with coverage rates
+#'   - `coverage`: data.frame with coverage rates, plus `n_failed`/`failure_rate`
+#'     (`method()` failures, conditional on `data_generator()` having
+#'     succeeded) and `n_dgp_failed`/`dgp_failure_rate` (`data_generator()`
+#'     failures, unconditional -- the two rates use different denominators
+#'     and do not sum, by design; see [.medsim_failure_split()])
 #'   - `by_scenario`: data.frame with coverage by scenario (if by_scenario=TRUE)
 #'   - `summary`: Overall summary statistics
 #'
@@ -318,7 +354,6 @@ medsim_analyze <- function(results,
 #' }
 #'
 #' @seealso [medsim_analyze()], [medsim_analyze_power()]
-#'
 #' @export
 medsim_analyze_coverage <- function(results,
                                     ci_levels = c(0.90, 0.95, 0.99),
@@ -405,13 +440,16 @@ medsim_analyze_coverage <- function(results,
 
     # Store result
     n_total <- length(merged[[lower_col]])
+    split <- .medsim_failure_split(merged$error, length(in_ci), n_total)
     coverage_list[[param]] <- data.frame(
-      parameter     = param,
-      coverage      = coverage_rate,
-      coverage_mcse = sqrt(coverage_rate * (1 - coverage_rate) / length(in_ci)),
-      n_valid       = length(in_ci),
-      n_failed      = n_total - length(in_ci),
-      failure_rate  = (n_total - length(in_ci)) / n_total,
+      parameter        = param,
+      coverage         = coverage_rate,
+      coverage_mcse    = sqrt(coverage_rate * (1 - coverage_rate) / length(in_ci)),
+      n_valid          = length(in_ci),
+      n_failed         = split$n_failed,
+      failure_rate     = split$failure_rate,
+      n_dgp_failed     = split$n_dgp_failed,
+      dgp_failure_rate = split$dgp_failure_rate,
       stringsAsFactors = FALSE
     )
   }
@@ -451,14 +489,18 @@ medsim_analyze_coverage <- function(results,
 
         n_total_s <- length(scenario_data[[lower_col]])
         cov_s     <- mean(in_ci)
+        split_s   <- .medsim_failure_split(scenario_data$error, length(in_ci),
+                                           n_total_s)
         scenario_list[[paste(scenario_name, param, sep = "_")]] <- data.frame(
-          scenario      = scenario_name,
-          parameter     = param,
-          coverage      = cov_s,
-          coverage_mcse = sqrt(cov_s * (1 - cov_s) / length(in_ci)),
-          n_valid       = length(in_ci),
-          n_failed      = n_total_s - length(in_ci),
-          failure_rate  = (n_total_s - length(in_ci)) / n_total_s,
+          scenario         = scenario_name,
+          parameter        = param,
+          coverage         = cov_s,
+          coverage_mcse    = sqrt(cov_s * (1 - cov_s) / length(in_ci)),
+          n_valid          = length(in_ci),
+          n_failed         = split_s$n_failed,
+          failure_rate     = split_s$failure_rate,
+          n_dgp_failed     = split_s$n_dgp_failed,
+          dgp_failure_rate = split_s$dgp_failure_rate,
           stringsAsFactors = FALSE
         )
       }
@@ -532,6 +574,7 @@ medsim_analyze_coverage <- function(results,
     truth <- merged[[truth_col]]
     valid <- !is.na(lo) & !is.na(hi) & !is.na(truth)
     n_total <- length(valid)  # before subsetting -> gives the failed count
+    error_all <- merged$error  # aligned with n_total, before subsetting
     lo <- lo[valid]; hi <- hi[valid]; truth <- truth[valid]
     if (length(lo) == 0L) next
 
@@ -542,13 +585,16 @@ medsim_analyze_coverage <- function(results,
     # excluded from the numerator AND denominator and accounted separately, so
     # a near-singular tail (e.g. all-NA reps) never poisons the coverage number.
     cov_rate <- mean(in_bounds)
+    split <- .medsim_failure_split(error_all, length(in_bounds), n_total)
     row <- data.frame(
-      parameter       = param,
-      coverage        = cov_rate,
-      coverage_mcse   = sqrt(cov_rate * (1 - cov_rate) / length(in_bounds)),
-      n_valid         = length(in_bounds),
-      n_failed        = n_total - length(in_bounds),
-      failure_rate    = (n_total - length(in_bounds)) / n_total,
+      parameter        = param,
+      coverage         = cov_rate,
+      coverage_mcse    = sqrt(cov_rate * (1 - cov_rate) / length(in_bounds)),
+      n_valid          = length(in_bounds),
+      n_failed         = split$n_failed,
+      failure_rate     = split$failure_rate,
+      n_dgp_failed     = split$n_dgp_failed,
+      dgp_failure_rate = split$dgp_failure_rate,
       stringsAsFactors = FALSE
     )
 
@@ -573,7 +619,9 @@ medsim_analyze_coverage <- function(results,
     coverage_df <- data.frame(
       parameter = character(0), coverage = numeric(0),
       coverage_mcse = numeric(0), n_valid = integer(0),
-      n_failed = integer(0), failure_rate = numeric(0), mean_width = numeric(0),
+      n_failed = integer(0), failure_rate = numeric(0),
+      n_dgp_failed = integer(0), dgp_failure_rate = numeric(0),
+      mean_width = numeric(0),
       stringsAsFactors = FALSE)
   }
   rownames(coverage_df) <- NULL
@@ -602,16 +650,20 @@ medsim_analyze_coverage <- function(results,
         valid <- !is.na(lo) & !is.na(hi) & !is.na(truth)
         if (!any(valid)) next
         n_total_s <- length(valid)  # before subsetting
+        error_s <- d$error  # aligned with n_total_s, before subsetting
         lo <- lo[valid]; hi <- hi[valid]; truth <- truth[valid]
         in_bounds <- (truth >= lo) & (truth <= hi)
         cov_s <- mean(in_bounds)
+        split_s <- .medsim_failure_split(error_s, length(in_bounds), n_total_s)
         sc_list[[paste(sc, param, sep = "_")]] <- data.frame(
           scenario = sc, parameter = param,
           coverage = cov_s,
           coverage_mcse = sqrt(cov_s * (1 - cov_s) / length(in_bounds)),
           n_valid = length(in_bounds),
-          n_failed = n_total_s - length(in_bounds),
-          failure_rate = (n_total_s - length(in_bounds)) / n_total_s,
+          n_failed = split_s$n_failed,
+          failure_rate = split_s$failure_rate,
+          n_dgp_failed = split_s$n_dgp_failed,
+          dgp_failure_rate = split_s$dgp_failure_rate,
           mean_width = mean(hi - lo), stringsAsFactors = FALSE
         )
       }

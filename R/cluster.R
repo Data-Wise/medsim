@@ -169,7 +169,13 @@ medsim_write_submit_script <- function(config,
 #'   `git rev-parse HEAD` in the running script's directory, degrading to
 #'   `pkg:medsim-<version>` outside a git tree.
 #'
-#' @return Invisibly, the path of the RDS file written.
+#' @return Invisibly, the path of the RDS file written. If a task-level error
+#'   (a `medsim_run_failure` from [medsim_run()]) interrupts the chunk, its
+#'   completed replications are still written -- atomically, with provenance
+#'   `partial = TRUE` -- before this function re-`stop()`s so the array task
+#'   still exits nonzero (`sacct` visibility, not a `--requeue` signal).
+#'   [medsim_combine_chunks()]/[medsim_audit_results()] flag any such chunk
+#'   via the `partial_chunk` violation.
 #'
 #' @seealso [medsim_combine_chunks()], [medsim_audit_results()],
 #'   [medsim_write_submit_script()]
@@ -200,28 +206,77 @@ medsim_run_chunk <- function(scenarios, method, config, verbose = TRUE,
   chunk_config$n_replications <- length(indices)
   chunk_config$rep_offset     <- indices[1L] - 1L
 
-  results <- medsim_run(method, scenarios, chunk_config)
+  # A task-level error (medsim_run_failure, #43 PR-B) still carries whatever
+  # replications completed before the failure -- rescue them to disk instead
+  # of losing an hours-long chunk to one bad replication, then re-stop() so
+  # the array task still exits nonzero (sacct visibility; NOT a --requeue
+  # signal -- a nonzero SLURM exit does not requeue on its own; see
+  # internal/GRILL-medsim-43-parallel-fail-loud-2026-07-31.md).
+  run_failure <- NULL
+  results <- tryCatch(
+    medsim_run(method, scenarios, chunk_config),
+    medsim_run_failure = function(e) {
+      run_failure <<- e
+      e$results
+    }
+  )
+
+  if (!is.null(run_failure) &&
+      (is.null(results) || is.null(results$results) ||
+       nrow(results$results) == 0L)) {
+    # Nothing survived this chunk -- no partial file worth writing.
+    stop(run_failure)
+  }
 
   # Gate C: provenance header. Auto-detect the code SHA unless caller-stamped
   # (an opt-in-only SHA would leave the combine assertion inert -- grill B5).
   if (is.null(code_sha)) code_sha <- .medsim_detect_code_sha()
   n_rows <- if (is.null(results$results)) 0L else nrow(results$results)
+  sec_per_rep <- if (n_rows > 0L && !all(is.na(results$results$elapsed))) {
+    mean(results$results$elapsed, na.rm = TRUE)
+  } else {
+    NA_real_
+  }
   attr(results, "provenance") <- list(
     r_version      = as.character(getRversion()),
     medsim_version = as.character(utils::packageVersion("medsim")),
     dep_versions   = .medsim_dep_versions(),
     hostname       = Sys.info()[["nodename"]],
     code_sha       = code_sha,
-    sec_per_rep    = if (n_rows > 0L) mean(results$results$elapsed) else NA_real_,
-    timestamp_utc  = format(Sys.time(), tz = "UTC", usetz = TRUE)
+    sec_per_rep    = sec_per_rep,
+    timestamp_utc  = format(Sys.time(), tz = "UTC", usetz = TRUE),
+    partial        = !is.null(run_failure)
   )
 
   output_dir  <- config$output_dir %||% "simulation_results"
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   out_path <- file.path(output_dir, .medsim_chunk_filename(chunk_id))
-  saveRDS(results, out_path)
+
+  # Atomic write: a same-filesystem rename is all-or-nothing, so a crash
+  # mid-write never leaves a half-written chunk file for
+  # medsim_combine_chunks() to read. The tmp file MUST live inside
+  # output_dir, not tempdir() -- tempdir() is typically a different
+  # filesystem on HPC, and a cross-device file.rename() fails by returning
+  # FALSE, not by erroring.
+  tmp_path <- file.path(output_dir, paste0(".", basename(out_path), ".tmp"))
+  saveRDS(results, tmp_path)
+  renamed <- file.rename(tmp_path, out_path)
+  if (!isTRUE(renamed)) {
+    stop(sprintf(paste(
+      "medsim_run_chunk: failed to atomically rename '%s' to '%s'",
+      "(cross-device rename? tmp and output_dir must be on the same",
+      "filesystem)"), tmp_path, out_path), call. = FALSE)
+  }
 
   if (verbose) message(sprintf("[medsim_run_chunk] saved -> %s", out_path))
+
+  if (!is.null(run_failure)) {
+    # Re-stop so the SLURM task exits nonzero and sacct/the array log show
+    # the failure -- the partial file above is forensics, not a silent
+    # "succeeded" exit code.
+    stop(run_failure)
+  }
+
   invisible(out_path)
 }
 
