@@ -1,11 +1,24 @@
 # GRILL — medsim #41: compute_truth passthrough, atomic cache writes, config$seed doc fix
 
 **Date**: 2026-08-22 · **Target**: issue #41 · **Base**: dev @ `1150e45` (post-#43)
-**Status**: **PROPOSAL — implementation-ready.** All grill branches resolved
-(§7); no blocking open questions. Scope grew during the grill: this is now a
-**correctness PR with a breaking change**, not the cost/doc cleanup the issue
-describes.
-**Location**: canonical design doc for #41.
+**Status**: **DECISION LEDGER — superseded for implementation by the SPEC.**
+**Location**: decision provenance for #41. The implementation contract is
+[`SPEC-medsim-41-truth-integrity-2026-08-22.md`](SPEC-medsim-41-truth-integrity-2026-08-22.md).
+
+> ⚠️ **Read the SPEC, not this file, to build #41.** This ledger records *why*
+> each decision was made; the SPEC records *what to build*. Where they differ,
+> **the SPEC wins**.
+>
+> **GD2 / D2′ in this file is WRONG and must not be implemented.** Its
+> predicate checked scenario *presence*
+> (`setdiff(scenarios_with_results, scenarios_with_truth)`). A later empirical
+> reproduction (SPEC §Evidence E-2) proved every scenario **is** present in
+> the degenerate truth frame, so that check can never fire on the failure it
+> was designed for. The real tell is **zero parameter columns**. Corrected
+> predicate: SPEC §D2′. Also restored to scope after this ledger declined it:
+> widening `medsim_analyze_coverage()`'s *existing whole-frame* hard stop
+> (SPEC §D7) — narrower than, and not the same change as, the per-parameter
+> warning GD2 rightly rejected.
 
 **Method**: solo grounding pass (grep + targeted repro against installed
 package state) → one adversarial pass via `advisor()` → interactive
@@ -248,7 +261,7 @@ it rides `dev` or waits for a minor bump.
 | # | Question | Resolution |
 |---|---|---|
 | GD1 | Where does the F3 truth-cache poisoning bug get handled? | **Fold into #41 as item 4.** `medsim_cache_save()` is already being opened here for the atomic-write fix (D3), the guard is ~3 lines, and shipping atomicity while leaving poison-caching in place is half a fix. Consequence accepted: #41 is no longer a cost/doc cleanup — it is a correctness PR, and its priority rises above #29/#28. |
-| GD2 | Does D2 (combine-time truth gate) survive F1/F2? | **Yes, but reframed as a truth-coverage check** — see D2′ below. The intent-flag design is dropped; no provenance boolean is added. |
+| GD2 | Does D2 (combine-time truth gate) survive F1/F2? | **Yes, reframed as a truth-coverage check** — but the predicate recorded here was later proven wrong. ⚠️ **SUPERSEDED by SPEC §D2′** (scenario-presence never fires; the tell is zero parameter columns — see SPEC §Evidence E-2). The conclusion "a combine-time gate is warranted" stands; the implementation does not. |
 | GD5 | What should a failed `truth_function()` do, once the sentinel is no longer cached? | **`stop()` by default** (breaking; opt-out via a new `truth_on_failure = c("stop","warn")` on `medsim_run()`). Rationale in D5 below — truth is Step 1, so stopping wastes no replication compute. Rejected: keep-warning-and-exclude (standalone runs still degrade quietly), data-carrying `medsim_truth_failure` condition (cleanest architecturally but adds a fourth condition class for a Step-1 abort that loses no data), threading `on_violation` into the runner (too wide for this issue). |
 | GD6 | How is `compute_truth` scheduled across array tasks, given F5's straggler? | **Gate on `chunk_id == 1L` (D1 as written) AND document precompute-before-submit as the preferred production pattern** in #28's article. Rejected: precompute-only (kills #41's headline item for no gain on small runs), every-chunk-computes (cold cache ⇒ N× the expensive work — the waste the issue was filed about), SLURM job dependency (cleanest but changes the submit-script contract from one job to two, well past #41's scope). |
 
