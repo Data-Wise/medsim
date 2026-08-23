@@ -50,7 +50,12 @@ closed-2026-08-22: **Issue #43 CLOSED** — full fix landed same-day across 3 me
   (superseded by the split — safe to delete, nothing from it was merged directly).
 grilled-2026-08-22: All 4 remaining open issues grounded + grilled (7 branches, GD1-GD7).
   Canonical designs — do NOT re-derive from the issue bodies, several of which are wrong:
-  `internal/GRILL-medsim-41-chunk-truth-atomic-cache-2026-08-22.md` (implementation-ready),
+  **#41 = `internal/SPEC-medsim-41-truth-integrity-2026-08-22.md` (AUTHORITATIVE, implementation-ready);
+  its GRILL companion `internal/GRILL-medsim-41-chunk-truth-atomic-cache-2026-08-22.md` is the decision
+  ledger only and its GD2 is SUPERSEDED — build from the SPEC.** Writing the spec found the grill's own
+  GD2 predicate could never fire, and produced 3 empirical reproductions (E-1/E-2/E-3 in the spec):
+  a TRANSIENT truth failure permanently poisons the cache — re-run calls truth 0 times, warns 0 times,
+  and `medsim_analyze_coverage()` returns SUCCESS with "Parameters: 0, Coverage: NA".
   `internal/GRILL-medsim-35-gauge-probmed-exposure-2026-08-22.md`,
   `internal/GRILL-medsim-28-cluster-vignette-2026-08-22.md`,
   `internal/GRILL-medsim-29-prod3-adapter-2026-08-22.md` (DEFERRED, no consumer).
