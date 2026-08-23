@@ -34,7 +34,8 @@ silently combining a partial grid. Default \code{NULL} (no check).}
 do when an integrity violation is found (missing chunks, duplicate or
 gapped replication ids, ragged cells, output collapse, all-failed cells,
 cross-scenario seed collisions, a chunk flagged partial by a failed
-task, or a nonzero count of \code{data_generator()} failures). \code{"stop"} signals a
+task -- including one whose every replication failed -- or a nonzero
+count of \code{data_generator()} failures). \code{"stop"} signals a
 \code{medsim_combine_violation} condition that CARRIES the combined results --
 recover an hours-long run's good cells with
 \code{tryCatch(medsim_combine_chunks(...), medsim_combine_violation = function(e) e$results)}.

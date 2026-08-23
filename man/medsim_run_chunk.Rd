@@ -22,12 +22,17 @@ chunk's provenance. \code{NULL} (default) auto-detects via
 }
 \value{
 Invisibly, the path of the RDS file written. If a task-level error
-(a \code{medsim_run_failure} from \code{\link[=medsim_run]{medsim_run()}}) interrupts the chunk, its
-completed replications are still written -- atomically, with provenance
+(a \code{medsim_run_failure} from \code{\link[=medsim_run]{medsim_run()}}) interrupts the chunk, whatever
+replications completed are still written -- atomically, with provenance
 \code{partial = TRUE} -- before this function re-\code{stop()}s so the array task
 still exits nonzero (\code{sacct} visibility, not a \code{--requeue} signal).
-\code{\link[=medsim_combine_chunks]{medsim_combine_chunks()}}/\code{\link[=medsim_audit_results]{medsim_audit_results()}} flag any such chunk
-via the \code{partial_chunk} violation.
+\strong{This holds even when NO replication completed}: a chunk whose every
+replication failed writes a flagged, zero-row file rather than no file at
+all. That file is the only carrier of the \code{partial = TRUE} marker, and
+without it a trailing all-failed chunk would combine with zero violations
+(the contiguity audit cannot see it -- the surviving ids are a clean
+\verb{1..k} block). \code{\link[=medsim_combine_chunks]{medsim_combine_chunks()}}/\code{\link[=medsim_audit_results]{medsim_audit_results()}} flag any
+such chunk via the \code{partial_chunk} violation.
 }
 \description{
 Runs replications \verb{[(chunk_id-1)*chunk_size+1 .. chunk_id*chunk_size]}

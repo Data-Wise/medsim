@@ -1,7 +1,7 @@
 # PLAN — medsim backlog after the 2026-08-22 grill + adversarial review
 
 **Created:** 2026-08-22 · **Base:** `dev` @ `d033d3e` (v0.5.1.9000)
-**Status:** IN EXECUTION — Phase 0 shipped as PR #51 (2026-08-22, awaiting review). Phases 1-4 not started.
+**Status:** IN EXECUTION — Phase 0 MERGED (PR #51, squash `dd0d059`, 2026-08-22). Phases 1-4 not started.
 **Inputs:** [`SPEC-medsim-41-truth-integrity`](SPEC-medsim-41-truth-integrity-2026-08-22.md) (v2),
 [`GRILL-medsim-35`](GRILL-medsim-35-gauge-probmed-exposure-2026-08-22.md),
 [`GRILL-medsim-28`](GRILL-medsim-28-cluster-vignette-2026-08-22.md),
@@ -55,7 +55,7 @@ load-bearing — the comment invites someone to prune it), and record the
 **Tracked as [#50](https://github.com/Data-Wise/medsim/issues/50)** (decision
 D-2, settled 2026-08-22) — filed with both reproductions and proposed fixes.
 
-> ### ✅ SHIPPED 2026-08-22 — [PR #51](https://github.com/Data-Wise/medsim/pull/51), awaiting review
+> ### ✅ SHIPPED 2026-08-22 — [PR #51](https://github.com/Data-Wise/medsim/pull/51) MERGED (squash `dd0d059`); issue #50 closed
 >
 > Outcome and gate evidence: `.STATUS` → `shipped-2026-08-22-phase0:`.
 > Design provenance and the PM2 scope correction: `GRILL-medsim-43` §Resolution.
@@ -69,6 +69,18 @@ D-2, settled 2026-08-22) — filed with both reproductions and proposed fixes.
 >   work). The unguarded condition was the env var — *and* the task count, which this plan
 >   never mentioned: fixtures sat at exactly 4 reps against a `length(tasks) < 4` floor, and
 >   `medsim_run_chunk()` re-splits reps across the array so that floor applies **per chunk**.
+>
+> **A high-effort review after the PR opened found 3 more defects**, all in the
+> all-array-tasks-failed path PM1 *newly makes reachable* — a category this plan did
+> not anticipate: **fixing a silent-skip can expose downstream code that never ran
+> before.** Worst of them, the combine warned the chunks *"lack the schema-v2 stamp
+> (produced by an older medsim)"* when they are schema-v2 and merely empty. **Phases 1
+> and 2 touch this same combine path** — when D5/R5/D1 make new states reachable, audit
+> what now runs that previously could not.
+>
+> Also worth carrying: a first `/code-review` pass silently ran at **low** effort and
+> reported 0 findings; the same review at **high** found all three. Argument order is
+> `/code-review <level> <target>`.
 >
 > **The "Non-breaking" label was also wrong in effect.** No API change, but a run that
 > previously combined silently past an all-failed chunk now stops under the default

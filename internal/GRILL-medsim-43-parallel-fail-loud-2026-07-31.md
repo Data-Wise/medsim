@@ -301,7 +301,7 @@ its `dgp_failure_rate = 1` never reaches the analysis tables; and the
 `is.function(data_generator)` contract check sits *inside* the per-task
 `tryCatch` rather than outside it as designed (loud either way).
 
-**Resolution (2026-08-22, issue #50, branch `feature/parallel-coverage-zero-vio`).**
+**Resolution (2026-08-22, issue #50 — PR #51 MERGED, squash `dd0d059`; issue closed).**
 PM1 and PM2 both fixed, each with a positive control proving the new assertion
 can fail. PM2 refinement worth recording, found while verifying the fix: the "runs
 serial under `--as-cran`" framing is true only where `NOT_CRAN=true` is also
@@ -323,6 +323,17 @@ nonzero exit. Both MINORs closed: the "Inert today" comment is rewritten as
 ARMED, and the `test-failure-rate.R` deviation is now recorded in that file's
 header (no assertion there was wrong -- the accounting split changed which
 column carries the reason, not the arithmetic).
+
+A high-effort review of the PR then found **three further defects**, all in the
+all-array-tasks-failed path PM1 newly makes reachable (before it, that run wrote
+zero files and combine hard-stopped on "No chunk files found"). The generalizable
+point: **fixing a silent skip exposes downstream code that never executed before.**
+(1) MEDIUM -- the seed audit saw `attr(NULL, "medsim_schema")` as NULL and warned the
+chunks came from "an older medsim", sending a user whose array all died to chase a
+version mismatch that does not exist; (2) `config$n_replications` was `-Inf`;
+(3) `partial_chunk` claimed reps the chunk did not hold. Fixed in `30ed22b`, guarded
+by case 21 with a reverted-guard positive control. Final: 1219 pass / 0 fail,
+`--as-cran` 0/0/1.
 
 Confirmed sound by the same review: both new detectors fire on their defects
 and stay silent on their negative controls; the schema vote behaves correctly

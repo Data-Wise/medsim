@@ -369,6 +369,21 @@ Routed through the existing `on_violation = c("stop","warn","ignore")` control
 alongside `partial_chunk` / `dgp_failure`. The non-NULL guard keeps the common
 `compute_truth = NULL` run silent.
 
+> **⚠️ PLACEMENT — raise this in `medsim_combine_chunks()`'s own body, NOT
+> inside `.medsim_audit_seed_provenance()`** (verified 2026-08-22 against `dev`
+> @ `dd0d059`, after #50 shipped). The two named neighbours sit in *different*
+> places: `partial_chunk` is raised in the combine body (~`R/cluster.R:505`),
+> `dgp_failure` inside the audit helper (~`:776`). Since #50, that helper
+> **returns early on a NULL/zero-row frame** — an all-array-tasks-failed run
+> has no rows to audit, and falling through made it claim the chunks came from
+> "an older medsim". Placing D2′ inside the helper would therefore make it
+> silently unreachable for exactly the runs where truth coverage is most
+> suspect. The combine body is also where `combined$truth` is in scope.
+>
+> Same seam, restated as a rule: **when a fix makes a previously-unreachable
+> state reachable, re-audit what now runs in it.** That is how #50's own three
+> review findings were introduced — see `GRILL-medsim-43` §Resolution.
+
 > **⚠️ AMENDMENT R5 (adversarial review) — trigger (b) is UNREACHABLE as
 > written, and the reason is a latent bug in shipped code.** Verified at
 > `R/cluster.R:401-406`:

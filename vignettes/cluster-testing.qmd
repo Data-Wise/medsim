@@ -158,6 +158,24 @@ combined <- tryCatch(
 medsim_audit_results(combined, nsim = 2000)
 ```
 
+A chunk whose replications **all** fail is the case worth knowing about,
+because it is the one an array job hits most often — a bad node, a missing
+module, a dependency that failed to load. Such a chunk still writes its RDS
+file: the file carries `partial = TRUE`, and that marker is the only thing
+that tells the combine anything went wrong. Contiguity cannot help here, since
+a trailing failed chunk leaves the surviving ids a clean `1..k` block.
+
+```{r}
+#| label: all-failed
+# Every array task died. The combine says so, and says why:
+#   [partial_chunk] 2 of 2 chunk file(s) are flagged partial (every
+#   replication in them failed -- they hold no results at all)
+#   -- results are missing, not just truncated
+#
+# $results is NULL and config$n_replications is 0 -- never a plausible-looking
+# number standing in for data that does not exist.
+```
+
 ### B3 — the can-fail dogfood (planted defect)
 
 The same pipeline with the 1/3-width `narrow` method. If this *did not*

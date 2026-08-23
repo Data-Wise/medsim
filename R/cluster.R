@@ -170,12 +170,17 @@ medsim_write_submit_script <- function(config,
 #'   `pkg:medsim-<version>` outside a git tree.
 #'
 #' @return Invisibly, the path of the RDS file written. If a task-level error
-#'   (a `medsim_run_failure` from [medsim_run()]) interrupts the chunk, its
-#'   completed replications are still written -- atomically, with provenance
+#'   (a `medsim_run_failure` from [medsim_run()]) interrupts the chunk, whatever
+#'   replications completed are still written -- atomically, with provenance
 #'   `partial = TRUE` -- before this function re-`stop()`s so the array task
 #'   still exits nonzero (`sacct` visibility, not a `--requeue` signal).
-#'   [medsim_combine_chunks()]/[medsim_audit_results()] flag any such chunk
-#'   via the `partial_chunk` violation.
+#'   **This holds even when NO replication completed**: a chunk whose every
+#'   replication failed writes a flagged, zero-row file rather than no file at
+#'   all. That file is the only carrier of the `partial = TRUE` marker, and
+#'   without it a trailing all-failed chunk would combine with zero violations
+#'   (the contiguity audit cannot see it -- the surviving ids are a clean
+#'   `1..k` block). [medsim_combine_chunks()]/[medsim_audit_results()] flag any
+#'   such chunk via the `partial_chunk` violation.
 #'
 #' @seealso [medsim_combine_chunks()], [medsim_audit_results()],
 #'   [medsim_write_submit_script()]
@@ -303,7 +308,8 @@ medsim_run_chunk <- function(scenarios, method, config, verbose = TRUE,
 #'   do when an integrity violation is found (missing chunks, duplicate or
 #'   gapped replication ids, ragged cells, output collapse, all-failed cells,
 #'   cross-scenario seed collisions, a chunk flagged partial by a failed
-#'   task, or a nonzero count of `data_generator()` failures). `"stop"` signals a
+#'   task -- including one whose every replication failed -- or a nonzero
+#'   count of `data_generator()` failures). `"stop"` signals a
 #'   `medsim_combine_violation` condition that CARRIES the combined results --
 #'   recover an hours-long run's good cells with
 #'   `tryCatch(medsim_combine_chunks(...), medsim_combine_violation = function(e) e$results)`.
