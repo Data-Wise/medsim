@@ -25,7 +25,8 @@ situation had moved, and found something the issue never contemplated.
 | probmed PR #34 fixed a per-row inverse-probability weight bug in `.corner_fit()` (present since `10b41aa`): `ifelse(z == 1, p1, 1 - p1)` with scalar `z` returned `p1[1]` — the first fold row's propensity — for **every** row | probmed PR #34 |
 | That PR merged into **`dev`**, not `main` | `gh pr view 34 -R Data-Wise/probmed` → `base: dev`, sha `a73efc8`, merged 2026-08-22T21:57Z |
 | probmed `main` does **not** carry the fix | `gh api .../branches/main` → tip `0486b01`, unchanged |
-| The only probmed **release** is v0.3.0 (2026-06-22) — predates the fix | `gh release list -R Data-Wise/probmed` |
+| probmed's **latest** release is v0.3.0 (2026-06-22) — predates the fix | `gh release list -R Data-Wise/probmed` (three releases exist: v0.1.0, v0.2.0, v0.3.0 — an earlier draft said "the only release", corrected 2026-08-22; the conclusion is unaffected, since all three predate PR #34) |
+| probmed's own r-universe registry pins **`main`**, so that route is unfixed too | verified during adversarial review, 2026-08-22 |
 | medsim's `Remotes: Data-Wise/probmed` resolves to the **default branch (`main`)** | `DESCRIPTION:51` |
 | medsim's `Suggests: probmed` carries **no version floor** | `DESCRIPTION:29` |
 

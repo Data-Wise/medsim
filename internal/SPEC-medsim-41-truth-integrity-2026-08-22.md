@@ -1,7 +1,7 @@
 # SPEC: Ground-truth integrity — fail loud, never cache a failure, never report an empty analysis as complete
 
 - **Issue:** #41 (rescoped — see Problem)
-- **Status:** **PROPOSAL — implementation-ready.** No open design questions.
+- **Status:** **PROPOSAL — v2, amended after adversarial review (2026-08-22).** Implementation-ready. v1 shipped a **blocker** (a self-heal that healed nothing) and a **wrong-function** guard target; both fixed below. Amendments R1–R9 are marked inline.
 - **Created:** 2026-08-22
 - **Author:** medsim maintainer (grounded from code trace + 3 empirical reproductions; hardened by one adversarial pass)
 - **Refs:** #34 (Gate A/`on_violation` architecture this reuses), #43 (`medsim_run_failure` precedent for fail-loud), #27 (truth-cache fingerprint guard — the mechanism that *fails* to help here), PR #49 (the atomic-write pattern this copies)
@@ -111,8 +111,15 @@ receives frames of differing width:
 RUN ERROR: numbers of columns of arguments do not match
 ```
 
-Loud, but it names neither the scenario nor truth — and both cache files were
-**already poisoned before the crash**.
+Loud, but it names neither the scenario nor truth — and both cache files are
+**written before the crash** (the failing scenario's holds poison; the
+succeeding one holds valid truth).
+
+> **Correction (AMENDMENT R7):** the original text said "both cache files were
+> already poisoned". A reviewer's independent repro showed only the *failing*
+> scenario's file is poisoned; the succeeding scenario's cache is valid. The
+> point that survives is that a poisoned file is committed to disk before the
+> run dies, so a retry inherits it.
 
 ---
 
@@ -145,13 +152,26 @@ compute — the usual "don't kill a long run over one scenario" argument does
 not apply. Failing at second 5 strictly dominates failing at hour 6, or worse,
 not failing at all (E-1).
 
-### Blast radius is narrower than "breaking change" implies
+### Blast radius — corrected by AMENDMENT R3
 
-Multi-scenario mixed failures **already hard-crash today** (E-3). The only
-behavior that changes from *succeeding* to *failing* is the all-failed case —
-which includes any single-scenario run whose truth fails. Framed honestly:
-**this converts one opaque crash and one silent success into a single clear
-error.** That framing should drive the version-bump call (see Risks).
+Multi-scenario mixed failures **already hard-crash today** (E-3), so those are
+not a behavior change. Two classes of run **do** flip from succeeding to
+failing:
+
+1. **All-failed truth** (including any single-scenario run whose truth fails) —
+   from silent empty-success to a clear error. This is the intended fix.
+2. **Successful but wrongly-shaped truth** (D8: a bare named vector, or list
+   elements of length ≠ 1) — from silent empty-success to a clear error.
+   ⚠️ **The original spec claimed the all-failed case was the *only* flip.
+   That was wrong.** This second class is invisible to D5/D6 because nothing
+   fails; it is caught by D7/D8. Users whose truth functions have quietly been
+   contributing nothing will now be told so — correct, but it *will* surface
+   pre-existing latent breakage in working pipelines, which is a louder
+   migration story than "one edge case".
+
+Honest framing: **this converts one opaque crash and two silent successes into
+clear, actionable errors** — and may reveal that some existing runs never had
+usable ground truth at all.
 
 ---
 
@@ -213,10 +233,40 @@ error = function(e) {
 - **Write side** (`R/runner.R:706`): skip `medsim_cache_save()` entirely when
   `inherits(truth_result, "medsim_truth_failure")`. A failed computation must
   leave the cache untouched so the next run retries.
-- **Read side** (`R/runner.R:678-685`): treat a loaded value satisfying
-  `inherits(cached$truth, "medsim_truth_failure")` as a **cache miss**
-  (`truth_value <- NULL`), so pre-existing poisoned files recompute instead of
-  being served. This is what makes E-1's scenario self-heal on upgrade.
+- **Read side** (`R/runner.R:678-685`): treat a loaded sentinel as a **cache
+  miss** (`truth_value <- NULL`). ⚠️ **The class test alone is not sufficient —
+  see below.**
+
+> **⚠️ AMENDMENT R1 (adversarial review, 2026-08-22) — the original read-side
+> guard healed nothing.** Two independent reviewers confirmed this. Poison
+> already on disk was written by *today's* code as an **unclassed**
+> `list(error = <msg>)`. A guard testing only
+> `inherits(cached$truth, "medsim_truth_failure")` matches solely the **new**
+> classed sentinel — which the write side above guarantees is **never written
+> to disk**. So the class check was near-dead code, Goal 2 was unmet, and
+> acceptance Case 3 tested a disk state that can never occur.
+>
+> **Required read-side guard — both shapes:**
+>
+> ```r
+> .medsim_is_truth_sentinel <- function(x) {
+>   inherits(x, "medsim_truth_failure") ||                    # new, classed
+>   (is.list(x) && identical(names(x), "error") &&            # legacy, unclassed
+>    is.character(x$error))
+> }
+> ```
+>
+> The legacy arm keys on `is.character(x$error)`, so it cannot collide with
+> Case 9's legitimate **numeric** parameter named `error` — the spec's own
+> objection to name-sniffing applies to the *write* side, not here.
+>
+> **Alternative (also acceptable, arguably cleaner):** version-salt
+> `.medsim_truth_fingerprint()` so every pre-#41 cache entry misses once.
+> Costs one recompute of valid caches; needs no shape heuristic at all. Pick
+> one and say which in the implementation log.
+>
+> **Case 3's fixture must plant the LEGACY UNCLASSED shape** — a classed
+> fixture tests an artifact that will never exist in the field.
 
 ### D6 — `truth_on_failure = c("stop", "warn")`, default `"stop"`
 
@@ -232,12 +282,32 @@ New argument on `medsim_run()`, threaded to `medsim_compute_all_truth()`.
   from `truth_df` entirely.** The scenario must be **absent**, not
   present-with-fewer-columns.
 
-> **Implementer note — this rule is what prevents E-3's opaque crash.**
-> Keeping a stub row for a failed scenario is what makes
+> **Implementer note — this rule is necessary but NOT sufficient for E-3.**
+> Keeping a stub row for a failed scenario is one way to make
 > `do.call(rbind, truth_list)` receive frames of differing width and fail with
 > `numbers of columns of arguments do not match`. Drop the element from
 > `truth_list` (or `Filter(Negate(is.null), ...)` before the rbind). An
 > implementer who "helpfully" keeps the row reintroduces E-3.
+>
+> **⚠️ AMENDMENT R4 (adversarial review):** the crash is caused by **any**
+> column-set disagreement, not only failure stubs. A reviewer reproduced it
+> with **every truth call succeeding**, where scenarios simply returned
+> different parameter sets. Consequences:
+>
+> - Case 5's "no `numbers of columns` error" assertion holds only when all
+>   *surviving* scenarios share an identical parameter set. Say so.
+> - **The same latent crash exists in shipped code** at `R/cluster.R:406`
+>   (the cross-chunk truth merge).
+> - **Preferred fix:** rbind `truth_list` with column-union/NA-fill instead of
+>   `do.call(rbind, ...)`. The package already owns a ragged-rbind helper for
+>   exactly this class (`.medsim_rbind_reps`, used at `cluster.R:398`) — reuse
+>   it and the whole crash class dies, rather than being narrowly dodged.
+> - Otherwise, declare heterogeneous truth parameter sets explicitly
+>   out of scope and document that scenarios must agree.
+>
+> Side effect worth knowing: this crash is *also* why D2′(b) cannot
+> false-positive on heterogeneous truth today — such runs die before combine
+> ever sees them.
 
 Absence is also precisely the observable D2′ keys on — the two decisions are
 deliberately coupled.
@@ -270,34 +340,122 @@ Routed through the existing `on_violation = c("stop","warn","ignore")` control
 alongside `partial_chunk` / `dgp_failure`. The non-NULL guard keeps the common
 `compute_truth = NULL` run silent.
 
-Live triggers after D6: the `"warn"` opt-out, and a chunked run where chunk
-1's truth is absent. That is the whole remit — spec'd as defense-in-depth, not
-as the main guard.
+> **⚠️ AMENDMENT R5 (adversarial review) — trigger (b) is UNREACHABLE as
+> written, and the reason is a latent bug in shipped code.** Verified at
+> `R/cluster.R:401-406`:
+>
+> ```r
+> truth <- chunks[[1L]]$truth
+> if (!is.null(truth)) {          # <-- if chunk 1 has no truth,
+>   for (ch in chunks[-1L]) {     #     the union is SKIPPED ENTIRELY and
+>     ...                         #     every later chunk's truth is DISCARDED
+>   }
+> }
+> ```
+>
+> So "chunk 1's truth is absent" yields `combined$truth == NULL`, which D2′'s
+> own non-NULL guard deliberately silences — indistinguishable from a
+> legitimate `compute_truth = NULL` run. Trigger (b) collapses into (a).
+>
+> **Two consequences:**
+>
+> 1. **This is a latent defect in already-merged code**, currently unreachable
+>    only because no chunk can produce truth at all (P-6). **§D1 makes it
+>    live**: with chunk-1 gating, a failed-then-manually-rerun chunk 1 whose
+>    truth lands on a different chunk has that truth silently dropped. Fix the
+>    seed-from-chunk-1 logic to union across **all** chunks regardless of
+>    whether chunk 1 carries truth — do this in the same increment as D1.
+> 2. **GD2's original instinct was right about one thing.** Nothing anywhere
+>    records that truth was *intended*. Detecting genuine loss (as opposed to
+>    "none requested") needs exactly that one bit. **Recommended:** stamp
+>    `truth_requested = !is.null(compute_truth)` into chunk provenance
+>    alongside #43's existing `partial` flag (`R/cluster.R:238-247`), and let
+>    D2′ fire on `truth_requested && is.null(combined$truth)`. This restores
+>    trigger (b) at the cost of one boolean — cheaper than it looked at GD2,
+>    because the provenance list already exists.
+>
+> **Also unstated:** `medsim_audit_results()` accepts a bare data.frame with no
+> `$truth` at all. D2′ needs a carve-out there or it will error on legitimate
+> input.
 
-### D7 — widen `medsim_analyze_coverage()`'s existing hard stop (Layer 3)
+Live triggers after D6 **and amendment R5**: the `"warn"` opt-out, a
+successful-but-degenerate truth frame (D8), and — once `truth_requested` is
+stamped — a chunked run that lost its truth. Defense-in-depth, not the main
+guard.
 
-`R/analyze.R:82`, from:
+### D7 — widen the existing hard stop (Layer 3) — **TWO guards, not one**
 
-```r
-if (is.null(results$truth) || nrow(results$truth) == 0) {
-```
+> **⚠️ AMENDMENT R2 (adversarial review, 2026-08-22) — the original section
+> pointed at the wrong function.** Both reviewers confirmed independently, and
+> so did a direct check: **`R/analyze.R:82` belongs to `medsim_analyze()`**
+> (which starts at `:73`), not to `medsim_analyze_coverage()` (which starts at
+> `:358`). The coverage function has its **own separate guard with the same
+> predicate** at **`R/analyze.R:369-372`** ("Cannot compute coverage: …").
+>
+> **E-1's evidence transcript runs through the *coverage* path.** An
+> implementer following the original text would patch `medsim_analyze()` and
+> leave the headline symptom — an empty coverage analysis returned as a
+> success — fully reproducible. Both guards must be widened.
 
-to additionally catch the degenerate frame:
+Apply the same widening at **both** sites:
+
+| Site | Function | Existing message |
+|---|---|---|
+| `R/analyze.R:82-84` | `medsim_analyze()` | "Cannot compute accuracy metrics: …" |
+| `R/analyze.R:369-372` | `medsim_analyze_coverage()` | "Cannot compute coverage: …" |
+
+Also check `.medsim_analyze_coverage_interval()`, which `medsim_analyze_coverage()`
+dispatches to at `:381` — it must not bypass the widened guard.
 
 ```r
 truth_params <- setdiff(names(results$truth %||% data.frame()), "scenario")
 if (is.null(results$truth) || nrow(results$truth) == 0 ||
     length(truth_params) == 0L) {
-  stop("Cannot compute accuracy metrics: no ground truth available. ",
-       "The truth table has no parameter columns -- this usually means every ",
-       "compute_truth() call failed. Re-run with truth_on_failure = 'stop' ",
-       "(the default) to see the original error.")
+  stop("Cannot compute <accuracy metrics|coverage>: ground truth has no ",
+       "parameter columns. Either every compute_truth() call failed, or ",
+       "truth_function() returned a value medsim cannot read -- it must ",
+       "return a NAMED LIST of length-1 numerics (a bare named vector, or ",
+       "list elements longer than 1, are silently dropped; see ?medsim_run).")
 }
 ```
+
+> **Message wording matters here (AMENDMENT R3).** The original text blamed
+> failures only ("this usually means every `compute_truth()` call failed") and
+> advised re-running with `truth_on_failure = "stop"`. Per D8 below, a
+> **successful** truth function can produce the identical degenerate frame —
+> that user would re-run, see nothing fail, hit the same stop, and get the same
+> useless advice. The wording above names both causes.
+
+`%||%` is package-defined (`R/config.R:405`) and already used in `analyze.R:112`,
+so it is in scope — verified.
 
 This is **not** the change GD2 declined: it widens an already-loud whole-frame
 guard to cover a case E-2 proves it misses. The per-parameter warning is
 untouched, so subset analyses keep working.
+
+### D8 — NEW (AMENDMENT R3): a *successful* truth function can also degenerate
+
+Reviewers found a silent path with **no failure anywhere**. `truth_df` keeps
+only elements satisfying `is.list(truth_value)` **and**
+`length(value) == 1 && is.numeric(value)` (`R/runner.R:720-733`). Verified:
+
+```
+named numeric VECTOR  c(indirect = 0.09)      -> param cols: 0   (no warning)
+list w/ length-2 value list(indirect = c(.05,.15)) -> param cols: 0   (no warning)
+proper                list(indirect = 0.09)   -> param cols: 1
+```
+
+A truth function returning a bare named vector (an easy and natural mistake)
+or an interval silently contributes **nothing**, and the run proceeds to the
+same empty-analysis outcome as E-1 — while D5/D6 stay dormant, because nothing
+failed.
+
+**Required:** in `medsim_compute_all_truth()`, after building `truth_df`, if a
+truth result was **successful** yet contributed zero parameter columns, raise
+it — same `truth_on_failure` control, same default `"stop"` — with a message
+naming the real cause and the required shape. This is what makes Layer 1
+actually sufficient; without it, D5/D6 cover only half the ways to reach a
+degenerate frame.
 
 ### D1 — `compute_truth` passthrough on `medsim_run_chunk()`
 
@@ -336,6 +494,19 @@ if (!isTRUE(file.rename(tmp, file))) {
 Tmp lives in `dirname(file)`, never `tempdir()` — on HPC `tempdir()` is
 typically a different filesystem and a cross-device `file.rename()` returns
 `FALSE` rather than erroring.
+
+> **⚠️ AMENDMENT R6 (adversarial review) — the fixed tmp filename is unsafe
+> here, unlike in PR #49.** PR #49's writers never collide: one chunk file per
+> task. But truth cache files are **shared across tasks** — under D1's
+> `config$compute_truth_every_chunk = TRUE`, or during a concurrent upgrade
+> that re-heals caches, N array tasks write the *same* `truth_scenario_k.rds`
+> and therefore the *same* `.truth_scenario_k.rds.tmp`. Two concurrent
+> `saveRDS()` calls to one path interleave; the rename is atomic but the
+> shared tmp **content** is not, so the winner can install a torn file.
+>
+> **Required:** unique tmp per writer —
+> `tempfile(pattern = paste0(".", basename(file), "."), tmpdir = dirname(file))`
+> — plus `on.exit(unlink(tmp), add = TRUE)`. Keep the same-filesystem rule.
 
 ### D4 — `config$seed` doc fix (doc-only)
 
@@ -377,7 +548,7 @@ Each case must FAIL before and PASS after.
 |---|---|---|
 | 1 | **E-1 verbatim.** Transient truth failure (fails call 1, succeeds call 2, *same function object*): run 1 stops; after the fix is applied, a re-run **recomputes**. Assert on the **call counter** (`attempts == 2`), not just output — the counter is what proves the cache was not reused | successful truth ⇒ cached, and a second run loads from cache with `attempts == 1` (caching still works) |
 | 2 | A failed truth computation leaves **no** cache file for that scenario | successful truth ⇒ file written |
-| 3 | A pre-existing cache file holding a `medsim_truth_failure` ⇒ treated as a miss and recomputed (self-heal) | a valid cached truth ⇒ loaded, not recomputed |
+| 3 | **REWRITTEN (R1).** A pre-existing cache file holding the **LEGACY UNCLASSED** `list(error = "<chr>")` ⇒ treated as a miss and recomputed (self-heal). A classed-sentinel fixture is **invalid** — that state cannot occur post-fix | a valid cached truth ⇒ loaded, not recomputed; a truth result with a legitimate **numeric** parameter named `error` ⇒ NOT treated as a sentinel |
 | 4 | **E-2.** All scenarios' truth fails ⇒ `medsim_run()` **stops** with a message naming the scenario and the original error | — |
 | 5 | **E-3.** Mixed failure with `truth_on_failure = "warn"` ⇒ run completes, failed scenario **absent** from `$truth`, and **no** `numbers of columns of arguments do not match` | all truth succeeds ⇒ every scenario present |
 | 6 | `truth_on_failure = "warn"` + a scenario absent from truth ⇒ combine raises `truth_coverage/missing` | all scenarios have truth ⇒ silent |
@@ -388,12 +559,29 @@ Each case must FAIL before and PASS after.
 | 11 | `medsim_cache_save()` failing between tmp-write and rename ⇒ target untouched, no torn file; mocked `file.rename` returning `FALSE` ⇒ informative stop | normal save ⇒ target written, tmp gone |
 | 12 | `?medsim_config`'s rendered `seed` text matches D4 (grep-based doc-drift guard) | — |
 | 13 | **Negative control:** a clean run with successful truth is unchanged end-to-end vs pre-fix (`$truth`, `$results`, coverage output identical) | — |
+| 14 | **D7 both sites (R2).** Case 8 must be run against **both** `medsim_analyze()` and `medsim_analyze_coverage()` — E-1's symptom is on the *coverage* path, so patching only `analyze.R:82` leaves it reproducible. Include the interval branch (`.medsim_analyze_coverage_interval`, dispatched at `:381`) | truth with ≥1 parameter ⇒ both entry points behave as today |
+| 15 | **D8 (R3).** A **successful** `truth_function` returning a bare named vector `c(indirect = 0.09)`, and one returning `list(indirect = c(.05, .15))` ⇒ actionable diagnostic naming the required shape — **not** the "every call failed" message | `list(indirect = 0.09)` ⇒ silent, 1 parameter column |
+| 16 | **R4.** Under `truth_on_failure = "warn"`, scenarios with *different* successful parameter sets ⇒ no `numbers of columns of arguments do not match` (requires the ragged/union rbind) | identical parameter sets ⇒ unchanged |
+| 17 | **R5.** Chunk 1 carries no truth but chunk 2 does ⇒ chunk 2's truth is **not** discarded by `medsim_combine_chunks()`, and (with `truth_requested` stamped) a genuinely truth-less combine raises `truth_coverage` | `compute_truth = NULL` run ⇒ silent |
+| 18 | **R6.** Two concurrent writers to the same truth cache path ⇒ no torn file (unique tmp per writer) | single writer ⇒ unchanged |
+| 19 | **D2′ routing.** `truth_coverage` honors `on_violation = "warn"` / `"ignore"` (downgrades correctly via `.medsim_signal_violations`, `cluster.R:792`), and `medsim_audit_results()` on a bare data.frame with no `$truth` does **not** error | — |
 
 **Gates:** `devtools::test()` **in the worktree the PR ships from** (baseline
-**1197 pass / 0 fail / 0 error / 1 skip** on `dev` @ `f4c8dfc` — check
-testthat's *error* column, not just pass/fail); `R CMD check --as-cran`
-against the **0/0/0** baseline; then independent adversarial review of the
-branch diff before integration.
+**1197 pass / 0 fail / 0 error / 1 skip** on `dev` @ `f4c8dfc`, independently
+re-verified by two reviewers — check testthat's *error* column, not just
+pass/fail); `R CMD check --as-cran` against the **0/0/0** baseline; then
+independent adversarial review of the branch diff before integration.
+
+> **⚠️ AMENDMENT R9 — one existing test WILL fail, by design.**
+> `tests/testthat/test-runner.R:599-619`
+> ("medsim_compute_all_truth warns and records error when truth_fn fails") does
+> `expect_warning(..., "Truth computation failed")` — exactly the behavior D6
+> flips to `stop()`. It must be **rewritten as part of this work** (it is a
+> ready-made skeleton for Case 4). Budget it: an implementer who treats it as
+> a "pre-existing failure" will have masked the change actually working.
+> No other test or vignette depends on the old behavior — `test-pipeline-e2e.R`
+> and `test-coverage-discrimination.R` use `compute_truth` only with functions
+> that succeed (verified).
 
 **E2E (per `e2e-before-pr.md`):** case 1 is the E2E — it is a live exercise
 with a real failure mode, and the PR body must quote its actual transcript
@@ -403,13 +591,20 @@ with a real failure mode, and the PR body must quote its actual transcript
 
 ## Risks
 
-1. **Breaking change.** Mitigated by scope: E-3 shows multi-scenario mixed
-   failures already crash, so only the all-failed case flips from silent
-   success to loud failure. NEWS entry required; `truth_on_failure = "warn"`
-   restores prior behavior for anyone who needs it.
-2. **Version-bump call deferred to implementation.** Whether Layer 1 rides
-   `dev` or waits for a minor bump. The narrow blast radius above argues it
-   can ride `dev`.
+1. **Breaking change — larger than first assessed.** Per AMENDMENT R3 there
+   are **two** flipping classes, not one: all-failed truth, and
+   successful-but-wrongly-shaped truth (D8). The second may surface latent
+   breakage in pipelines their owners believe are working. NEWS entry
+   required; `truth_on_failure = "warn"` restores prior behavior.
+2. **⚠️ `dev` IS a live distribution channel — AMENDMENT R8.** The original
+   text said the narrow blast radius argues Layer 1 "can ride `dev`". That
+   reasoning was wrong on the facts: medsim's r-universe registry pins the
+   **`dev`** branch (not `main`), and the Missing Effect study installs
+   `remotes::install_github("data-wise/medsim@dev")` for its queued Hopper
+   fixed-branch re-run. **A breaking default reaches real consumers on
+   push-to-`dev`, not at release.** Either coordinate with that queued run
+   before merging, or land the change with `truth_on_failure` defaulting to
+   `"warn"` and flip the default to `"stop"` at the next version bump.
 3. **Sentinel misdetection.** Addressed by the explicit S3 class (D5) — never
    sniff `names(x)`; case 9 pins it.
 4. **Chunk-1 straggler** (D1/F5) — documented in both this SPEC and #28's
@@ -445,6 +640,33 @@ Natural increments, shippable in this order:
 ## Implementation log
 
 _(empty — append one line per landed increment, per the #34 SPEC's convention)_
+
+---
+
+## Amendment index (v2, 2026-08-22 adversarial review)
+
+Three independent Fable reviewers; two found the same blocker independently.
+Every amendment below was re-verified against the code before being applied.
+
+| # | Severity | Section | What was wrong in v1 |
+|---|---|---|---|
+| R1 | **BLOCKER** | §D5 read side, Goal 2, Case 3 | Self-heal keyed on a class **nothing has ever written**; legacy poison is unclassed, so no poisoned cache would ever heal |
+| R2 | **MAJOR** | P-3, §D7 | Cited `analyze.R:82`, which is **`medsim_analyze()`** — the coverage guard is `:369`. E-1's symptom is on the coverage path, so v1's fix would have left it reproducible |
+| R3 | **MAJOR** | §D8 (new), blast radius, D7 message | A **successful** truth function returning a bare vector or non-scalar values degenerates identically, with nothing failing — v1 missed the class entirely and claimed only one flip |
+| R4 | MAJOR | §D6 note | The rbind width crash is **not** failure-specific; same latent crash at `cluster.R:406` |
+| R5 | MAJOR | §D2′ | Trigger (b) unreachable: combine **discards all truth** when chunk 1 has none — a latent shipped bug that §D1 would activate |
+| R6 | MAJOR | §D3 | Fixed tmp filename collides when N tasks write one shared truth cache file |
+| R7 | LOW | Evidence E-3 | "both cache files poisoned" — only the failing one is |
+| R8 | MEDIUM | Risk 2 | "can ride `dev`" is false: r-universe pins `dev` and Missing Effect installs `@dev` |
+| R9 | MEDIUM | Gates | `test-runner.R:599` pins the old warn behavior and was not budgeted |
+
+Confirmed sound by review (no change needed): the classed sentinel's
+`saveRDS`/`readRDS` round-trip and fingerprint-extraction survival; Step 1
+genuinely preceding all replication work; D2′'s predicate mechanics and
+non-NULL guard; `%||%` scope in `analyze.R`; the GD2-supersession reasoning;
+all P-1…P-6 line cites; both issue-body corrections; and **no #41/#43 seam
+conflict** — condition classes, violation triggers, and failure accounting all
+compose cleanly.
 
 ---
 

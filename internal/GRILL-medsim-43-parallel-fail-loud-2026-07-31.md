@@ -279,6 +279,36 @@ This design said "ride `dev`, no 0.5.1 patch". **v0.5.1 was released
 2026-08-17**, before the work landed, so #43 shipped onto `0.5.1.9000` and
 rides the next release instead.
 
+### ⚠️ Post-merge adversarial review (2026-08-22) — 2 MAJOR defects found in the shipped code
+
+An adversarial review run *after* the merge found two confirmed gaps that the
+pre-merge reviews missed. **Both are still live on `dev`.**
+
+| # | Severity | Defect |
+|---|---|---|
+| **PM1** | MAJOR, CONFIRMED | **An all-reps-failed chunk writes no file, so a trailing failed chunk combines with ZERO violations.** `R/cluster.R:224-229` early-`stop()`s before the provenance stamp when nothing survived, so the `partial_chunk` marker never exists. Critically, **the very defect class #43 was filed for** — the deterministic reserved-`error` contract violation — fails *every* rep of any chunk it touches, so `partial_chunk` can never fire for it. Reproduced: 2 chunks × 10 reps with chunk 2 all-failing ⇒ `combined rows: 10 of 20`, `n_replications: 10`, **audit violations: NONE**, clean exit. Mitigations that keep it MAJOR not BLOCKER: the SLURM task does exit nonzero; a *middle* chunk trips `rep_gap`; `expected_chunks` catches it when supplied. But `expected_chunks` is optional and combine is meant to be the integrity layer. **Fix:** move the provenance stamp + atomic write above the line-227 early stop — PR #48's machinery already supports an empty flagged chunk (empty chunks are exempt from the schema vote, and `partial_flags` reads provenance of all chunks). |
+| **PM2** | MAJOR, CONFIRMED | **Test theater: the three "real parallel" tests silently exercise the SERIAL path under `R CMD check --as-cran`.** §5 of this design mandated cases 1/6/13 assert `n_replications >= 4`, `n_cores >= 2`, **and unset `_R_CHECK_LIMIT_CORES_`**. The first two shipped; the env-var guard did not (`grep` for `local_envvar` in `test-parallel-fail-loud.R`: 0 hits). Independently reproduced: with the var set, worker pid == main pid (`parallel actually used: FALSE`) and all 11 tests still pass. **So the `--as-cran 0/0/0` in the merge gate exercised zero parallel-path code in that file.** Local `devtools::test()` does spawn real workers, which is why the gap went unnoticed. **Fix:** `withr::local_envvar("_R_CHECK_LIMIT_CORES_" = NA)` in cases 1/6/13, plus a PID assertion so a future fallback regression fails loudly rather than silently. |
+
+Minor findings from the same review: `R/cluster.R:773-774` still says the
+`dgp_failure` detector is "Inert today" — PR #49 shipped its writer in the same
+series, so the comment now misleads (a maintainer could prune a live,
+load-bearing detector); §6 of this design promised `test-failure-rate.R`
+invariants would be updated and that file was never touched in
+`aad6d02..8ed4c1f` (its existing assertions remain arithmetically valid, so no
+test is wrong — but the deviation was unrecorded until now); a scenario whose
+reps are 100% DGP failures produces **no row at all** in coverage output, so
+its `dgp_failure_rate = 1` never reaches the analysis tables; and the
+`is.function(data_generator)` contract check sits *inside* the per-task
+`tryCatch` rather than outside it as designed (loud either way).
+
+Confirmed sound by the same review: both new detectors fire on their defects
+and stay silent on their negative controls; the schema vote behaves correctly
+across empty / all-empty / mixed-legacy combines; coverage and `converged`
+accounting are correct on mixed DGP+method-failure fixtures; the
+`medsim_run_failure` payload is properly schema-v2 stamped (L5's fix is
+effective); and a clean run is **bit-identical** to pre-#43 `aad6d02` — no
+silent RNG or ordering drift from the widened DGP `tryCatch`.
+
 ### Adjacent work filed after this shipped
 
 None from #43 itself. The 2026-08-22 backlog grill separately found two **new**

@@ -195,10 +195,22 @@ is lint + link/count validators, not the full test suite:
 
 Unlike #29, #28 **does** have a live cluster consumer: the Missing Effect
 study runs medsim on UNM CARC Hopper (`.STATUS:16`, fixed-branch re-run
-unblocked). Note the adjacent open item at `.STATUS:81` — that repo's
-`code/config.R` still pins `medsim >= 0.2.0` (pre-RNG-fix); the article
-should state the minimum version its guidance assumes, so a reader on an old
-pin does not follow instructions their installed version cannot honor.
+unblocked).
+
+> **Correction (adversarial review, 2026-08-22).** An earlier draft of this
+> section said that repo's `code/config.R` "still pins `medsim >= 0.2.0`
+> (pre-RNG-fix)", citing `.STATUS:81`. **That is wrong** — verified read-only:
+> `Missing Effect/code/config.R:8` requires `>= 0.4.0`, and that repo's own
+> `.STATUS:36` records the bump as GAP-2026-07-11 RESOLVED. **medsim's
+> `.STATUS:81` is itself stale** and should be corrected.
+>
+> The advice built on it survives regardless: the article should state the
+> minimum medsim version its guidance assumes, so a reader on an older pin
+> does not follow instructions their installed version cannot honor.
+
+Note also (from the same review): that study installs from **`@dev`**, and
+medsim's r-universe registry pins `dev` — so the article's guidance reaches
+consumers on push, not at release.
 
 ---
 
