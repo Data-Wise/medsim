@@ -15,6 +15,15 @@
   combined silently past an all-failed chunk now stops under the default
   `on_violation = "stop"`.
 
+* **An all-chunks-failed combine now reports the real cause (#50).** With
+  every array task failing, `medsim_combine_chunks()` reached the seed audit
+  with zero rows and warned that the chunks *"lack the schema-v2 stamp
+  (produced by an older medsim)"* -- advice to chase a version mismatch that
+  does not exist, on a run whose actual problem is that every replication
+  failed. The audit now returns early on zero rows, `partial_chunk` says
+  "they hold no results at all" rather than "only their completed reps",
+  and `config$n_replications` is `0` instead of `-Inf`.
+
 * **The "real parallel" tests no longer run the serial path under
   `R CMD check --as-cran` (#50).** `medsim_run_parallel()` falls back to
   sequential execution when `_R_CHECK_LIMIT_CORES_` is set, and the three

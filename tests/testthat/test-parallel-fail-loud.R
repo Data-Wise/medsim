@@ -350,6 +350,53 @@ test_that("a trailing all-reps-failed chunk writes a flagged file and fires part
   expect_equal(sort(unique(cv$results$results$scenario)), "pfl")
 })
 
+# ---- Case 21: EVERY chunk failed -- diagnose it correctly (#50 review) -----
+
+test_that("an all-chunks-failed combine reports the real cause, not a false schema warning (#50)", {
+  skip_on_cran()
+  out <- withr::local_tempdir()
+
+  mk_cfg <- function(chunk_id) {
+    cfg <- pfl_config(out, n_reps = 8L)
+    cfg$chunk_id <- chunk_id
+    cfg$n_chunks <- 2L
+    cfg
+  }
+
+  # Both chunks fail every rep -- only reachable since PM1 made a zero-row
+  # chunk write a file at all.
+  for (k in 1:2) {
+    expect_error(
+      medsim_run_chunk(list(pfl_scenario()), reserved_method, mk_cfg(k),
+                       verbose = FALSE),
+      class = "medsim_run_failure")
+  }
+  expect_equal(length(list.files(out, pattern = "^chunk_")), 2L)
+
+  warns <- character(0)
+  combined <- withCallingHandlers(
+    medsim_combine_chunks(out, on_violation = "warn"),
+    warning = function(w) {
+      warns <<- c(warns, conditionMessage(w))
+      invokeRestart("muffleWarning")
+    })
+
+  # The real cause, stated correctly: not "holds only its completed reps".
+  expect_true(any(grepl("partial_chunk", warns, fixed = TRUE)))
+  expect_true(any(grepl("hold no results at all", warns, fixed = TRUE)))
+
+  # ...and NOT a version-mismatch red herring. attr(NULL, "medsim_schema") is
+  # NULL, so the audit used to claim these chunks came from an older medsim
+  # and tell the user to re-run them -- actively wrong advice on a run whose
+  # actual problem is that every replication failed.
+  expect_false(any(grepl("older medsim", warns, fixed = TRUE)))
+  expect_false(any(grepl("no non-missing arguments to max", warns, fixed = TRUE)))
+
+  # -Inf must never be baked into the returned config.
+  expect_equal(combined$config$n_replications, 0L)
+  expect_null(combined$results)
+})
+
 # ---- Guard: real parallelism actually engages (#50 PM2) --------------------
 
 test_that("the real-parallel cases run on worker processes, not the fallback (#50 PM2)", {
