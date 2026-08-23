@@ -221,12 +221,15 @@ medsim_run_chunk <- function(scenarios, method, config, verbose = TRUE,
     }
   )
 
-  if (!is.null(run_failure) &&
-      (is.null(results) || is.null(results$results) ||
-       nrow(results$results) == 0L)) {
-    # Nothing survived this chunk -- no partial file worth writing.
-    stop(run_failure)
-  }
+  # An all-reps-failed chunk still writes a file (#50 PM1). It was previously
+  # short-circuited here as "no partial file worth writing", but the file is
+  # what carries `partial = TRUE` into medsim_combine_chunks() -- without it a
+  # trailing failed chunk combines with ZERO violations, and the reserved-
+  # `error` class that motivated #43 fails EVERY rep, so it could never fire
+  # `partial_chunk` at all. An empty flagged chunk is already a supported
+  # shape downstream: empty chunks are exempt from the schema vote (see
+  # `chunk_is_empty` below) and `partial_flags` reads every chunk's provenance.
+  if (is.null(results)) stop(run_failure %||% "medsim_run_chunk: no results")
 
   # Gate C: provenance header. Auto-detect the code SHA unless caller-stamped
   # (an opt-in-only SHA would leave the combine assertion inert -- grill B5).
@@ -458,12 +461,25 @@ medsim_combine_chunks <- function(output_dir, pattern = "chunk_*.rds",
 
   combined$results <- all_results
   combined$truth   <- truth
-  combined$summary <- medsim_summarize_results(all_results)
+  # all_results is NULL when every chunk is empty (all array tasks failed --
+  # reachable since #50 PM1). Summarizing NULL only emits a bare "No numeric
+  # columns to summarize" warning on top of the real diagnosis.
+  combined$summary <- if (is.null(all_results)) {
+    NULL
+  } else {
+    medsim_summarize_results(all_results)
+  }
 
   # Rows-per-scenario is the true combined replication count for both schema
   # versions (schema v1's local ids under-count via max()); chunk-only fields
   # are meaningless on a combined object.
-  combined$config$n_replications <- max(table(all_results$scenario))
+  # max() over an empty table returns -Inf with a bare base-R warning, and that
+  # value would be baked into the returned object (#50 review, finding 2).
+  combined$config$n_replications <- if (is.null(all_results)) {
+    0L
+  } else {
+    max(table(all_results$scenario))
+  }
   combined$config$rep_offset <- NULL
   combined$config$chunk_id   <- NULL
   combined$n_chunks_combined <- length(files)
@@ -488,13 +504,24 @@ medsim_combine_chunks <- function(output_dir, pattern = "chunk_*.rds",
   # only reliable signal that a chunk is short by design, not by construction.
   partial_flags <- vapply(provs, function(p) isTRUE(p$partial), logical(1))
   if (any(partial_flags)) {
+    # A flagged chunk may hold SOME completed reps or NONE at all (every rep
+    # failed -- reachable since #50 PM1). Saying "holds only its completed
+    # reps" of an empty chunk describes the wrong failure to the user.
+    n_empty_flagged <- sum(partial_flags & chunk_is_empty)
+    detail <- if (n_empty_flagged == sum(partial_flags)) {
+      "every replication in them failed -- they hold no results at all"
+    } else if (n_empty_flagged > 0L) {
+      sprintf(paste("a replication task failed mid-run; %d of the flagged",
+                    "chunk(s) hold no results at all, the rest hold only",
+                    "their completed reps"), n_empty_flagged)
+    } else {
+      "a replication task failed mid-run and they hold only their completed reps"
+    }
     violations[[length(violations) + 1L]] <- list(
       type = "partial_chunk",
-      message = sprintf(paste(
-        "%d of %d chunk file(s) are flagged partial (a replication task",
-        "failed mid-run and the chunk holds only its completed reps) --",
-        "results are missing, not just truncated"),
-        sum(partial_flags), length(partial_flags)))
+      message = sprintf(
+        "%d of %d chunk file(s) are flagged partial (%s) -- results are missing, not just truncated",
+        sum(partial_flags), length(partial_flags), detail))
   }
   shas <- vapply(provs, function(p) {
     if (is.null(p) || is.null(p$code_sha)) NA_character_ else p$code_sha
@@ -650,6 +677,15 @@ medsim_audit_results <- function(results,
       list(type = type, scenario = scenario, message = message)
   }
 
+  # Zero rows is a real, reachable state since #50 PM1: every array task can
+  # fail, and each now writes a flagged zero-row chunk. There is nothing to
+  # audit, and falling through would be worse than useless -- `attr(NULL,
+  # "medsim_schema")` is NULL, so the legacy branch below would tell the user
+  # their chunks came from "an older medsim" and send them chasing a version
+  # mismatch that does not exist. The genuine problem (every replication
+  # failed) is reported by the `partial_chunk` violation in the caller.
+  if (is.null(df) || nrow(df) == 0L) return(violations)
+
   scenarios <- unique(df$scenario)
   schema_v2 <- identical(attr(df, "medsim_schema", exact = TRUE), 2L)
 
@@ -770,8 +806,10 @@ medsim_audit_results <- function(results,
   # rep id -- so once such rows are produced (the runner side of #43), A.1's
   # contiguity check alone no longer flags them as missing (a real detector
   # this fix would otherwise silently disable, per the 40-rep/4-DGP-failure
-  # regression). Surfacing the count here restores that visibility. Inert
-  # today: nothing yet writes the "data_generator error: " prefix.
+  # regression). Surfacing the count here restores that visibility.
+  # ARMED and load-bearing: R/runner.R writes the "data_generator error: "
+  # prefix on the DGP-failure path (#43), and test-parallel-fail-loud.R case
+  # 10 is its regression guard. Do not prune this as dead code.
   n_dgp_failed <- sum(.medsim_is_dgp_failure(df$error))
   if (n_dgp_failed > 0L) {
     add("dgp_failure", sprintf(

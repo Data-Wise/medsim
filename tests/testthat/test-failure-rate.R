@@ -8,6 +8,14 @@
 #       never NA-poisoned;
 #   (2) failure_rate == failed / total is reported.
 #
+# #43/#50 deviation, recorded: #43 §6 promised these invariants would be
+# revisited when the accounting split landed (estimator failures vs DGP
+# failures, the latter reported separately as dgp_failure_rate). That revisit
+# never happened, and does not need to: both invariants above are stated over
+# `failed / total` regardless of WHY a rep failed, so the split changed which
+# column carries the reason, not the arithmetic. No assertion here is wrong.
+# Left as-is deliberately -- see internal/GRILL-medsim-43-*.md, minor findings.
+#
 # Deterministic hand-built fixture (exact known failure fraction) -- far more
 # precise than a random-failure simulation, and CRAN-instant. The interval
 # branch previously OMITTED failure_rate entirely (discovered this session); the
