@@ -46,8 +46,11 @@ closed-2026-08-22: **Issue #43 CLOSED** — full fix landed same-day across 3 me
     merge to keep the diff clean (`git rebase --onto`, one commit auto-dropped as
     already-upstream). 12 verification cases per the design doc's §5.
   Net: 1197 pass / 0 fail, R CMD check 0/0/0 on the final merged `dev` state. All 3 worktrees +
-  local/remote branches removed. `pensive-goodall-3e2dfb` worktree/branch still needs cleanup
-  (superseded by the split — safe to delete, nothing from it was merged directly).
+  local/remote branches removed. `pensive-goodall-3e2dfb` **worktree removed 2026-08-22**; its
+  commit `987d176` is NOT an ancestor of dev (the split superseded it — nothing from it merged
+  directly) but stays reachable via branch `claude/pensive-goodall-3e2dfb`, local and origin.
+  Those two refs were deliberately left in place: deleting an unmerged commit is the one
+  irreversible step here, and it is a separate decision from worktree cleanup.
 reviewed-2026-08-22: **Three-reviewer adversarial review of both the plan and what shipped.**
   Two reviewers independently found the SAME blocker in the #41 spec. Outcomes:
   - **#41 SPEC amended to v2** (amendments R1-R9 marked inline). v1 had a **BLOCKER**: its
@@ -112,8 +115,13 @@ shipped-2026-08-22-phase0: **Phase 0 (#50) DONE — PR #51 MERGED** (squash `dd0
   empty — an HPC user losing every array task would have chased a nonexistent version mismatch;
   `config$n_replications` was `-Inf`; and `partial_chunk` claimed reps the chunk did not hold.
   Case 21 guards all three. Final gates: 1219 pass / 0 fail / 0 error / 1 skip; `--as-cran` 0/0/1.
-  Cleanup pending (not actioned): worktree `~/.git-worktrees/medsim/feature-parallel-coverage-zero-vio`
-  and branch `feature/parallel-coverage-zero-vio` (local + origin) still exist.
+  Cleanup DONE 2026-08-22: worktree removed, branch `feature/parallel-coverage-zero-vio` deleted
+  local + origin. Also swept `feature/est-error-rename` (#47) and `feature/combine-gate-fixes`
+  (#48), both left on origin after their squash-merges. **medsim now has zero worktrees and zero
+  stale feature branches.** Each deletion was gated on `headRefOid` == local tip AND
+  `git merge-base --is-ancestor <mergeCommit> origin/dev` — never on `git cherry`, which
+  misreports squash-merges. Plain `git branch -d` sufficed every time (git accepts a branch
+  merged into its own upstream); the branch-guard hook blocks `-D`, so do not reach for it.
 
 next: 🟢 **PHASE 0 MERGED (PR #51, `dd0d059`). Next is PHASE 1 — issue #41.**
   (`internal/PLAN-medsim-backlog-2026-08-22.md`). Phase 0's PM2 fix was the gating one: the
