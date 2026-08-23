@@ -1,7 +1,10 @@
 # GRILL — medsim #43: fail-loud parallel/serial replication errors
 
-**Date**: 2026-07-31 · **Target**: issue #43 · **Base**: dev @ v0.5.0.9000
-**Status**: PROPOSAL — all questions resolved; awaiting go.
+**Date**: 2026-07-31 · **Amended**: 2026-08-22 (implementation log) · **Target**: issue #43 · **Base**: dev @ v0.5.0.9000
+**Status**: ✅ **IMPLEMENTED & MERGED** — three PRs, all squashed to `dev`
+2026-08-22; **issue #43 CLOSED** 2026-08-22T22:16Z. Final state on `dev`:
+**1197 pass / 0 fail / 0 error / 1 skip**, `R CMD check --as-cran` **0/0/0**.
+See §6 Implementation log for what the build changed versus this design.
 **Location**: canonical design doc for #43 (see §0).
 
 **Method**: 4 interactive grill rounds (19 decisions) + 2 independent adversarial
@@ -236,3 +239,50 @@ the 1-NOTE baseline, then independent adversarial review of the branch diff befo
 integration.
 
 Release vehicle: ride `dev`, no 0.5.1 patch (r-universe publishes `0.5.0.9000`).
+
+---
+
+## 6. Implementation log (2026-08-22)
+
+Shipped as **three** PRs, not the two this design planned. All squash-merged
+to `dev`; issue #43 closed 2026-08-22T22:16Z. Final `dev` state: **1197 pass /
+0 fail / 0 error / 1 skip**, `R CMD check --as-cran` **0/0/0**.
+
+| PR | Squash | Scope | Note |
+|---|---|---|---|
+| **#47** | `523ce14` | numeric-kind `error` → `est_error` rename | **Not in this design** — see L1 |
+| **#48** | `43946e9` | PR-A — combine gates (§5, §5a) | `/code-review` found a hard crash not in the design; fixed pre-merge (L2) |
+| **#49** | `8ed4c1f` | PR-B — runner, chunk write, accounting (§1–§4, §6, §7) | Rebased onto #48's squashed tip before merge |
+
+### What the build changed versus this design
+
+| # | Design said | Build found | Resolution |
+|---|---|---|---|
+| L1 | **Q3:** two PRs; PR-B waits on `task_bac224eb` | That branch bundled a clean `est_error` rename with a **dangerous** parallel re-raise — a plain `stop()` discarding completed replications (A/B measured: `dev` returns 15 of 20 rows, the branch discards all 15) | Branch **split**: the rename shipped alone as **PR #47**; the re-raise was rebuilt properly as PR-B's data-carrying `medsim_run_failure`. Three PRs, not two. |
+| L2 | §4's chunk-write rescue is the risky part | `/code-review` on PR-A found an unrelated **hard crash**: with *every* chunk empty, `schema_v2` is vacuously TRUE (zero-length `all()`) while `all_results` is NULL — and `attr(NULL, "x") <- 2L` **errors** in R, unlike assigning NULL, which is a silent no-op. Unreachable before PR-A | Guarded (`schema_v2 && !is.null(all_results)`), regression test at `test-cluster.R:338`. Worse than the reviewer's "inconsistent object" framing — it was a crash. |
+| L3 | Cases 4/7: trigger a task-level failure with `stop()` inside `method()` | **Wrong trigger.** A plain `stop()` in `method()` is caught by the *existing* inner `tryCatch` and becomes an ordinary failure row — it never escapes to the sweep | Tests use the reserved-`error`-field contract violation instead: `method()` returns successfully with `list(indirect =, error =)`, failing the post-method check **outside** the method-level handler. |
+| L4 | Case 7: reps after a mid-chunk failure are lost (expected 2 of 4 rows) | `lapply` runs **every** task regardless of an earlier failure — only the failing rep is lost | Expected counts corrected 2 → 3, in both the direct chunk read and the post-combine assertion. |
+| L5 | The partial payload just needs `rbind` | The `medsim_run_failure` payload was **not schema-v2 stamped**, so PR-A's own schema vote read it as legacy and disabled Gates A.1/A.3 — surfaced as unexpected "lack the schema-v2 stamp" warnings in the new tests | Shared `.medsim_stamp_schema_v2()` helper applied on both the normal-completion and partial-failure paths. |
+
+### Verification cases — as built
+
+Implemented **1, 2, 3, 4, 6, 7, 10, 11, 13** in
+`tests/testthat/test-parallel-fail-loud.R` (11 `test_that` blocks: the nine
+numbered cases plus the `medsim_check_results()` empty-list and
+`medsim_summarize_results()` all-NA guards from §1/§2). Cases **8, 9, 12** live
+in `tests/testthat/test-cluster.R` as designed (PR-A, hand-built fixtures),
+alongside L2's regression test. Case 5 stays removed (fail-fast dropped, Q2).
+
+### Release vehicle — superseded by events
+
+This design said "ride `dev`, no 0.5.1 patch". **v0.5.1 was released
+2026-08-17**, before the work landed, so #43 shipped onto `0.5.1.9000` and
+rides the next release instead.
+
+### Adjacent work filed after this shipped
+
+None from #43 itself. The 2026-08-22 backlog grill separately found two **new**
+correctness defects in adjacent code — truth-cache poisoning and a
+gauge/probmed weight-bug exposure — tracked in
+[`SPEC-medsim-41-truth-integrity-2026-08-22.md`](SPEC-medsim-41-truth-integrity-2026-08-22.md)
+and [`GRILL-medsim-35-gauge-probmed-exposure-2026-08-22.md`](GRILL-medsim-35-gauge-probmed-exposure-2026-08-22.md).

@@ -1,7 +1,9 @@
 # GRILL — medsim #28: cluster-workflow vignette + array_throttle doc
 
 **Date**: 2026-08-22 · **Target**: issue #28 · **Base**: dev @ `1150e45`
-**Status**: PROPOSAL — docs only, lowest-risk of the three recommended issues.
+**Status**: PROPOSAL — docs only; lowest-risk of the three live issues
+(#41 → #35 → #28; #29 deferred). Vehicle decided at GD4: a pkgdown-only
+article under `vignettes/articles/`, **not** a built vignette.
 **Location**: canonical design doc for #28.
 
 ---

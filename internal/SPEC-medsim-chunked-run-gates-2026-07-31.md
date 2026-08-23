@@ -345,6 +345,22 @@ race across chunks (`compute_truth` gating), dead `seed_stream` knob,
 `.gen_complete_med` rename, interval-kind validation skip, empty interval
 coverage table, cache-doc example drift, `config$seed` no-op documentation.
 
+**Where those went (added 2026-08-22 — do not re-derive them from this list):**
+
+| Deferred finding | Now tracked in |
+|---|---|
+| truth-recompute race across chunks (`compute_truth` gating) | [`SPEC-medsim-41-truth-integrity-2026-08-22.md`](SPEC-medsim-41-truth-integrity-2026-08-22.md) §D1 — and re-grounded: the premise was wrong. There is no race, because `medsim_run_chunk()` has **no `compute_truth` parameter at all**, so truth is computed **zero** times via the chunk path, not `n_chunks` times |
+| `config$seed` no-op documentation | Same SPEC, §D4 — also re-grounded: `seed` is **not** a no-op; `medsim_run()` consumes it at `R/runner.R:152` to seed the truth pass. The doc was wrong in the opposite direction from the finding |
+| cache-doc example drift | Same SPEC, §D3 neighborhood (`medsim_cache_save()` is being opened for the atomic-write fix) |
+| dead `seed_stream` knob | Still open, unfiled |
+
+The same 2026-08-22 grounding pass also found two defects **no** review in this
+lineage had caught, both in the truth path this spec's Gates never covered:
+truth-cache poisoning (a failed `truth_function()` is cached as an error
+sentinel and silently reused forever) and a parameter-less truth frame passing
+`medsim_analyze_coverage()`'s guard. Both are in the #41 SPEC with empirical
+reproductions.
+
 ---
 
 ## Branch / Worktree Plan (descriptive — not an action item)
