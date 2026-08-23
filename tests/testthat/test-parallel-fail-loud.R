@@ -257,7 +257,9 @@ test_that("a clean run gives identical values under real parallel and serial exe
   skip_on_os("windows")
   out_s <- withr::local_tempdir()
   out_p <- withr::local_tempdir()
-  ok_method <- function(data, params) list(indirect = mean(data$X * data$Y))
+  ok_method <- function(data, params) {
+    list(indirect = mean(data$X * data$Y), worker_pid = Sys.getpid())
+  }
 
   cfg_s <- pfl_config(out_s, n_reps = 6L)
   cfg_p <- pfl_parallel_config(out_p)
@@ -266,6 +268,13 @@ test_that("a clean run gives identical values under real parallel and serial exe
                       parallel = FALSE, verbose = FALSE)
   res_p <- medsim_run(ok_method, list(pfl_scenario()), cfg_p,
                       parallel = TRUE, verbose = FALSE)
+
+  # Self-certifying (#50 PM2): before the env-var fix this compared the serial
+  # path to ITSELF -- a negative control that passed for exactly the wrong
+  # reason. Assert each arm really ran where it claims to. `worker_pid` is not
+  # in `cols`, so the parity comparison below is unaffected.
+  expect_true(all(res_s$results$worker_pid == Sys.getpid()))
+  expect_true(all(res_p$results$worker_pid != Sys.getpid()))
 
   cols <- c("scenario", "replication", "indirect")
   expect_equal(

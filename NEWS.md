@@ -10,7 +10,10 @@
   replication of any chunk it touches, so `partial_chunk` could never fire for
   the very defect class it was built to catch. Such chunks now write a flagged,
   zero-row file (already a supported shape downstream) before re-`stop()`ing,
-  so `medsim_combine_chunks()` reports `partial_chunk` as designed.
+  so `medsim_combine_chunks()` reports `partial_chunk` as designed. No API
+  change, but note the behavior change this intends: a run that previously
+  combined silently past an all-failed chunk now stops under the default
+  `on_violation = "stop"`.
 
 * **The "real parallel" tests no longer run the serial path under
   `R CMD check --as-cran` (#50).** `medsim_run_parallel()` falls back to
