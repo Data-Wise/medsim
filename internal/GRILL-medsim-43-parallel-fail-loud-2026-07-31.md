@@ -301,6 +301,29 @@ its `dgp_failure_rate = 1` never reaches the analysis tables; and the
 `is.function(data_generator)` contract check sits *inside* the per-task
 `tryCatch` rather than outside it as designed (loud either way).
 
+**Resolution (2026-08-22, issue #50, branch `feature/parallel-coverage-zero-vio`).**
+PM1 and PM2 both fixed, each with a positive control proving the new assertion
+can fail. PM2 refinement worth recording, found while verifying the fix: the "runs
+serial under `--as-cran`" framing is true only where `NOT_CRAN=true` is also
+set. Under **`devtools::check()`** -- the project's actual gate -- it is: the
+tests run, and before this fix they ran serial. Under a bare
+`rcmdcheck::rcmdcheck(args = "--as-cran")` `NOT_CRAN` is unset, so
+`skip_on_cran()` skips all four outright (16 "On CRAN" skips observed). Either
+way PM2's conclusion stands -- the parallel path had no gate coverage -- but
+the mechanism differs by harness, and only the devtools path is fixable here
+(skipping on true CRAN is correct policy: spawning workers is not allowed).
+
+PM2: `pfl_parallel_config()` now clears `_R_CHECK_LIMIT_CORES_`,
+pins `n_cores = 2L`, and raises the fixture to 6 reps -- 4 sat *exactly* on the
+`length(tasks) < 4` boundary (tasks are per-replication, `R/runner.R:228`), so
+one trimmed rep would have silently re-armed the fallback. A new PID guard
+asserts worker pid != main pid and >1 distinct worker. PM1: the early `stop()`
+is gone; the write path's own re-`stop()` at the end already preserved the
+nonzero exit. Both MINORs closed: the "Inert today" comment is rewritten as
+ARMED, and the `test-failure-rate.R` deviation is now recorded in that file's
+header (no assertion there was wrong -- the accounting split changed which
+column carries the reason, not the arithmetic).
+
 Confirmed sound by the same review: both new detectors fire on their defects
 and stay silent on their negative controls; the schema vote behaves correctly
 across empty / all-empty / mixed-legacy combines; coverage and `converged`

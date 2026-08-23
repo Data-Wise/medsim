@@ -2,6 +2,26 @@
 
 ## Bug fixes
 
+* **All-reps-failed chunks are no longer silently dropped (#50).**
+  `medsim_run_chunk()` short-circuited before writing a file when no
+  replication survived, so the chunk carried no `partial = TRUE` provenance
+  marker -- and a trailing all-failed chunk therefore combined with **zero**
+  integrity violations. The reserved-`error` contract violation fails *every*
+  replication of any chunk it touches, so `partial_chunk` could never fire for
+  the very defect class it was built to catch. Such chunks now write a flagged,
+  zero-row file (already a supported shape downstream) before re-`stop()`ing,
+  so `medsim_combine_chunks()` reports `partial_chunk` as designed.
+
+* **The "real parallel" tests no longer run the serial path under
+  `R CMD check --as-cran` (#50).** `medsim_run_parallel()` falls back to
+  sequential execution when `_R_CHECK_LIMIT_CORES_` is set, and the three
+  cases meant to exercise the parallel failure path never cleared it -- so the
+  release gate's `--as-cran` run covered no parallel code in that file while
+  every assertion still passed. The fallback is correctness-preserving, which
+  is why nothing noticed. Those cases now clear the variable, keep the fixture
+  clear of the four-task fallback floor, and a new positive-control test
+  asserts replications actually execute on worker processes.
+
 * **Numeric-kind contract collision fixed.** v0.5.0 declared `error` both as
   the mandatory result column of the `"numeric"` estimand kind
   (`medsim_scenario_numeric()`, `medsim_estimand()` docs) and as a reserved

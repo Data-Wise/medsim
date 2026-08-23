@@ -221,12 +221,15 @@ medsim_run_chunk <- function(scenarios, method, config, verbose = TRUE,
     }
   )
 
-  if (!is.null(run_failure) &&
-      (is.null(results) || is.null(results$results) ||
-       nrow(results$results) == 0L)) {
-    # Nothing survived this chunk -- no partial file worth writing.
-    stop(run_failure)
-  }
+  # An all-reps-failed chunk still writes a file (#50 PM1). It was previously
+  # short-circuited here as "no partial file worth writing", but the file is
+  # what carries `partial = TRUE` into medsim_combine_chunks() -- without it a
+  # trailing failed chunk combines with ZERO violations, and the reserved-
+  # `error` class that motivated #43 fails EVERY rep, so it could never fire
+  # `partial_chunk` at all. An empty flagged chunk is already a supported
+  # shape downstream: empty chunks are exempt from the schema vote (see
+  # `chunk_is_empty` below) and `partial_flags` reads every chunk's provenance.
+  if (is.null(results)) stop(run_failure %||% "medsim_run_chunk: no results")
 
   # Gate C: provenance header. Auto-detect the code SHA unless caller-stamped
   # (an opt-in-only SHA would leave the combine assertion inert -- grill B5).
@@ -770,8 +773,10 @@ medsim_audit_results <- function(results,
   # rep id -- so once such rows are produced (the runner side of #43), A.1's
   # contiguity check alone no longer flags them as missing (a real detector
   # this fix would otherwise silently disable, per the 40-rep/4-DGP-failure
-  # regression). Surfacing the count here restores that visibility. Inert
-  # today: nothing yet writes the "data_generator error: " prefix.
+  # regression). Surfacing the count here restores that visibility.
+  # ARMED and load-bearing: R/runner.R writes the "data_generator error: "
+  # prefix on the DGP-failure path (#43), and test-parallel-fail-loud.R case
+  # 10 is its regression guard. Do not prune this as dead code.
   n_dgp_failed <- sum(.medsim_is_dgp_failure(df$error))
   if (n_dgp_failed > 0L) {
     add("dgp_failure", sprintf(

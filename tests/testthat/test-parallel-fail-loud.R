@@ -17,14 +17,30 @@ pfl_config <- function(out_dir, n_reps = 4L) {
 
 reserved_method <- function(data, params) list(indirect = 0.1, error = 0.05)
 
+# Config for the cases that must exercise the REAL parallel path (#50 PM2).
+# medsim_run_parallel() falls back to the sequential path on any of three
+# conditions, and all three are live in a check environment:
+#   1. _R_CHECK_LIMIT_CORES_ set  -- R CMD check --as-cran sets it
+#   2. n_cores == 1               -- pfl_config()'s default
+#   3. length(tasks) < 4          -- tasks are per-replication (runner.R:228)
+# The fallback is correctness-preserving, so a case that silently takes it
+# still passes every assertion while covering none of the parallel code.
+# n_reps = 6 keeps condition 3 off the 4-task boundary that 4 sat exactly on.
+pfl_parallel_config <- function(out_dir, n_reps = 6L) {
+  withr::local_envvar(.local_envir = parent.frame(),
+                      "_R_CHECK_LIMIT_CORES_" = NA)
+  cfg <- pfl_config(out_dir, n_reps = n_reps)
+  cfg$n_cores <- 2L
+  cfg
+}
+
 # ---- Case 1: reserved-error under real parallel() --------------------------
 
 test_that("reserved-error under real parallel raises medsim_run_failure, untruncated (#43 case 1)", {
   skip_on_cran()
   skip_on_os("windows")
   out <- withr::local_tempdir()
-  cfg <- pfl_config(out, n_reps = 4L)
-  cfg$n_cores <- 2L
+  cfg <- pfl_parallel_config(out)
 
   err <- tryCatch(
     medsim_run(reserved_method, list(pfl_scenario()), cfg,
@@ -126,9 +142,8 @@ test_that("serial and parallel failures produce the same condition class and pay
   out_s <- withr::local_tempdir()
   out_p <- withr::local_tempdir()
 
-  cfg_s <- pfl_config(out_s, n_reps = 4L)
-  cfg_p <- pfl_config(out_p, n_reps = 4L)
-  cfg_p$n_cores <- 2L
+  cfg_s <- pfl_config(out_s, n_reps = 6L)
+  cfg_p <- pfl_parallel_config(out_p)
 
   err_s <- tryCatch(
     medsim_run(reserved_method, list(pfl_scenario()), cfg_s,
@@ -244,9 +259,8 @@ test_that("a clean run gives identical values under real parallel and serial exe
   out_p <- withr::local_tempdir()
   ok_method <- function(data, params) list(indirect = mean(data$X * data$Y))
 
-  cfg_s <- pfl_config(out_s, n_reps = 4L)
-  cfg_p <- pfl_config(out_p, n_reps = 4L)
-  cfg_p$n_cores <- 2L
+  cfg_s <- pfl_config(out_s, n_reps = 6L)
+  cfg_p <- pfl_parallel_config(out_p)
 
   res_s <- medsim_run(ok_method, list(pfl_scenario()), cfg_s,
                       parallel = FALSE, verbose = FALSE)
@@ -258,6 +272,99 @@ test_that("a clean run gives identical values under real parallel and serial exe
     res_s$results[order(res_s$results$replication), cols],
     res_p$results[order(res_p$results$replication), cols]
   )
+})
+
+# ---- Case 20: all-failed chunk still combines with a violation (#50 PM1) ---
+
+test_that("a trailing all-reps-failed chunk writes a flagged file and fires partial_chunk (#50 PM1)", {
+  skip_on_cran()
+  skip_on_os("windows")
+  out <- withr::local_tempdir()
+
+  # Real parallel on both chunks -- PM2's fix is what makes this meaningful;
+  # under the serial fallback this would not exercise the parallel failure
+  # path the reserved-`error` class actually travels.
+  #
+  # NOTE: cleared HERE, not inside mk_cfg(). pfl_parallel_config() scopes its
+  # withr cleanup to `parent.frame()`, so calling it from a nested helper
+  # would restore _R_CHECK_LIMIT_CORES_ the instant that helper returns --
+  # re-arming the very fallback this case needs off.
+  withr::local_envvar("_R_CHECK_LIMIT_CORES_" = NA)
+
+  # 12 reps over 2 chunks = 6 tasks PER CHUNK. medsim_run_chunk() re-splits
+  # n_replications across the array, so the 4-task parallel floor applies to
+  # the per-chunk count, not the total -- 6 total would give 3 per chunk and
+  # silently fall back to serial.
+  mk_cfg <- function(chunk_id) {
+    cfg <- pfl_parallel_config(out, n_reps = 12L)
+    cfg$chunk_id <- chunk_id
+    cfg$n_chunks <- 2L
+    cfg
+  }
+
+  ok_method <- function(data, params) {
+    list(indirect = mean(data$X), worker_pid = Sys.getpid())
+  }
+
+  # Chunk 1 succeeds -- and must do so on real workers, or this case degrades
+  # into a serial-path test without saying so.
+  medsim_run_chunk(list(pfl_scenario()), ok_method, mk_cfg(1L), verbose = FALSE)
+  ch1 <- readRDS(file.path(out, .medsim_chunk_filename(1L)))
+  expect_true(all(ch1$results$worker_pid != Sys.getpid()))
+
+  # Chunk 2 fails EVERY rep (reserved `error` field) -- nothing survives.
+  err <- tryCatch(
+    medsim_run_chunk(list(pfl_scenario()), reserved_method, mk_cfg(2L),
+                     verbose = FALSE),
+    medsim_run_failure = function(e) e
+  )
+  expect_s3_class(err, "medsim_run_failure")
+
+  # PM1: the file must exist even though zero reps survived -- it is the only
+  # carrier of `partial = TRUE`.
+  expect_true(file.exists(file.path(out, .medsim_chunk_filename(2L))))
+  ch2 <- readRDS(file.path(out, .medsim_chunk_filename(2L)))
+  expect_true(isTRUE(attr(ch2, "provenance")$partial))
+
+  # ...and the combine must therefore refuse to call this a clean run.
+  # on_violation = "stop" carries the typed violation list on the condition,
+  # so this asserts the exact type rather than regex-matching a message.
+  cv <- tryCatch(
+    medsim_combine_chunks(out, on_violation = "stop"),
+    medsim_combine_violation = function(e) e
+  )
+  expect_s3_class(cv, "medsim_combine_violation")
+  expect_true("partial_chunk" %in%
+                vapply(cv$violations, `[[`, character(1), "type"))
+
+  # The rescue path still returns chunk 1's completed work.
+  expect_equal(sort(unique(cv$results$results$scenario)), "pfl")
+})
+
+# ---- Guard: real parallelism actually engages (#50 PM2) --------------------
+
+test_that("the real-parallel cases run on worker processes, not the fallback (#50 PM2)", {
+  skip_on_cran()
+  skip_on_os("windows")
+  out <- withr::local_tempdir()
+  cfg <- pfl_parallel_config(out)
+
+  pid_method <- function(data, params) {
+    list(indirect = mean(data$X), worker_pid = Sys.getpid())
+  }
+
+  res <- medsim_run(pid_method, list(pfl_scenario()), cfg,
+                    parallel = TRUE, verbose = FALSE)
+
+  # Positive control for the whole real-parallel group. Cases 1/6/13 share
+  # pfl_parallel_config(), so if any fallback condition creeps back in, this
+  # fails loudly instead of the group quietly covering serial code.
+  expect_gte(cfg$n_replications, 4L)          # the length(tasks) < 4 floor
+  expect_equal(cfg$n_cores, 2L)               # the n_cores == 1 floor
+  expect_true(all(res$results$worker_pid != Sys.getpid()))
+
+  # ...and confirm more than one worker actually shared the load.
+  expect_gt(length(unique(res$results$worker_pid)), 1L)
 })
 
 # ---- Supporting guards: medsim_check_results / medsim_summarize_results ----
