@@ -1,7 +1,7 @@
 # PLAN — medsim backlog after the 2026-08-22 grill + adversarial review
 
 **Created:** 2026-08-22 · **Base:** `dev` @ `d033d3e` (v0.5.1.9000)
-**Status:** PROPOSAL — sequencing and scope only. No work started.
+**Status:** IN EXECUTION — Phase 0 shipped as PR #51 (2026-08-22, awaiting review). Phases 1-4 not started.
 **Inputs:** [`SPEC-medsim-41-truth-integrity`](SPEC-medsim-41-truth-integrity-2026-08-22.md) (v2),
 [`GRILL-medsim-35`](GRILL-medsim-35-gauge-probmed-exposure-2026-08-22.md),
 [`GRILL-medsim-28`](GRILL-medsim-28-cluster-vignette-2026-08-22.md),
@@ -51,9 +51,29 @@ at `R/cluster.R:773-774` (the `dgp_failure` detector is armed and
 load-bearing — the comment invites someone to prune it), and record the
 `test-failure-rate.R` deviation.
 
-**Non-breaking.** Safe on live `dev`. **Estimate: half a day** including review.
+**Estimate: half a day** including review.
 **Tracked as [#50](https://github.com/Data-Wise/medsim/issues/50)** (decision
 D-2, settled 2026-08-22) — filed with both reproductions and proposed fixes.
+
+> ### ✅ SHIPPED 2026-08-22 — [PR #51](https://github.com/Data-Wise/medsim/pull/51), awaiting review
+>
+> Outcome and gate evidence: `.STATUS` → `shipped-2026-08-22-phase0:`.
+> Design provenance and the PM2 scope correction: `GRILL-medsim-43` §Resolution.
+>
+> **Two estimates in this section were wrong**, worth carrying into Phase 1's planning:
+>
+> - **PM1 needed a deletion, not the restructure described above.** The write path already
+>   re-`stop()`s at the end, so removing the early return preserves the nonzero SLURM exit
+>   for free. "Move the provenance stamp + atomic write above the early stop" over-scoped it.
+> - **PM2's `n_cores` half was already done** (cases 1/6/13 pinned `n_cores = 2L` before this
+>   work). The unguarded condition was the env var — *and* the task count, which this plan
+>   never mentioned: fixtures sat at exactly 4 reps against a `length(tasks) < 4` floor, and
+>   `medsim_run_chunk()` re-splits reps across the array so that floor applies **per chunk**.
+>
+> **The "Non-breaking" label was also wrong in effect.** No API change, but a run that
+> previously combined silently past an all-failed chunk now stops under the default
+> `on_violation = "stop"`. Phase 1 and 2 should re-check their own non-breaking claims against
+> *behavior*, not just API surface — this is a live distribution channel.
 
 ---
 

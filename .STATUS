@@ -92,12 +92,28 @@ grilled-2026-08-22: All 4 remaining open issues grounded + grilled (7 branches, 
       predates it; medsim's Remotes resolves to main and Suggests has no floor ⇒ every install
       route runs gauge coverage against the buggy estimator (upstream measured ~0.85-0.90 vs
       0.936/0.972 corrected). #35 rescoped around it. Priority order now: #41 → #35 → #28 → (#29 deferred).
-next: 🔴 **START AT PHASE 0 — `internal/PLAN-medsim-backlog-2026-08-22.md`.**
-  Highest-priority work is **issue #50** (two MAJOR defects live on dev right now): PM2 first,
-  because until the parallel tests actually run in parallel under `--as-cran`, test evidence
-  for every later phase touching runner.R/parallel.R is not real evidence. Then #41 Phase 1
-  (non-breaking hardening: the truth-cache poison fix is the headline), Phase 2 (loud layer,
-  ships "warn"-default per D-1), #35, #28. #29 deferred (no consumer).
+shipped-2026-08-22-phase0: **Phase 0 (#50) implemented — PR #51 OPEN** (`feature/
+  parallel-coverage-zero-vio` → dev, 2 commits `23981aa` + `a8d4735`, +192/−17 over 5 files).
+  PM1: `medsim_run_chunk()` no longer skips the write when zero reps survive — that file is the
+  only carrier of `partial = TRUE`, so a trailing all-failed chunk used to combine with ZERO
+  violations. Fix was a deletion; the write path already re-`stop()`s. PM2: `pfl_parallel_config()`
+  clears `_R_CHECK_LIMIT_CORES_`, pins 2 cores, and lifts the fixture off the `length(tasks) < 4`
+  floor. Both MINORs closed. Gates (run IN the worktree): 1210 pass / 0 fail / 0 error / 1 skip
+  (dev baseline 1197); `R CMD check --as-cran` 0/0/1 (pre-existing NOTE). Every new assertion has
+  a reverted-fix positive control proving it can fail. Design provenance + the PM2 scope
+  correction live in `internal/GRILL-medsim-43-*.md` §Resolution (rides in PR #51, not yet on dev).
+  ⚠️ NOT non-breaking in effect: no API change, but a run that previously combined silently past
+  an all-failed chunk now stops under the default `on_violation = "stop"`.
+  Worktree `~/.git-worktrees/medsim/feature-parallel-coverage-zero-vio` is live (PR unmerged).
+
+next: 🟡 **PHASE 0 DONE, awaiting review — PR #51. Next is PHASE 1**
+  (`internal/PLAN-medsim-backlog-2026-08-22.md`). Phase 0's PM2 fix was the gating one: the
+  parallel path now has real test coverage, so `--as-cran` evidence for anything touching
+  `runner.R`/`parallel.R` is trustworthy for the first time. Phase 1 = #41 non-breaking
+  hardening (the truth-cache poison fix is the headline; build from the **SPEC**, not its GRILL
+  — GD2 is superseded). Then Phase 2 (loud layer, ships "warn"-default per D-1), #35, #28.
+  #29 deferred (no consumer). **D-3 still open and user-gated**: the probmed `dev → main`
+  release that would unblock #35's clean version pin is cross-repo work.
   NOTE: the "everything else is optional cleanup" framing that used to sit here is **retired** —
   #50 is a live silent-data-loss gap plus a CI blind spot, and #41 fixes a confirmed
   silent-corruption path (a transient truth failure permanently poisons the cache; the re-run
