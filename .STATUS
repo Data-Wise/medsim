@@ -123,6 +123,24 @@ shipped-2026-08-22-phase0: **Phase 0 (#50) DONE — PR #51 MERGED** (squash `dd0
   misreports squash-merges. Plain `git branch -d` sufficed every time (git accepts a branch
   merged into its own upstream); the branch-guard hook blocks `-D`, so do not reach for it.
 
+tooling-2026-08-22: **Session-report delivery + `obsidian-ops` search, both fixed.**
+  `.flow/obsidian-sync.yml` pointed session reports at `Research/20_projects/medsim`;
+  medsim is software engineering, and its vault hub note has always lived at
+  `Engineering/50_packages/medsim.md` beside probmed/medfit. Corrected (`e5d3c29`); two
+  existing reports moved; the hub note was 4 releases stale (v0.1.1) and now carries
+  current state. Note for future syncs: `Engineering/` has its own `.obsidian/` and opens
+  as a separate vault in the app, but obs registers only the outer `Documents` vault and
+  indexes Engineering as a subfolder — nested vaults are deduped, so `vault_id` stays
+  `"Documents"`.
+  Root-caused why the vault looked broken: **`obsidian-ops`' `search_notes` never resolved
+  its vault argument**, so a NAME hit `WHERE n.vault_id = ?` (an ID hash) and matched
+  nothing — every scoped search returned "No notes found" against a healthy 3,654-note
+  index. Fixed upstream in `Data-Wise/obsidian-cli-ops` PR #101 (squash `f0bf010`), with 8
+  further defects from a high-effort review. **The fix is on disk but the MCP server in a
+  running session keeps the pre-fix module in memory — reconnect `obsidian-ops` (`/mcp`)
+  before trusting a scoped search.** Vault index also repaired: 73 ghost rows and 6
+  unscannable notes (malformed YAML front matter) → 0/0, disk == db == 3,654.
+
 next: 🟢 **PHASE 0 MERGED (PR #51, `dd0d059`). Next is PHASE 1 — issue #41.**
   (`internal/PLAN-medsim-backlog-2026-08-22.md`). Phase 0's PM2 fix was the gating one: the
   parallel path now has real test coverage, so `--as-cran` evidence for anything touching

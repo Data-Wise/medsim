@@ -150,7 +150,11 @@ locality (they're the same cluster-mode parameter family).
 
 - No new R code — `array_throttle`'s behavior is unchanged, only documented
   in a second place.
-- Not modifying `cluster-testing.qmd` — different topic, left as-is.
+- Not modifying `cluster-testing.qmd` — different topic. **Superseded 2026-08-22:**
+  it *was* modified (commit `ff0f6a8`), but for #50, not #28 — an all-chunks-failed
+  section documenting the behavior change PM1 introduced. #28's scope is unchanged:
+  the new onboarding vignette is still a separate document, and this file remains
+  the two-tier *testing* topic.
 - Not building `sacct`-based MaxRSS/timing capture (issue's own out-of-scope note).
 
 ---
