@@ -92,8 +92,9 @@ grilled-2026-08-22: All 4 remaining open issues grounded + grilled (7 branches, 
       predates it; medsim's Remotes resolves to main and Suggests has no floor ⇒ every install
       route runs gauge coverage against the buggy estimator (upstream measured ~0.85-0.90 vs
       0.936/0.972 corrected). #35 rescoped around it. Priority order now: #41 → #35 → #28 → (#29 deferred).
-shipped-2026-08-22-phase0: **Phase 0 (#50) implemented — PR #51 OPEN** (`feature/
-  parallel-coverage-zero-vio` → dev, 2 commits `23981aa` + `a8d4735`, +192/−17 over 5 files).
+shipped-2026-08-22-phase0: **Phase 0 (#50) DONE — PR #51 MERGED** (squash `dd0d059` on dev,
+  3 commits, +288/−24 over 5 files; issue #50 closed manually — auto-close does not fire for
+  PRs targeting `dev`).
   PM1: `medsim_run_chunk()` no longer skips the write when zero reps survive — that file is the
   only carrier of `partial = TRUE`, so a trailing all-failed chunk used to combine with ZERO
   violations. Fix was a deletion; the write path already re-`stop()`s. PM2: `pfl_parallel_config()`
@@ -103,10 +104,18 @@ shipped-2026-08-22-phase0: **Phase 0 (#50) implemented — PR #51 OPEN** (`featu
   a reverted-fix positive control proving it can fail. Design provenance + the PM2 scope
   correction live in `internal/GRILL-medsim-43-*.md` §Resolution (rides in PR #51, not yet on dev).
   ⚠️ NOT non-breaking in effect: no API change, but a run that previously combined silently past
-  an all-failed chunk now stops under the default `on_violation = "stop"`.
-  Worktree `~/.git-worktrees/medsim/feature-parallel-coverage-zero-vio` is live (PR unmerged).
+  an all-failed chunk now stops under the default `on_violation = "stop"`. **This is now live on
+  `dev`, hence on r-universe** — the Missing Effect Hopper re-run installs from `@dev`.
+  A high-effort `/code-review` round added 3 fixes (commit `30ed22b`), all in the
+  all-array-tasks-failed path PM1 newly makes reachable: the combine warned that the chunks
+  "lack the schema-v2 stamp (produced by an older medsim)" when they are schema-v2 and merely
+  empty — an HPC user losing every array task would have chased a nonexistent version mismatch;
+  `config$n_replications` was `-Inf`; and `partial_chunk` claimed reps the chunk did not hold.
+  Case 21 guards all three. Final gates: 1219 pass / 0 fail / 0 error / 1 skip; `--as-cran` 0/0/1.
+  Cleanup pending (not actioned): worktree `~/.git-worktrees/medsim/feature-parallel-coverage-zero-vio`
+  and branch `feature/parallel-coverage-zero-vio` (local + origin) still exist.
 
-next: 🟡 **PHASE 0 DONE, awaiting review — PR #51. Next is PHASE 1**
+next: 🟢 **PHASE 0 MERGED (PR #51, `dd0d059`). Next is PHASE 1 — issue #41.**
   (`internal/PLAN-medsim-backlog-2026-08-22.md`). Phase 0's PM2 fix was the gating one: the
   parallel path now has real test coverage, so `--as-cran` evidence for anything touching
   `runner.R`/`parallel.R` is trustworthy for the first time. Phase 1 = #41 non-breaking
