@@ -268,7 +268,36 @@ error = function(e) {
 > **Case 3's fixture must plant the LEGACY UNCLASSED shape** — a classed
 > fixture tests an artifact that will never exist in the field.
 
-### D6 — `truth_on_failure = c("stop", "warn")`, default `"stop"`
+### D6 — `truth_on_failure = c("stop", "warn")` — ships defaulting to `"warn"`
+
+> **🔒 DECISION D-1 (settled 2026-08-22).** The argument ships with default
+> **`"warn"`**, and the default flips to **`"stop"` at the next version bump** —
+> *not* on first landing.
+>
+> **Why the two-step.** `dev` is a live distribution channel, not a staging
+> branch: medsim's r-universe registry pins `dev` (serving `0.5.1.9000`), and
+> the Missing Effect study installs `remotes::install_github("data-wise/medsim@dev")`
+> with a **queued Hopper fixed-branch re-run**. A breaking default would reach
+> that run on push, mid-flight.
+>
+> Landing `"warn"` first gets every detector and diagnostic — D7's widened
+> guards, D8's shape validation, D2′'s `truth_coverage`, and the D5 cache fix —
+> into consumers' hands **immediately**, because those are what convert silence
+> into a message. The default flip only changes *whether the message is fatal*.
+> So the safety value lands now; only the abort waits.
+>
+> **Implementation consequences:**
+> - `medsim_run(truth_on_failure = "warn")` is the shipped default; document it
+>   as **temporary**, with the flip named in NEWS so consumers can prepare.
+> - The `"warn"` branch is therefore the **primary** path at launch, not an
+>   opt-out — its "failed scenario must be **absent** from `$truth`, not
+>   present-with-fewer-columns" rule (see the implementer note above) becomes
+>   load-bearing rather than an edge case. Test it as the main path.
+> - D2′ and D7 matter **more** under this decision, since they are what makes a
+>   `"warn"` run detectable at combine and at analysis.
+> - Add a release-checklist item for the flip so it is not forgotten.
+> - **Reassess before flipping**: confirm the Missing Effect Hopper re-run has
+>   completed, or that its owner is ready.
 
 New argument on `medsim_run()`, threaded to `medsim_compute_all_truth()`.
 
@@ -549,7 +578,7 @@ Each case must FAIL before and PASS after.
 | 1 | **E-1 verbatim.** Transient truth failure (fails call 1, succeeds call 2, *same function object*): run 1 stops; after the fix is applied, a re-run **recomputes**. Assert on the **call counter** (`attempts == 2`), not just output — the counter is what proves the cache was not reused | successful truth ⇒ cached, and a second run loads from cache with `attempts == 1` (caching still works) |
 | 2 | A failed truth computation leaves **no** cache file for that scenario | successful truth ⇒ file written |
 | 3 | **REWRITTEN (R1).** A pre-existing cache file holding the **LEGACY UNCLASSED** `list(error = "<chr>")` ⇒ treated as a miss and recomputed (self-heal). A classed-sentinel fixture is **invalid** — that state cannot occur post-fix | a valid cached truth ⇒ loaded, not recomputed; a truth result with a legitimate **numeric** parameter named `error` ⇒ NOT treated as a sentinel |
-| 4 | **E-2.** All scenarios' truth fails ⇒ `medsim_run()` **stops** with a message naming the scenario and the original error | — |
+| 4 | **E-2 + D-1.** All scenarios' truth fails ⇒ with `truth_on_failure = "stop"` **explicitly passed**, `medsim_run()` stops naming the scenario and the original error. ⚠️ Per D-1 the *shipped* default is `"warn"`, so this case must pass the argument rather than rely on the default — and a companion assertion must pin that the **default** is `"warn"** at launch, so the later flip is a deliberate, test-visible change | Under the shipped `"warn"` default (**the primary launch path**): warns, run continues, and every failed scenario is **absent** from `$truth` — cases 7/14 then catch the consequence at combine and at analysis |
 | 5 | **E-3.** Mixed failure with `truth_on_failure = "warn"` ⇒ run completes, failed scenario **absent** from `$truth`, and **no** `numbers of columns of arguments do not match` | all truth succeeds ⇒ every scenario present |
 | 6 | `truth_on_failure = "warn"` + a scenario absent from truth ⇒ combine raises `truth_coverage/missing` | all scenarios have truth ⇒ silent |
 | 7 | A truth frame with rows but zero parameter columns ⇒ combine raises `truth_coverage/degenerate` | `compute_truth = NULL` run (`$truth` NULL) ⇒ **silent** (must NOT fire — the common case) |
@@ -596,15 +625,17 @@ with a real failure mode, and the PR body must quote its actual transcript
    successful-but-wrongly-shaped truth (D8). The second may surface latent
    breakage in pipelines their owners believe are working. NEWS entry
    required; `truth_on_failure = "warn"` restores prior behavior.
-2. **⚠️ `dev` IS a live distribution channel — AMENDMENT R8.** The original
-   text said the narrow blast radius argues Layer 1 "can ride `dev`". That
-   reasoning was wrong on the facts: medsim's r-universe registry pins the
-   **`dev`** branch (not `main`), and the Missing Effect study installs
-   `remotes::install_github("data-wise/medsim@dev")` for its queued Hopper
-   fixed-branch re-run. **A breaking default reaches real consumers on
-   push-to-`dev`, not at release.** Either coordinate with that queued run
-   before merging, or land the change with `truth_on_failure` defaulting to
-   `"warn"` and flip the default to `"stop"` at the next version bump.
+2. **⚠️ `dev` IS a live distribution channel — AMENDMENT R8. RESOLVED by
+   DECISION D-1.** The original text said the narrow blast radius argues
+   Layer 1 "can ride `dev`". That reasoning was wrong on the facts: medsim's
+   r-universe registry pins the **`dev`** branch (not `main`), and the Missing
+   Effect study installs `remotes::install_github("data-wise/medsim@dev")` for
+   its queued Hopper fixed-branch re-run. **A breaking default reaches real
+   consumers on push-to-`dev`, not at release.**
+   **Resolution (D-1, see §D6):** ship `truth_on_failure` defaulting to
+   `"warn"`; flip to `"stop"` at the next version bump, after confirming the
+   queued Hopper run has completed. Detectors and diagnostics land immediately;
+   only the abort waits.
 3. **Sentinel misdetection.** Addressed by the explicit S3 class (D5) — never
    sniff `names(x)`; case 9 pins it.
 4. **Chunk-1 straggler** (D1/F5) — documented in both this SPEC and #28's

@@ -52,8 +52,8 @@ load-bearing — the comment invites someone to prune it), and record the
 `test-failure-rate.R` deviation.
 
 **Non-breaking.** Safe on live `dev`. **Estimate: half a day** including review.
-**Should be a GitHub issue** — these are defects in shipped code and deserve
-tracking + a NEWS entry, not a silent fix.
+**Tracked as [#50](https://github.com/Data-Wise/medsim/issues/50)** (decision
+D-2, settled 2026-08-22) — filed with both reproductions and proposed fixes.
 
 ---
 
@@ -75,7 +75,18 @@ freely on live `dev`; no consumer coordination needed.
 
 ---
 
-## Phase 2 — #41 loud layer ⚠️ BREAKING — gated on decision D-1
+## Phase 2 — #41 loud layer — UNGATED by D-1 (ships `"warn"`-default)
+
+> **D-1 settled:** this phase is **no longer blocked**. It ships with
+> `truth_on_failure` defaulting to `"warn"`, so the detectors and diagnostics
+> land without breaking the queued Hopper run. The `"stop"` flip becomes a
+> one-line change at the next version bump — **add it to the release
+> checklist**, and confirm the Hopper run has completed before flipping.
+>
+> Consequence for implementation: `"warn"` is the **primary** path at launch,
+> not an opt-out. Its "failed scenario absent from `$truth`, not
+> present-with-fewer-columns" rule is load-bearing, and D7/D2′ carry more
+> weight — they are what makes a `"warn"` run detectable.
 
 | Ref | Change |
 |---|---|
@@ -133,11 +144,11 @@ pattern. Writing it earlier means rewriting it.
 
 ## Open decisions
 
-| # | Decision | Recommendation |
+| # | Decision | Status |
 |---|---|---|
-| **D-1** | How to land Phase 2's breaking change given live `dev` | **Land `truth_on_failure` defaulting to `"warn"`, flip to `"stop"` at the next version bump.** Gets every detector and diagnostic into consumers' hands immediately while the queued Missing Effect Hopper run is protected from a mid-flight contract change. The alternative — coordinate the run, then ship `"stop"` — is cleaner in one step but blocks Phase 2 on someone else's schedule |
-| **D-2** | File PM1/PM2 as a GitHub issue, or fix silently under #43 | **File an issue.** They are defects in shipped, released-to-`dev` code; silent fixes leave no NEWS trail for consumers who already pulled |
-| **D-3** | probmed `dev → main` + release, to unblock #35's version floor | Cross-repo — **your call and your authorization.** Phase 3's guard ships regardless; only the clean pin waits |
+| **D-1** | How to land Phase 2's breaking change given live `dev` | 🔒 **SETTLED 2026-08-22 — ship `truth_on_failure` defaulting to `"warn"`; flip to `"stop"` at the next version bump.** Every detector and diagnostic (D7, D8, D2′, D5) lands immediately — those are what convert silence into a message; only the *abort* waits. Protects the queued Missing Effect Hopper run from a mid-flight contract change. Recorded in [`SPEC §D6`](SPEC-medsim-41-truth-integrity-2026-08-22.md) with its implementation consequences |
+| **D-2** | File PM1/PM2 as a GitHub issue, or fix silently under #43 | 🔒 **SETTLED 2026-08-22 — filed as [#50](https://github.com/Data-Wise/medsim/issues/50)**, with both reproductions, proposed fixes, the three minor fold-ins, and the "confirmed sound" list |
+| **D-3** | probmed `dev → main` + release, to unblock #35's version floor | ⏳ **OPEN** — cross-repo, needs explicit authorization. Phase 3's guard ships regardless; only the clean version pin waits |
 
 ---
 
