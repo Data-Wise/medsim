@@ -22,3 +22,16 @@ Multiple imputation (via \code{mice}) + Monte-Carlo confidence interval for the
 indirect effect (via \code{RMediation::medci()} when available, else a base-R
 product-of-normals draw on the Rubin-pooled paths).
 }
+\examples{
+\donttest{
+if (requireNamespace("mice", quietly = TRUE)) {
+  set.seed(1)
+  d <- data.frame(X = rnorm(200))
+  d$M <- 0.39 * d$X + rnorm(200)
+  d$Y <- 0.39 * d$M + 0.14 * d$X + rnorm(200)
+  d <- medsim_amputate(d, target = "M", mechanism = "MAR", prop = 0.25)
+  out <- medsim_method_mc_ci(model = NULL, m = 10)(d, list())
+  out[c("indirect", "indirect_ci_lower", "indirect_ci_upper")]
+}
+}
+}

@@ -16,6 +16,11 @@
 #' @param weights Optional named weights for the missingness logistic.
 #' @param type Amputation tail type, `mice::ampute`-style: one of `"RIGHT","LEFT","MID","TAIL"`.
 #' @return `data` with `NA`s inserted in `target`; names/order preserved.
+#' @examples
+#' set.seed(1)
+#' d <- data.frame(X = rnorm(300), M = rnorm(300), Y = rnorm(300))
+#' d_mar <- medsim_amputate(d, target = "M", mechanism = "MAR", prop = 0.3)
+#' mean(is.na(d_mar$M))
 #' @export
 medsim_amputate <- function(data, target, mechanism = c("MCAR", "MAR", "MNAR"),
                             prop = 0.2, predictors = NULL, weights = NULL,

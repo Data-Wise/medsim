@@ -22,3 +22,7 @@ Numeric vector of length \code{n} with the requested marginal moments.
 Fleishman / Vale?Maurelli power-method draws. Pure base R; no hard dependency.
 Warns/errors on (skew, kurtosis) outside the Fleishman-feasible region.
 }
+\examples{
+x <- medsim_rnonnormal(500, skew = 1.5, kurtosis = 4)
+c(mean = mean(x), sd = stats::sd(x))
+}

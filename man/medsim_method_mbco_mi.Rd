@@ -50,8 +50,9 @@ A \verb{function(data, params)} returning the shared method contract (see file h
 \description{
 Multiple imputation (via \code{mice}) + \strong{D4-stacked MBCO} likelihood-ratio
 inference for the union null \code{H0: ab = 0}. Ports the validated
-\verb{Missing Effect/code/prototype-d4-mbco.R} (phase-2, exact match vs
-\code{mitml::testModels(method = "D4")}): per-imputation MBCO LRTs are pooled with
+\verb{Missing Effect/code/prototype-d4-mbco.R} (phase-2; the D4 statistic matches
+\code{mitml::testModels(method = "D4")}, and so does the p-value with
+\code{df = "chan_meng"}): per-imputation MBCO LRTs are pooled with
 the Reiter/Chan-Meng D4 rule (Grund et al. 2021) into an F reference.
 }
 \details{
@@ -59,4 +60,18 @@ The point estimate is the Rubin-pooled \code{a*b}; the CI is a Monte-Carlo produ
 interval on the pooled paths; the p-value is the D4-pooled MBCO test. With no
 missingness (or without \code{mice}) it degrades to the complete-case MBCO LRT with
 a chi-square reference -- never to a Sobel normal approximation for the test.
+}
+\examples{
+\donttest{
+if (requireNamespace("mice", quietly = TRUE)) {
+  set.seed(1)
+  d <- data.frame(X = rnorm(200))
+  d$M <- 0.39 * d$X + rnorm(200)
+  d$Y <- 0.39 * d$M + 0.14 * d$X + rnorm(200)
+  d <- medsim_amputate(d, target = "M", mechanism = "MAR", prop = 0.25)
+  fit <- medsim_method_mbco_mi(model = NULL, m = 10, ariv = "fixed", df = "chan_meng")
+  out <- fit(d, list())
+  out[c("indirect", "indirect_p", "indirect_p_fixed", "r4_fixed")]
+}
+}
 }

@@ -2,16 +2,26 @@
 # Spec: SPEC-medsim-missingdata-generators-2026-06-11.md  (?"5. Coverage/metrics")
 # NEW file (NOT editing analyze.R) so WS-E builds beside the DM proposal's interval-coverage work.
 
-#' Summarize the MBCO branch-switch rate per scenario
+#' Summarize the MBCO majority-branch rate per scenario
 #'
-#' Reads the `branch_switch` column emitted by [medsim_method_mbco_mi()] (the union-null /
-#' ab=0 diagnostic from MEMO-MBCO-MI-derivation) and returns a per-scenario summary suitable
+#' Reads the `branch_switch` column emitted by [medsim_method_mbco_mi()]: for each
+#' replicate, the union-null (`ab = 0`) branch chosen by the majority of imputations
+#' (1 = the `a = 0` branch, 0 = the `b = 0` branch). The returned `branch_switch_rate`
+#' is therefore the share of replicates whose majority branch is `a = 0`, not the share
+#' in which imputations disagree; that is the `branch_mix` column. The result is suitable
 #' for joining as a column onto a `medsim_table_coverage()` table. Non-converged rows
 #' (`converged == 0`) are dropped before summarizing.
 #'
 #' @param results A `medsim_results` object from [medsim_run()].
 #' @param by Grouping columns (default `"scenario"`).
 #' @return A data.frame: one row per group with `branch_switch_rate` and `n_valid`.
+#' @examples
+#' res <- data.frame(
+#'   scenario = rep(c("s1", "s2"), each = 4),
+#'   branch_switch = c(1, 1, 0, 1, 0, 0, 1, 0),
+#'   converged = 1
+#' )
+#' medsim_summarize_branch_switch(res)
 #' @export
 medsim_summarize_branch_switch <- function(results, by = "scenario") {
   df <- if (is.data.frame(results)) {
