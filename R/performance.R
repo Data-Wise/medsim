@@ -3,8 +3,10 @@
 #' Per scenario, computes bias, empirical SE, mean model SE, and RMSE for a
 #' parameter, each with its Monte Carlo SE (Morris, White & Crowther 2019).
 #'
-#' @param results Results data.frame from [medsim_run()]; expects `<param>`,
-#'   `<param>_truth`, and (optionally) `<param>_se` columns.
+#' @param results A `medsim_results` object from [medsim_run()] or
+#'   [medsim_combine_chunks()], whose `$truth` table is merged in by scenario;
+#'   or a results data.frame that already has `<param>` and `<param>_truth`
+#'   columns. Either way, a `<param>_se` column (optional) supplies the model SE.
 #' @param param Parameter name (default "indirect").
 #' @return A data.frame, one row per scenario.
 #' @details Truth is taken as the first converged row's `<param>_truth` value
@@ -12,6 +14,9 @@
 #'   from computations; if all estimates are NA, numeric columns return NA.
 #' @export
 medsim_analyze_performance <- function(results, param = "indirect") {
+  if (inherits(results, "medsim_results")) {
+    results <- .medsim_attach_truth(results, param)
+  }
   est_col   <- param
   truth_col <- paste0(param, "_truth")
   se_col    <- paste0(param, "_se")
@@ -81,4 +86,22 @@ medsim_table_performance <- function(perf) {
     paste(rows, collapse = " \\\\\n"), " \\\\\n\\hline\n\\end{tabular}\n"
   )
   list(latex = latex, type = "performance")
+}
+
+# Merge a medsim_results object's $truth table into its $results rows as
+# `<param>_truth`, so medsim_analyze_performance() can take the object itself.
+.medsim_attach_truth <- function(results, param) {
+  df    <- results$results
+  truth <- results$truth
+  if (is.null(truth) || !param %in% names(truth)) {
+    stop(sprintf(paste(
+      "medsim_analyze_performance(): no truth for '%s' in this results object.",
+      "Pass compute_truth to medsim_run() (or medsim_run_chunk()) so it",
+      "returns a value for '%s'."), param, param), call. = FALSE)
+  }
+  truth_col <- paste0(param, "_truth")
+  if (truth_col %in% names(df)) df[[truth_col]] <- NULL
+  key <- truth[c("scenario", param)]
+  names(key)[2L] <- truth_col
+  merge(df, key, by = "scenario", all.x = TRUE, sort = FALSE)
 }

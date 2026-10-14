@@ -63,9 +63,9 @@ scenarios <- list(
 ```
 
 The generator must take the sample size as its argument `n`. `medsim_run()`
-supplies it from the configuration (`config$n`, 200 unless you set it), so the
-default `n = 200` in the signature only matters when you call the generator by
-hand.
+supplies it from the configuration (`medsim_config(n = )`, 200 unless you set
+it), so the default `n = 200` in the signature only matters when you call the
+generator by hand.
 
 Two scenarios are enough to answer both questions. Under "Medium" the
 rejection rate is **power**; under "Null (a = 0)" it is the **type I error**.
@@ -205,9 +205,7 @@ the nominal .05.
 
 ```{r}
 #| label: performance
-tr <- results$truth
-names(tr)[-1] <- paste0(names(tr)[-1], "_truth")
-medsim_analyze_performance(merge(results$results, tr, by = "scenario"))
+medsim_analyze_performance(results)
 #>       scenario parameter          bias   bias_mcse empirical_se   model_se
 #> 1       Medium  indirect  0.0013953010 0.001757397   0.03929660 0.03969967
 #> 2 Null (a = 0)  indirect -0.0008496464 0.001257212   0.02811212 0.02846886
@@ -216,8 +214,7 @@ medsim_analyze_performance(merge(results$results, tr, by = "scenario"))
 #> 2 0.02809685         500        0
 ```
 
-`medsim_analyze_performance()` reads `indirect_truth` from the results table,
-so the truth is merged in first. The model-based SE (`model_se`, the average
+The model-based SE (`model_se`, the average
 Sobel SE) agrees with the empirical SD of the estimates (`empirical_se`) to
 within 1.5%: the delta method is accurate at $n = 200$ for these paths.
 
@@ -235,7 +232,8 @@ within 1.5%: the delta method is accurate at $n = 200$ for these paths.
 
 1. Add a scenario with $a = b = 0$. The Sobel test is known to be very
    conservative there. How far below .05 does its rejection rate fall?
-2. Rerun with a sample size of 50 (`config$n <- 50` before `medsim_run()`).
+2. Rerun with a sample size of 50:
+   `medsim_config("local", n_replications = 500, n = 50)`.
    Which breaks down first: coverage or the agreement between `model_se` and
    `empirical_se`?
 3. How many replications would you need for a coverage MCSE of .005? Check your

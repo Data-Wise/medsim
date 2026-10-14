@@ -80,15 +80,15 @@ length(grid_scenarios)
 
 ### Vary the sample size
 
-`medsim_run()` calls every generator with `n = config$n` (200 by default). To
-study several sample sizes, run once per size and stack the analyses:
+`medsim_run()` calls every generator with the configuration's `n` (200 by
+default). To study several sample sizes, run once per size and stack the
+analyses:
 
 ```{r}
 #| label: sample-size
-config <- medsim_config("local", n_replications = 500)
 sizes <- c(100, 200, 500)
-by_n <- lapply(sizes, function(n) {
-  config$n <- n
+by_n <- lapply(sizes, function(size) {
+  config <- medsim_config("local", n_replications = 500, n = size)
   medsim_run(sobel, grid_scenarios, config, compute_truth = truth)
 })
 
@@ -107,9 +107,8 @@ Each run in `by_n` analyzes on its own. Because the scenario names repeat, keep
 the `n` column when you stack results; without it the sample sizes would be
 indistinguishable.
 
-Set `config$n` after `medsim_config()` returns. Passing `n = 100` to
-`medsim_config()` fails, because `n` partially matches `n_replications`,
-`n_cores` and `n_chunks`.
+`n` must be named in full: `medsim_config("local", n = 100)`. It follows
+`...` in the signature, so it never partially matches `n_replications`.
 
 If the sample size must vary *within* one run (for example, on a cluster array),
 make it a scenario parameter and have the generator ignore the runner's `n`:
@@ -131,7 +130,8 @@ make_scenario_n <- function(a, b, size) {
 ```
 
 ::: {.callout-warning}
-`medsim_run()` computes the truth from one large draw, `data_generator(n = 10000)`.
+`medsim_run()` computes the truth from one large draw,
+`data_generator(n = 10000)` (set its size with `medsim_config(n_truth = )`).
 A generator that ignores `n` hands `compute_truth` a sample of size `size`
 instead. That is harmless when the truth comes from `params`, as here, but
 wrong when `compute_truth` estimates the truth from the data.
@@ -315,15 +315,17 @@ file, and `medsim_cache_clear("results")` removes them (it asks first).
 
 ### Bias with Monte Carlo SEs
 
-`medsim_analyze_performance()` reads `<param>_truth` from the results table,
-which `medsim_run()` stores separately. Merge it in first:
+`medsim_analyze_performance()` reports bias, empirical SE, model SE and RMSE,
+each with its Monte Carlo SE. It takes the results object and looks up the
+truth itself:
 
 ```{r}
 #| label: performance
-tr <- results$truth
-names(tr)[-1] <- paste0(names(tr)[-1], "_truth")
-medsim_analyze_performance(merge(results$results, tr, by = "scenario"))
+medsim_analyze_performance(results)
 ```
+
+It also accepts a results data.frame that already has `<param>_truth`
+columns, for example one you assembled yourself.
 
 ### Write a table as CSV or Markdown
 
