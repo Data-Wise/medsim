@@ -585,3 +585,17 @@ test_that("a partial attempt replaces an existing chunk file that cannot be read
   )
   expect_true(isTRUE(attr(readRDS(chunk_path), "provenance")$partial))
 })
+
+test_that("a failed rename stops loudly and leaves no tmp file behind", {
+  out <- withr::local_tempdir()
+  # A non-empty directory where the chunk file should go makes rename fail
+  blocker <- file.path(out, .medsim_chunk_filename(1L))
+  dir.create(blocker)
+  writeLines("x", file.path(blocker, "keep"))
+  expect_error(
+    suppressWarnings(medsim_run_chunk(list(pfl_scenario()), good_method,
+                                      chunk_cfg(out), verbose = FALSE)),
+    "failed to atomically rename"
+  )
+  expect_length(list.files(out, pattern = "\\.tmp$", all.files = TRUE), 0L)
+})
