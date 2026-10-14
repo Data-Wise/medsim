@@ -1,5 +1,21 @@
 # medsim (development version)
 
+## New features
+
+* **`medsim_method_mbco_mi()` gains `df = c("li", "chan_meng")`.** It sets the
+  denominator degrees of freedom of the D4 `F` reference for both `indirect_p`
+  and `indirect_p_fixed`. `"li"` (the default) keeps the Li et al. (1991) /
+  Meng-Rubin approximation, so existing results are unchanged. `"chan_meng"`
+  uses Chan and Meng (2022, eq. 2.15), `nu = k(K-1)(1 + 1/r4)^2`, the reference
+  of `mitml::testModels(method = "D4")`; with it, the p-value matches `mitml`
+  (`ariv = "positive"`) to 1e-6, where the legacy df matched only to about 10%.
+  The option re-refers the p-values only: the statistic, `r4`, `r4_fixed` and
+  the random-number stream are identical, so a run can switch df without
+  changing its replicates. Both choices give a chi-square reference when
+  `r4 = 0`. Eq. 2.15 is derived for the own-branch `r4` at a regular null; for
+  `ariv = "fixed"`, and at the nonregular null `a = b = 0`, either df is a
+  working reference whose calibration rests on simulation.
+
 ## Bug fixes
 
 * **All-reps-failed chunks are no longer silently dropped (#50).**

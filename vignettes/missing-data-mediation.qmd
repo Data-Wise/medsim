@@ -152,5 +152,7 @@ results_ipw <- medsim_run(
 - See `vignette("getting-started")` for the general `medsim_run()` workflow.
 - See `vignette("estimand-kinds")` for how missing-data scenarios relate to
   the estimand-kind system used elsewhere in medsim.
-- `medsim_method_mbco_mi()` reproduces `mitml::testModels(method = "D4")`
-  exactly when `mice`/`mitml` are installed (Reiter/Chan-Meng D4 pooling).
+- `medsim_method_mbco_mi()` reproduces the `mitml::testModels(method = "D4")`
+  statistic when `mice`/`mitml` are installed (Reiter/Chan-Meng D4 pooling). Its
+  p-value matches `mitml` (with `ariv = "positive"`) under `df = "chan_meng"`; the
+  default `df = "li"` keeps the legacy Li et al. (1991) denominator df.

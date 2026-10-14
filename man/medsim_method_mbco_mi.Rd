@@ -4,7 +4,13 @@
 \alias{medsim_method_mbco_mi}
 \title{MBCO-MI estimator adapter}
 \usage{
-medsim_method_mbco_mi(model, m = 20L, ariv = c("own", "fixed"), ...)
+medsim_method_mbco_mi(
+  model,
+  m = 20L,
+  ariv = c("own", "fixed"),
+  df = c("li", "chan_meng"),
+  ...
+)
 }
 \arguments{
 \item{model}{Mediation model spec (accepted for API symmetry; the estimator
@@ -23,6 +29,18 @@ diagnostics \code{branch_mix}, \code{p_branch_a}, \code{stacked_branch}, \code{r
 (with a single imputation there is no stacked fit: \code{stacked_branch} is
 that fit's branch and \code{r4 = r4_fixed = 0}; on the error path all six are
 \code{NA}).}
+
+\item{df}{Denominator degrees of freedom for the D4 \code{F} reference, used for
+both \code{indirect_p} and \code{indirect_p_fixed}: \code{"li"} (default, legacy) is the
+Li et al. (1991) / Meng-Rubin approximation, \eqn{\nu = 4 + (k(K-1) - 4)\{1 +
+(1 - 2/(k(K-1)))/r_4\}^2} when \eqn{k(K-1) > 4}; \code{"chan_meng"} is Chan and
+Meng (2022, eq. 2.15), \eqn{\nu = k(K-1)(1 + 1/r_4)^2}, the reference used by
+\code{mitml::testModels(method = "D4")}. Both give \eqn{\nu = \infty} (a
+chi-square reference) when \eqn{r_4 = 0}. Chan and Meng derive eq. 2.15 for the
+own-branch \eqn{r_4} at a regular null; for \code{ariv = "fixed"}, and at the
+nonregular null \eqn{a = b = 0}, either choice is a working reference whose
+calibration rests on simulation. The choice changes only the p-values: the
+statistic, \eqn{r_4} and the random-number stream are identical.}
 
 \item{...}{Reserved for future MI / MBCO options.}
 }
