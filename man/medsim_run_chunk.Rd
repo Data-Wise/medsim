@@ -40,11 +40,12 @@ carry it. The chunk's provenance records \code{truth_requested}, so a combine
 that should have truth but does not raises a \code{truth_coverage} violation.
 
 Chunk 1 then runs longer than the others (truth plus its replications);
-size \code{--time} for it, not from a pilot of another chunk. For production
-runs, the balanced alternative is to compute truth once before submitting
-(a \code{medsim_run()} over the same scenarios and \code{output_dir} warms the
-truth cache) and pass \code{compute_truth} as usual: every chunk then loads
-the cached truth instead of recomputing it.}
+size \code{--time} for it, not from a pilot of another chunk. To keep chunk 1
+balanced, compute truth once before submitting: a short \code{medsim_run()}
+over the same scenarios, \code{compute_truth} and \code{output_dir} warms the truth
+cache, and chunk 1 then loads the truth instead of computing it. Keep
+passing \code{compute_truth} to the chunks: it is what records
+\code{truth_requested}, so a lost truth is still reported at combine.}
 }
 \value{
 Invisibly, the path of the RDS file written. If a task-level error

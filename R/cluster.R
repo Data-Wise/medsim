@@ -181,11 +181,12 @@ medsim_write_submit_script <- function(config,
 #'   that should have truth but does not raises a `truth_coverage` violation.
 #'
 #'   Chunk 1 then runs longer than the others (truth plus its replications);
-#'   size `--time` for it, not from a pilot of another chunk. For production
-#'   runs, the balanced alternative is to compute truth once before submitting
-#'   (a `medsim_run()` over the same scenarios and `output_dir` warms the
-#'   truth cache) and pass `compute_truth` as usual: every chunk then loads
-#'   the cached truth instead of recomputing it.
+#'   size `--time` for it, not from a pilot of another chunk. To keep chunk 1
+#'   balanced, compute truth once before submitting: a short `medsim_run()`
+#'   over the same scenarios, `compute_truth` and `output_dir` warms the truth
+#'   cache, and chunk 1 then loads the truth instead of computing it. Keep
+#'   passing `compute_truth` to the chunks: it is what records
+#'   `truth_requested`, so a lost truth is still reported at combine.
 #'
 #' @return Invisibly, the path of the RDS file written. If a task-level error
 #'   (a `medsim_run_failure` from [medsim_run()]) interrupts the chunk, whatever

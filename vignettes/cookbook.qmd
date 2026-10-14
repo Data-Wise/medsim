@@ -297,11 +297,13 @@ medsim_analyze_coverage(combined, ci_levels = 0.95)$by_scenario[
 #> 2 Null (a = 0)     0.95     200
 ```
 
-Chunk 1 runs longer than the others, since it also computes truth. For a
-production array, compute truth once before you submit, by running
-`medsim_run()` over the same scenarios and `output_dir`. Every chunk then
-finds the truth in the cache. (Set `config$compute_truth_every_chunk <- TRUE`
-only if truth is cheap and chunk 1 may not finish.)
+Chunk 1 runs longer than the others, since it also computes truth. To keep it
+in line with the rest, compute truth once before you submit: a short
+`medsim_run()` over the same scenarios, `compute_truth` and `output_dir` fills
+the truth cache, and chunk 1 then loads the truth instead of computing it.
+Keep passing `compute_truth` to the chunks, since that is what lets the combine
+notice lost truth. (Set `config$compute_truth_every_chunk <- TRUE` only if
+truth is cheap and chunk 1 may not finish.)
 
 The [Cluster Testing](cluster-testing.html) article covers the two-tier testing
 model, chunk sizing and the audit checks.

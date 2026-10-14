@@ -223,8 +223,16 @@ test_that("case 18 (R6): a save never touches another writer's tmp file", {
 })
 
 test_that("case 12 (D4): ?medsim_config says seed drives the truth pass", {
-  rd <- paste(readLines(test_path("..", "..", "man", "medsim_config.Rd")), collapse = " ")
-  skip_if(!nzchar(rd))
+  # Source tree under devtools::test(); installed help under R CMD check,
+  # where tests run from medsim.Rcheck/ and there is no man/ to read.
+  rd_file <- test_path("..", "..", "man", "medsim_config.Rd")
+  rd <- if (file.exists(rd_file)) {
+    paste(readLines(rd_file), collapse = " ")
+  } else {
+    db <- tools::Rd_db("medsim")
+    skip_if(is.null(db[["medsim_config.Rd"]]), "installed Rd not available")
+    paste(as.character(db[["medsim_config.Rd"]]), collapse = " ")
+  }
   expect_match(rd, "Consulted directly by", fixed = TRUE)
   expect_match(rd, "Does not", fixed = TRUE)
 })
