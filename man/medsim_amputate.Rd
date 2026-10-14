@@ -38,3 +38,9 @@ Thin, documented amputer aligning \code{mice::ampute} semantics to the medsim DG
 Returns the input frame with \code{NA}s inserted in \code{target} column(s); column names/order
 are preserved (DGM data contract).
 }
+\examples{
+set.seed(1)
+d <- data.frame(X = rnorm(300), M = rnorm(300), Y = rnorm(300))
+d_mar <- medsim_amputate(d, target = "M", mechanism = "MAR", prop = 0.3)
+mean(is.na(d_mar$M))
+}

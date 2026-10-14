@@ -15,6 +15,13 @@
 #' @param target Column(s) to make missing (default `"M"`).
 #' @param nonnormal `NULL` for normal residuals, or `list(skew=, kurtosis=)`.
 #' @return A `medsim_scenario` object.
+#' @examples
+#' scn <- medsim_scenario_missing(
+#'   name = "MAR_M_30",
+#'   true_params = list(a = 0.39, b = 0.39, cp = 0.14),
+#'   mechanism = "MAR", prop = 0.3
+#' )
+#' scn$name
 #' @export
 medsim_scenario_missing <- function(name, true_params, mechanism, prop = 0.2,
                                     target = "M", nonnormal = NULL) {
@@ -107,6 +114,13 @@ medsim_scenario_missing <- function(name, true_params, mechanism, prop = 0.2,
 #' @param mechanisms,props Character/numeric vectors crossed factorially.
 #' @param nonnormal_list List of `nonnormal` specs (incl. `NULL` for normal).
 #' @return A list of `medsim_scenario` objects.
+#' @examples
+#' grid <- medsim_scenario_missing_grid(
+#'   true_params_list = list(small = list(a = 0.14, b = 0.14, cp = 0.14)),
+#'   mechanisms = c("MCAR", "MAR"),
+#'   props = c(0.1, 0.3)
+#' )
+#' length(grid)
 #' @export
 medsim_scenario_missing_grid <- function(true_params_list, mechanisms, props,
                                          nonnormal_list = list(NULL)) {

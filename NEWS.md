@@ -16,6 +16,26 @@
   `ariv = "fixed"`, and at the nonregular null `a = b = 0`, either df is a
   working reference whose calibration rests on simulation.
 
+## Documentation
+
+* **The missing-data vignette runs again.** Five of its six runnable chunks
+  failed against the current API (`medsim_amputate(vars =, rate =)`, a
+  `medsim_scenario_missing()` call without `true_params`, a grid with `rates`/`skew`,
+  and `medsim_run()` given a list of method factories). They now use `target`/`prop`,
+  `true_params`, `props`/`nonnormal_list`, and one method per `medsim_run()` call.
+  The vignette also gains a section on `ariv` and `df`, and no longer describes
+  `MC-CI` as a delta-method interval or `branch_switch` as a switching rate.
+* **`branch_switch` is documented as what it is:** the majority union-null branch
+  (1 = `a = 0`), so `medsim_summarize_branch_switch()` reports the share of
+  replicates whose majority branch is `a = 0`; imputation disagreement is `branch_mix`.
+* **The README and `medsim_method_mbco_mi()` no longer claim an exact `mitml`
+  match:** the D4 statistic matches, and the p-value matches only with
+  `df = "chan_meng"`.
+* **Runnable `@examples`** for `medsim_rnonnormal()`, `medsim_amputate()`,
+  `medsim_scenario_missing()`, `medsim_scenario_missing_grid()`,
+  `medsim_method_mbco_mi()`, `medsim_method_mc_ci()`, `medsim_method_ipw()`
+  and `medsim_summarize_branch_switch()` (the imputation-based ones in `\donttest{}`).
+
 ## Bug fixes
 
 * **All-reps-failed chunks are no longer silently dropped (#50).**

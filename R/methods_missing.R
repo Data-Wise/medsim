@@ -30,8 +30,9 @@
 #'
 #' Multiple imputation (via `mice`) + **D4-stacked MBCO** likelihood-ratio
 #' inference for the union null `H0: ab = 0`. Ports the validated
-#' `Missing Effect/code/prototype-d4-mbco.R` (phase-2, exact match vs
-#' `mitml::testModels(method = "D4")`): per-imputation MBCO LRTs are pooled with
+#' `Missing Effect/code/prototype-d4-mbco.R` (phase-2; the D4 statistic matches
+#' `mitml::testModels(method = "D4")`, and so does the p-value with
+#' `df = "chan_meng"`): per-imputation MBCO LRTs are pooled with
 #' the Reiter/Chan-Meng D4 rule (Grund et al. 2021) into an F reference.
 #'
 #' The point estimate is the Rubin-pooled `a*b`; the CI is a Monte-Carlo product
@@ -66,6 +67,19 @@
 #'   statistic, \eqn{r_4} and the random-number stream are identical.
 #' @param ... Reserved for future MI / MBCO options.
 #' @return A `function(data, params)` returning the shared method contract (see file header).
+#' @examples
+#' \donttest{
+#' if (requireNamespace("mice", quietly = TRUE)) {
+#'   set.seed(1)
+#'   d <- data.frame(X = rnorm(200))
+#'   d$M <- 0.39 * d$X + rnorm(200)
+#'   d$Y <- 0.39 * d$M + 0.14 * d$X + rnorm(200)
+#'   d <- medsim_amputate(d, target = "M", mechanism = "MAR", prop = 0.25)
+#'   fit <- medsim_method_mbco_mi(model = NULL, m = 10, ariv = "fixed", df = "chan_meng")
+#'   out <- fit(d, list())
+#'   out[c("indirect", "indirect_p", "indirect_p_fixed", "r4_fixed")]
+#' }
+#' }
 #' @export
 medsim_method_mbco_mi <- function(model, m = 20L, ariv = c("own", "fixed"),
                                   df = c("li", "chan_meng"), ...) {
@@ -156,6 +170,18 @@ medsim_method_mbco_mi <- function(model, m = 20L, ariv = c("own", "fixed"),
 #'
 #' @inheritParams medsim_method_mbco_mi
 #' @return A `function(data, params)` returning the shared method contract (`branch_switch = NA`).
+#' @examples
+#' \donttest{
+#' if (requireNamespace("mice", quietly = TRUE)) {
+#'   set.seed(1)
+#'   d <- data.frame(X = rnorm(200))
+#'   d$M <- 0.39 * d$X + rnorm(200)
+#'   d$Y <- 0.39 * d$M + 0.14 * d$X + rnorm(200)
+#'   d <- medsim_amputate(d, target = "M", mechanism = "MAR", prop = 0.25)
+#'   out <- medsim_method_mc_ci(model = NULL, m = 10)(d, list())
+#'   out[c("indirect", "indirect_ci_lower", "indirect_ci_upper")]
+#' }
+#' }
 #' @export
 medsim_method_mc_ci <- function(model, m = 20L, ...) {
   m <- as.integer(m)
@@ -225,6 +251,14 @@ medsim_method_mc_ci <- function(model, m = 20L, ...) {
 #' @param model Mediation model spec.
 #' @param ... Passed to the underlying weighting / fitting routines.
 #' @return A `function(data, params)` returning the shared method contract (`branch_switch = NA`).
+#' @examples
+#' set.seed(1)
+#' d <- data.frame(X = rnorm(200))
+#' d$M <- 0.39 * d$X + rnorm(200)
+#' d$Y <- 0.39 * d$M + 0.14 * d$X + rnorm(200)
+#' d <- medsim_amputate(d, target = "M", mechanism = "MAR", prop = 0.25)
+#' out <- medsim_method_ipw(model = NULL)(d, list())
+#' out[c("indirect", "indirect_ci_lower", "indirect_ci_upper")]
 #' @export
 medsim_method_ipw <- function(model, ...) {
   function(data, params) {
