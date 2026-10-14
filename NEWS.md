@@ -16,6 +16,12 @@
   `ariv = "fixed"`, and at the nonregular null `a = b = 0`, either df is a
   working reference whose calibration rests on simulation.
 
+* **`medsim_run_chunk()` gains `compute_truth`**, passed to `medsim_run()`.
+  Chunks previously carried no `$truth`, so a combined cluster run supported
+  power analysis but not coverage or bias. Truth is seeded from `config$seed`,
+  so all chunks compute the same values and `medsim_combine_chunks()` keeps one
+  row per scenario. The default (`NULL`) keeps the old behavior.
+
 ## Documentation
 
 * **Three new articles.** "Tutorial: Your First Coverage Study" builds a

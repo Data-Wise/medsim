@@ -168,6 +168,11 @@ medsim_write_submit_script <- function(config,
 #'   chunk's provenance. `NULL` (default) auto-detects via
 #'   `git rev-parse HEAD` in the running script's directory, degrading to
 #'   `pkg:medsim-<version>` outside a git tree.
+#' @param compute_truth Optional function with signature `(data, params)`,
+#'   passed to [medsim_run()]. Without it the chunk carries no `$truth`, so
+#'   the combined result supports power analysis but not coverage or bias.
+#'   Truth is seeded from `config$seed`, so every chunk computes the same
+#'   values and [medsim_combine_chunks()] keeps one row per scenario.
 #'
 #' @return Invisibly, the path of the RDS file written. If a task-level error
 #'   (a `medsim_run_failure` from [medsim_run()]) interrupts the chunk, whatever
@@ -187,7 +192,7 @@ medsim_write_submit_script <- function(config,
 #'
 #' @export
 medsim_run_chunk <- function(scenarios, method, config, verbose = TRUE,
-                             code_sha = NULL) {
+                             code_sha = NULL, compute_truth = NULL) {
   if (!inherits(config, "medsim_config")) {
     stop("config must be a medsim_config object")
   }
@@ -219,7 +224,7 @@ medsim_run_chunk <- function(scenarios, method, config, verbose = TRUE,
   # internal/GRILL-medsim-43-parallel-fail-loud-2026-07-31.md).
   run_failure <- NULL
   results <- tryCatch(
-    medsim_run(method, scenarios, chunk_config),
+    medsim_run(method, scenarios, chunk_config, compute_truth = compute_truth),
     medsim_run_failure = function(e) {
       run_failure <<- e
       e$results
