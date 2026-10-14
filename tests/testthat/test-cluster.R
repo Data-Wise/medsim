@@ -422,6 +422,45 @@ test_that("medsim_run_chunk runs successfully and writes chunk RDS", {
   expect_s3_class(result, "medsim_results")
 })
 
+test_that("medsim_run_chunk passes compute_truth, so combined chunks support coverage", {
+  sc <- medsim_scenario(
+    name = "chunk_truth_test",
+    data_generator = function(n = 100) {
+      data.frame(X = rnorm(n), M = rnorm(n), Y = rnorm(n))
+    },
+    params = list(indirect = 0.15)
+  )
+  method <- function(data, params) {
+    list(indirect = 0.1, indirect_ci_lower = 0, indirect_ci_upper = 0.3)
+  }
+  truth <- function(data, params) list(indirect = params$indirect)
+  tmp_dir <- tempfile()
+  dir.create(tmp_dir)
+  on.exit(unlink(tmp_dir, recursive = TRUE))
+
+  for (id in 1:2) {
+    cfg <- medsim_config("test", chunk_id = id, n_chunks = 2L, output_dir = tmp_dir)
+    suppressMessages(medsim_run_chunk(list(sc), method, cfg, verbose = FALSE,
+                                      compute_truth = truth))
+  }
+  combined <- suppressMessages(
+    medsim_combine_chunks(tmp_dir, expected_chunks = 2L, verbose = FALSE))
+
+  expect_equal(nrow(combined$truth), 1L)
+  expect_equal(combined$truth$indirect, 0.15)
+  cov <- medsim_analyze_coverage(combined, ci_levels = 0.95)
+  expect_equal(cov$coverage$coverage, 1)
+  expect_equal(cov$coverage$n_valid, 20L)
+
+  # Without compute_truth the chunk carries no truth (the pre-existing default)
+  tmp2 <- tempfile()
+  dir.create(tmp2)
+  on.exit(unlink(tmp2, recursive = TRUE), add = TRUE)
+  cfg <- medsim_config("test", chunk_id = 1L, n_chunks = 1L, output_dir = tmp2)
+  path <- suppressMessages(medsim_run_chunk(list(sc), method, cfg, verbose = FALSE))
+  expect_null(readRDS(path)$truth)
+})
+
 test_that("medsim_run_chunk emits verbose messages", {
   sc <- medsim_scenario(
     name = "chunk_verbose_test",

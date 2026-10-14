@@ -409,7 +409,10 @@ in the source repository under `tasks/` (`plan.md`, `todo.md`, `GOALS.md`,
 
 ## Documentation
 
-- [Getting Started](https://data-wise.github.io/medsim/articles/getting-started.html) - Step-by-step tutorial
+- [Getting Started](https://data-wise.github.io/medsim/articles/getting-started.html) - The basic workflow in five steps
+- [Tutorial: Your First Coverage Study](https://data-wise.github.io/medsim/articles/tutorial-first-study.html) - A complete study, from DGM to coverage and type I error with MCSEs
+- [Analyzing and Reporting Results](https://data-wise.github.io/medsim/articles/analyzing-results.html) - Accuracy, coverage, power, method comparison, tables and figures
+- [Cookbook](https://data-wise.github.io/medsim/articles/cookbook.html) - Short recipes: scenario grids, sample size, nonnormal and missing data, failures, clusters
 - [Function Reference](https://data-wise.github.io/medsim/reference/index.html) - Complete API documentation
 - [Package Website](https://data-wise.github.io/medsim/) - Comprehensive guides and examples
 

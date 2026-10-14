@@ -174,5 +174,11 @@ medsim_detect_environment()
 
 ## Next Steps
 
+- [Tutorial: Your First Coverage Study](tutorial-first-study.html) walks
+  through a complete study, from the data-generating model to coverage and
+  type I error with Monte Carlo standard errors.
+- [Analyzing and Reporting Results](analyzing-results.html) covers the
+  analysis functions, method comparison, tables and figures.
+- The [Cookbook](cookbook.html) has short recipes for common tasks.
 - Browse the GitHub repository at <https://github.com/Data-Wise/medsim> for
   the latest source, issues, and changelog.

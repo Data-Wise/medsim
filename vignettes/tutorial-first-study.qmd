@@ -1,0 +1,249 @@
+---
+title: "Tutorial: Your First Coverage Study"
+vignette: >
+  %\VignetteIndexEntry{Tutorial: Your First Coverage Study}
+  %\VignetteEngine{quarto::html}
+  %\VignetteEncoding{UTF-8}
+format:
+  html:
+    toc: true
+    code-fold: false
+execute:
+  eval: false
+---
+
+## What you will build
+
+In about fifteen minutes you will run a complete Monte Carlo study: does the
+Sobel (delta-method) confidence interval for the indirect effect $ab$ cover the
+true value 95% of the time, and how often does the Sobel test reject when the
+indirect effect is zero?
+
+You will:
+
+1. write a data-generating model (DGM) as a `medsim_scenario()`;
+2. write an estimator that returns an estimate, a confidence interval and a
+   p-value;
+3. tell `medsim` the true value of the estimand;
+4. run the study, first as a 20-replication smoke test, then for real;
+5. read coverage, type I error and power, each with its Monte Carlo standard
+   error (MCSE).
+
+The `#>` output shown below comes from the development version of `medsim` (0.5.1.9000). Because
+`medsim` seeds every replication from the scenario name and the replication
+number, your run should reproduce these numbers.
+
+## Step 1: Describe the data-generating model
+
+A scenario bundles a data generator with the parameters that generated the
+data. This helper builds a simple $X \to M \to Y$ model with paths $a$ and $b$:
+
+```{r}
+#| label: dgm
+library(medsim)
+
+make_scenario <- function(a, b, name) {
+  medsim_scenario(
+    name = name,
+    description = sprintf("a = %.2f, b = %.2f", a, b),
+    data_generator = function(n = 200) {
+      X <- rnorm(n)
+      M <- a * X + rnorm(n)
+      Y <- b * M + rnorm(n)
+      data.frame(X = X, M = M, Y = Y)
+    },
+    params = list(a = a, b = b, indirect = a * b)
+  )
+}
+
+scenarios <- list(
+  make_scenario(0.39, 0.39, "Medium"),       # ab = 0.1521
+  make_scenario(0,    0.39, "Null (a = 0)")  # ab = 0
+)
+```
+
+The generator must take the sample size as its argument `n`. `medsim_run()`
+supplies it from the configuration (`config$n`, 200 unless you set it), so the
+default `n = 200` in the signature only matters when you call the generator by
+hand.
+
+Two scenarios are enough to answer both questions. Under "Medium" the
+rejection rate is **power**; under "Null (a = 0)" it is the **type I error**.
+
+::: {.callout-tip}
+## Checkpoint
+`medsim_validate_scenario(scenarios[[1]])` should return `TRUE`. To
+eyeball the generator, call `head(scenarios[[1]]$data_generator(5))`.
+:::
+
+::: {.callout-warning}
+## Scenario names are seeds
+A replication's random-number seed is derived from the scenario **name** and
+the replication number. Renaming a scenario therefore changes its data. Choose
+names once, before the production run.
+:::
+
+## Step 2: Write the estimator
+
+A method is any function of `(data, params)` that returns a named list. The
+names follow a convention, and the analysis functions find their columns by it:
+
+| Name | Read by |
+|------|---------|
+| `indirect` | accuracy metrics (bias, RMSE, ...) |
+| `indirect_se` | the model-based SE in `medsim_analyze_performance()` |
+| `indirect_ci_lower`, `indirect_ci_upper` | `medsim_analyze_coverage()` |
+| `indirect_p` | `medsim_analyze_power()` |
+
+```{r}
+#| label: method
+sobel <- function(data, params) {
+  fm <- summary(lm(M ~ X, data = data))$coefficients
+  fy <- summary(lm(Y ~ X + M, data = data))$coefficients
+  a  <- fm["X", "Estimate"]; sa <- fm["X", "Std. Error"]
+  b  <- fy["M", "Estimate"]; sb <- fy["M", "Std. Error"]
+  se <- sqrt(b^2 * sa^2 + a^2 * sb^2)   # first-order delta method
+
+  list(
+    indirect          = a * b,
+    indirect_se       = se,
+    indirect_ci_lower = a * b - 1.96 * se,
+    indirect_ci_upper = a * b + 1.96 * se,
+    indirect_p        = 2 * pnorm(-abs(a * b / se))
+  )
+}
+```
+
+::: {.callout-tip}
+## Checkpoint
+Call the method once by hand before handing it to the runner:
+`str(sobel(scenarios[[1]]$data_generator(), scenarios[[1]]$params))` should
+print five numbers.
+:::
+
+## Step 3: State the truth
+
+Coverage and bias need the true value. `compute_truth` has the same signature
+as the method and returns the true value of each quantity you want scored. Here
+the truth is a parameter of the DGM:
+
+```{r}
+#| label: truth
+truth <- function(data, params) list(indirect = params$indirect)
+```
+
+For estimands without a closed form, `compute_truth` can do the expensive work
+(for example, a large Monte Carlo integration). `medsim` computes it once per
+scenario and caches it in the output directory.
+
+## Step 4: Smoke test, then the real run
+
+Always run the `"test"` configuration first: 20 replications, a few seconds,
+and it catches a broken method before you spend hours on it.
+
+```{r}
+#| label: smoke
+smoke <- medsim_run(sobel, scenarios, medsim_config("test"),
+                    compute_truth = truth)
+table(failed = !is.na(smoke$results$error))
+#> failed
+#> FALSE
+#>    40
+```
+
+Twenty replications are too few to conclude anything. The smoke run reports
+100% coverage in both scenarios, which says more about noise than about Sobel.
+The real run uses 500 replications per scenario:
+
+```{r}
+#| label: run
+config  <- medsim_config("local", n_replications = 500)
+results <- medsim_run(sobel, scenarios, config, compute_truth = truth)
+```
+
+::: {.callout-note}
+## Where files go
+`medsim_run()` writes cached truth values to the configuration's
+`output_dir` (`simulation_results_local/` here). Pass
+`medsim_config(..., output_dir = tempdir())` to keep a scratch run out of your
+project.
+:::
+
+## Step 5: Read the results
+
+### Coverage
+
+```{r}
+#| label: coverage
+cov <- medsim_analyze_coverage(results, ci_levels = 0.95)
+cov$by_scenario[, c("scenario", "coverage", "coverage_mcse", "n_valid")]
+#>       scenario coverage coverage_mcse n_valid
+#> 1       Medium    0.944   0.010282412     500
+#> 2 Null (a = 0)    0.960   0.008763561     500
+```
+
+Both rates sit within two MCSEs of .95, so with 500 replications there is no
+evidence of under- or over-coverage in either scenario.
+
+### Type I error and power
+
+```{r}
+#| label: power
+pw <- medsim_analyze_power(results, alpha = 0.05)
+pw$by_scenario
+#>       scenario parameter power n_valid alpha
+#> 1       Medium  indirect 0.996     500  0.05
+#> 2 Null (a = 0)  indirect 0.040     500  0.05
+```
+
+`medsim_analyze_power()` reports the rejection rate, whatever the truth. In the
+null scenario that rate is the type I error, .040. Its MCSE is
+$\sqrt{.05 \times .95 / 500} \approx .0097$, so .040 is within about one MCSE of
+the nominal .05.
+
+### Bias and standard errors
+
+```{r}
+#| label: performance
+tr <- results$truth
+names(tr)[-1] <- paste0(names(tr)[-1], "_truth")
+medsim_analyze_performance(merge(results$results, tr, by = "scenario"))
+#>       scenario parameter          bias   bias_mcse empirical_se   model_se
+#> 1       Medium  indirect  0.0013953010 0.001757397   0.03929660 0.03969967
+#> 2 Null (a = 0)  indirect -0.0008496464 0.001257212   0.02811212 0.02846886
+#>         rmse n_converged n_failed
+#> 1 0.03928207         500        0
+#> 2 0.02809685         500        0
+```
+
+`medsim_analyze_performance()` reads `indirect_truth` from the results table,
+so the truth is merged in first. The model-based SE (`model_se`, the average
+Sobel SE) agrees with the empirical SD of the estimates (`empirical_se`) to
+within 1.5%: the delta method is accurate at $n = 200$ for these paths.
+
+## What you learned
+
+- A study is three functions (a generator, a method and a truth) plus a
+  configuration.
+- Output-name conventions (`_ci_lower`, `_ci_upper`, `_p`, `_se`) are how the
+  analysis functions find their inputs.
+- Every rate is an estimate. Read it next to its MCSE, and size the run so that
+  the MCSE is small enough to answer your question (see
+  `medsim_nsim_for_mcse()`).
+
+## Exercises
+
+1. Add a scenario with $a = b = 0$. The Sobel test is known to be very
+   conservative there. How far below .05 does its rejection rate fall?
+2. Rerun with a sample size of 50 (`config$n <- 50` before `medsim_run()`).
+   Which breaks down first: coverage or the agreement between `model_se` and
+   `empirical_se`?
+3. How many replications would you need for a coverage MCSE of .005? Check your
+   answer with `medsim_nsim_for_mcse(0.005)`.
+
+## Next
+
+- [Analyzing and Reporting Results](analyzing-results.html) covers the full
+  analysis toolkit, method comparison, tables and figures.
+- The [Cookbook](cookbook.html) has short recipes for common variations:
+  nonnormal data, missing data, caching and cluster runs.

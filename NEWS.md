@@ -16,8 +16,25 @@
   `ariv = "fixed"`, and at the nonregular null `a = b = 0`, either df is a
   working reference whose calibration rests on simulation.
 
+* **`medsim_run_chunk()` gains `compute_truth`**, passed to `medsim_run()`.
+  Chunks previously carried no `$truth`, so a combined cluster run supported
+  power analysis but not coverage or bias. Truth is seeded from `config$seed`,
+  so all chunks compute the same values and `medsim_combine_chunks()` keeps one
+  row per scenario. The default (`NULL`) keeps the old behavior.
+
 ## Documentation
 
+* **Three new articles.** "Tutorial: Your First Coverage Study" builds a
+  complete study step by step, from the data-generating model to coverage and
+  type I error with Monte Carlo SEs. "Analyzing and Reporting Results" maps each
+  question to its analysis function, and explains method comparison under common
+  random numbers, tables, figures and `medsim_workflow()`. "Cookbook: Recipes for
+  Common Tasks" has short recipes: scenario grids, sample size, nonnormal and
+  missing data, failing methods, caching and clusters.
+* **The sample size is documented:** `medsim_run()` calls each data generator
+  with `n = config$n` (200 unless set), so a generator's own default `n` is
+  used only when you call it by hand. Set `config$n` after `medsim_config()`
+  returns, because `medsim_config(n = )` partially matches `n_replications`.
 * **The missing-data vignette runs again.** Five of its six runnable chunks
   failed against the current API (`medsim_amputate(vars =, rate =)`, a
   `medsim_scenario_missing()` call without `true_params`, a grid with `rates`/`skew`,
@@ -37,6 +54,26 @@
   and `medsim_summarize_branch_switch()` (the imputation-based ones in `\donttest{}`).
 
 ## Bug fixes
+
+* **Overlapping attempts at one chunk no longer share a temporary file.**
+  `medsim_run_chunk()` wrote every attempt to `.chunk_NNNN.rds.tmp` before
+  renaming it into place. A SLURM retry that overlapped a still-running attempt
+  could therefore interleave writes, or rename the other attempt's half-written
+  file into place. Each attempt now writes its own temporary file (process ID
+  plus a random suffix) in `output_dir` and removes it on exit. When attempts
+  compete, a complete result always replaces the chunk file, and a partial
+  result never replaces a complete one: it warns, keeps the complete file, and
+  still exits with an error.
+
+* **`medsim_audit_results()` now reports partial chunks.** It audited only the
+  result rows, so a combined object recovered with `on_violation = "warn"`
+  passed a later standalone audit even when its `chunk_provenance` flagged a
+  chunk as partial: the surviving replication ids can still be contiguous. The
+  audit now raises the same `partial_chunk` violation, with the same message, as
+  `medsim_combine_chunks()`. Chunk provenance also records `n_rows`, so the
+  audit can say whether a flagged chunk is empty or truncated. Chunks written
+  before this version get a generic description. A bare data.frame carries no
+  provenance and skips the check.
 
 * **All-reps-failed chunks are no longer silently dropped (#50).**
   `medsim_run_chunk()` short-circuited before writing a file when no

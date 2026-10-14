@@ -4,7 +4,14 @@
 \alias{medsim_run_chunk}
 \title{Run one chunk of a chunked SLURM array simulation}
 \usage{
-medsim_run_chunk(scenarios, method, config, verbose = TRUE, code_sha = NULL)
+medsim_run_chunk(
+  scenarios,
+  method,
+  config,
+  verbose = TRUE,
+  code_sha = NULL,
+  compute_truth = NULL
+)
 }
 \arguments{
 \item{scenarios}{A list of \code{\link[=medsim_scenario]{medsim_scenario()}} objects.}
@@ -19,6 +26,12 @@ medsim_run_chunk(scenarios, method, config, verbose = TRUE, code_sha = NULL)
 chunk's provenance. \code{NULL} (default) auto-detects via
 \verb{git rev-parse HEAD} in the running script's directory, degrading to
 \verb{pkg:medsim-<version>} outside a git tree.}
+
+\item{compute_truth}{Optional function with signature \verb{(data, params)},
+passed to \code{\link[=medsim_run]{medsim_run()}}. Without it the chunk carries no \verb{$truth}, so
+the combined result supports power analysis but not coverage or bias.
+Truth is seeded from \code{config$seed}, so every chunk computes the same
+values and \code{\link[=medsim_combine_chunks]{medsim_combine_chunks()}} keeps one row per scenario.}
 }
 \value{
 Invisibly, the path of the RDS file written. If a task-level error
