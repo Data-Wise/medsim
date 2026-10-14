@@ -24,8 +24,7 @@
   question to its analysis function, and explains method comparison under common
   random numbers, tables, figures and `medsim_workflow()`. "Cookbook: Recipes for
   Common Tasks" has short recipes: scenario grids, sample size, nonnormal and
-  missing data, failing methods, caching and clusters. Every code chunk in the three
-  was run against this version, and the quoted output is the output it printed.
+  missing data, failing methods, caching and clusters.
 * **The sample size is documented:** `medsim_run()` calls each data generator
   with `n = config$n` (200 unless set), so a generator's own default `n` is
   used only when you call it by hand. Set `config$n` after `medsim_config()`

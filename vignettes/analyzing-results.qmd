@@ -169,6 +169,7 @@ isolates the interval: the Monte Carlo CI covers .945 against Sobel's .952 on
 identical data.
 
 ::: {.callout-important}
+## Keep scenario names fixed
 Pairing holds only when the scenario names and replication numbers match.
 Renaming a scenario between runs breaks it silently.
 :::

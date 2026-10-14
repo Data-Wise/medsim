@@ -12,9 +12,42 @@ execute:
   eval: false
 ---
 
-Short, self-contained answers to "how do I ...?". Each recipe assumes
-`library(medsim)` and, where it runs a study, the `sobel` method and `truth`
-function from [Tutorial: Your First Coverage Study](tutorial-first-study.html).
+Short answers to "how do I ...?". The recipes share the objects built in
+[Tutorial: Your First Coverage Study](tutorial-first-study.html). Run this setup
+first: it defines the `sobel` method, the `truth` function, the tutorial's two
+`scenarios`, a `config` and a finished `results` object.
+
+```{r}
+#| label: setup
+library(medsim)
+
+sobel <- function(data, params) {
+  fm <- summary(lm(M ~ X, data = data))$coefficients
+  fy <- summary(lm(Y ~ X + M, data = data))$coefficients
+  a  <- fm["X", "Estimate"]; sa <- fm["X", "Std. Error"]
+  b  <- fy["M", "Estimate"]; sb <- fy["M", "Std. Error"]
+  se <- sqrt(b^2 * sa^2 + a^2 * sb^2)
+  list(indirect = a * b, indirect_se = se,
+       indirect_ci_lower = a * b - 1.96 * se,
+       indirect_ci_upper = a * b + 1.96 * se,
+       indirect_p = 2 * pnorm(-abs(a * b / se)))
+}
+truth <- function(data, params) list(indirect = params$indirect)
+
+two_path <- function(a, b, name) {
+  medsim_scenario(
+    name = name,
+    data_generator = function(n) {
+      X <- rnorm(n); M <- a * X + rnorm(n); Y <- b * M + rnorm(n)
+      data.frame(X = X, M = M, Y = Y)
+    },
+    params = list(a = a, b = b, indirect = a * b)
+  )
+}
+scenarios <- list(two_path(0.39, 0.39, "Medium"), two_path(0, 0.39, "Null (a = 0)"))
+config    <- medsim_config("local", n_replications = 500, output_dir = tempdir())
+results   <- medsim_run(sobel, scenarios, config, compute_truth = truth)
+```
 
 ## Design
 
@@ -40,8 +73,8 @@ make_scenario <- function(a, b) {
     params = list(a = a, b = b, indirect = a * b)
   )
 }
-scenarios <- Map(make_scenario, grid$a, grid$b)
-length(scenarios)
+grid_scenarios <- Map(make_scenario, grid$a, grid$b)
+length(grid_scenarios)
 #> [1] 6
 ```
 
@@ -53,11 +86,26 @@ study several sample sizes, run once per size and stack the analyses:
 ```{r}
 #| label: sample-size
 config <- medsim_config("local", n_replications = 500)
-by_n <- lapply(c(100, 200, 500), function(n) {
+sizes <- c(100, 200, 500)
+by_n <- lapply(sizes, function(n) {
   config$n <- n
-  medsim_run(sobel, scenarios, config, compute_truth = truth)
+  medsim_run(sobel, grid_scenarios, config, compute_truth = truth)
 })
+
+# Scenario names repeat across the runs, so tag each analysis with its n
+power_by_n <- do.call(rbind, Map(function(res, n) {
+  cbind(n = n, medsim_analyze_power(res)$by_scenario)
+}, by_n, sizes))
+power_by_n[power_by_n$scenario == "a=0.14 b=0.39", c("n", "scenario", "power")]
+#>      n      scenario power
+#> 5  100 a=0.14 b=0.39 0.176
+#> 11 200 a=0.14 b=0.39 0.460
+#> 17 500 a=0.14 b=0.39 0.858
 ```
+
+Each run in `by_n` analyzes on its own. Because the scenario names repeat, keep
+the `n` column when you stack results; without it the sample sizes would be
+indistinguishable.
 
 Set `config$n` after `medsim_config()` returns. Passing `n = 100` to
 `medsim_config()` fails, because `n` partially matches `n_replications`,
@@ -209,14 +257,32 @@ data sets looks better than it is.
 ### Run on a SLURM cluster
 
 Split the replications into chunks, run one chunk per array task, then combine
-under an integrity audit:
+under an integrity audit. You can dry-run the whole array on your own machine
+by looping over the chunk IDs that SLURM would assign:
 
 ```{r}
 #| label: cluster
-medsim_write_submit_script(config)                   # writes submit_array.sh
-medsim_run_chunk(scenarios, sobel, config)           # inside each array task
-combined <- medsim_combine_chunks("simulation_results")
+cl_config <- medsim_config("cluster", n_replications = 200, n_chunks = 4,
+                           output_dir = file.path(tempdir(), "sim_out"))
+medsim_write_submit_script(cl_config)   # writes submit_array.sh
+
+# On the cluster each array task runs one chunk (chunk_id comes from
+# SLURM_ARRAY_TASK_ID). Locally, loop over the IDs:
+for (id in seq_len(cl_config$n_chunks)) {
+  cl_config$chunk_id <- id
+  medsim_run_chunk(scenarios, sobel, cl_config)
+}
+
+combined <- medsim_combine_chunks(cl_config$output_dir,
+                                  expected_chunks = cl_config$n_chunks)
+table(combined$results$scenario)
+#>
+#>       Medium Null (a = 0)
+#>          200          200
 ```
+
+`medsim_combine_chunks()` returns an ordinary `medsim_results` object, so every
+analysis function works on it.
 
 The [Cluster Testing](cluster-testing.html) article covers the two-tier testing
 model, chunk sizing and the audit checks.
