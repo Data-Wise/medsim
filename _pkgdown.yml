@@ -62,6 +62,12 @@ navbar:
       menu:
       - text: "Getting Started"
         href: articles/getting-started.html
+      - text: "Tutorial: Your First Coverage Study"
+        href: articles/tutorial-first-study.html
+      - text: "Analyzing and Reporting Results"
+        href: articles/analyzing-results.html
+      - text: "Cookbook: Recipes for Common Tasks"
+        href: articles/cookbook.html
       - text: "Cluster Testing (two-tier model)"
         href: articles/cluster-testing.html
       - text: "Missing-Data Mediation"

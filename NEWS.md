@@ -18,6 +18,18 @@
 
 ## Documentation
 
+* **Three new articles.** "Tutorial: Your First Coverage Study" builds a
+  complete study step by step, from the data-generating model to coverage and
+  type I error with Monte Carlo SEs. "Analyzing and Reporting Results" maps each
+  question to its analysis function, and explains method comparison under common
+  random numbers, tables, figures and `medsim_workflow()`. "Cookbook: Recipes for
+  Common Tasks" has short recipes: scenario grids, sample size, nonnormal and
+  missing data, failing methods, caching and clusters. Every code chunk in the three
+  was run against this version, and the quoted output is the output it printed.
+* **The sample size is documented:** `medsim_run()` calls each data generator
+  with `n = config$n` (200 unless set), so a generator's own default `n` is
+  used only when you call it by hand. Set `config$n` after `medsim_config()`
+  returns, because `medsim_config(n = )` partially matches `n_replications`.
 * **The missing-data vignette runs again.** Five of its six runnable chunks
   failed against the current API (`medsim_amputate(vars =, rate =)`, a
   `medsim_scenario_missing()` call without `true_params`, a grid with `rates`/`skew`,
