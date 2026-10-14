@@ -510,3 +510,56 @@ test_that("medsim_summarize_results reports NA (not Inf) min/max for an all-NA c
   expect_true(is.na(summ$estimate_max))
   expect_false(any(is.infinite(c(summ$estimate_min, summ$estimate_max))))
 })
+
+# ---- medsim_audit_results() reports partial chunks like combine does -------
+
+test_that("medsim_audit_results flags a partial chunk in a recovered combined object", {
+  out <- withr::local_tempdir()
+  sc <- list(pfl_scenario())
+  cfg <- chunk_cfg(out)
+  cfg$n_replications <- 8L
+  cfg$n_chunks <- 2L
+  cfg$chunk_id <- 1L
+  medsim_run_chunk(sc, good_method, cfg, verbose = FALSE)
+  cfg$chunk_id <- 2L
+  # chunk 2 fails on its 3rd rep (global rep 7): it keeps reps 5, 6 and 8
+  expect_error(medsim_run_chunk(sc, make_failing_method(), cfg, verbose = FALSE),
+               class = "medsim_run_failure")
+
+  combine_warns <- character()
+  combined <- withCallingHandlers(
+    medsim_combine_chunks(out, on_violation = "warn", verbose = FALSE),
+    warning = function(w) {
+      combine_warns <<- c(combine_warns, conditionMessage(w))
+      invokeRestart("muffleWarning")
+    })
+
+  v <- suppressWarnings(medsim_audit_results(combined, on_violation = "ignore"))
+  types <- vapply(v, `[[`, character(1), "type")
+  expect_true("partial_chunk" %in% types)
+  msg <- v[[which(types == "partial_chunk")]]$message
+  expect_match(msg, "1 of 2 chunk file(s) are flagged partial", fixed = TRUE)
+  expect_match(msg, "hold only their completed reps", fixed = TRUE)
+  # same message as combine reported for the same chunks
+  expect_true(any(grepl(msg, combine_warns, fixed = TRUE)))
+  expect_error(suppressWarnings(medsim_audit_results(combined)),
+               "partial_chunk")
+
+  # A bare data.frame has no provenance: the check is skipped, not invented
+  v_df <- suppressWarnings(medsim_audit_results(combined$results,
+                                                on_violation = "ignore"))
+  expect_false("partial_chunk" %in% vapply(v_df, `[[`, character(1), "type"))
+})
+
+test_that("partial-chunk detail degrades gracefully for provenance without n_rows", {
+  provs <- list(list(partial = FALSE), list(partial = TRUE))
+  v <- .medsim_partial_chunk_violation(provs)
+  expect_length(v, 1L)
+  expect_match(v[[1L]]$message, "hold fewer reps than assigned", fixed = TRUE)
+  expect_length(.medsim_partial_chunk_violation(list(list(partial = FALSE))), 0L)
+  expect_length(.medsim_partial_chunk_violation(NULL), 0L)
+  # with n_rows stamped, an all-failed flagged chunk is described as empty
+  v0 <- .medsim_partial_chunk_violation(list(list(partial = TRUE, n_rows = 0L)))
+  expect_match(v0[[1L]]$message, "hold no results at all", fixed = TRUE)
+})
+

@@ -258,7 +258,8 @@ medsim_run_chunk <- function(scenarios, method, config, verbose = TRUE,
     code_sha       = code_sha,
     sec_per_rep    = sec_per_rep,
     timestamp_utc  = format(Sys.time(), tz = "UTC", usetz = TRUE),
-    partial        = !is.null(run_failure)
+    partial        = !is.null(run_failure),
+    n_rows         = n_rows
   )
 
   output_dir  <- config$output_dir %||% "simulation_results"
@@ -538,27 +539,8 @@ medsim_combine_chunks <- function(output_dir, pattern = "chunk_*.rds",
   # contiguous 1..15 block produces ZERO contiguity violations without an
   # external `nsim` (empirically confirmed). The provenance marker is the
   # only reliable signal that a chunk is short by design, not by construction.
-  partial_flags <- vapply(provs, function(p) isTRUE(p$partial), logical(1))
-  if (any(partial_flags)) {
-    # A flagged chunk may hold SOME completed reps or NONE at all (every rep
-    # failed -- reachable since #50 PM1). Saying "holds only its completed
-    # reps" of an empty chunk describes the wrong failure to the user.
-    n_empty_flagged <- sum(partial_flags & chunk_is_empty)
-    detail <- if (n_empty_flagged == sum(partial_flags)) {
-      "every replication in them failed -- they hold no results at all"
-    } else if (n_empty_flagged > 0L) {
-      sprintf(paste("a replication task failed mid-run; %d of the flagged",
-                    "chunk(s) hold no results at all, the rest hold only",
-                    "their completed reps"), n_empty_flagged)
-    } else {
-      "a replication task failed mid-run and they hold only their completed reps"
-    }
-    violations[[length(violations) + 1L]] <- list(
-      type = "partial_chunk",
-      message = sprintf(
-        "%d of %d chunk file(s) are flagged partial (%s) -- results are missing, not just truncated",
-        sum(partial_flags), length(partial_flags), detail))
-  }
+  violations <- c(violations,
+                  .medsim_partial_chunk_violation(provs, chunk_is_empty))
   shas <- vapply(provs, function(p) {
     if (is.null(p) || is.null(p$code_sha)) NA_character_ else p$code_sha
   }, character(1))
@@ -626,6 +608,12 @@ medsim_combine_chunks <- function(output_dir, pattern = "chunk_*.rds",
 #'    collapse.
 #' 3. **Seed-space collisions** -- no two scenarios map onto overlapping
 #'    [.medsim_det_seed()] sequences (the ~1e6-bucket name hash can collide).
+#' 4. **Partial chunks** -- for a combined object, any chunk whose provenance
+#'    is flagged `partial` (a task failed mid-run) is reported as a
+#'    `partial_chunk` violation, exactly as [medsim_combine_chunks()] reports
+#'    it. The surviving ids of a partial chunk can still be contiguous, so
+#'    checks 1-3 alone would pass it. A bare data.frame carries no provenance
+#'    and skips this check.
 #'
 #' Frames without the schema-v2 stamp (produced before medsim 0.5.0, when
 #' `replication` was chunk-LOCAL and collided across chunks) skip checks 1
@@ -653,12 +641,18 @@ medsim_audit_results <- function(results,
   if (is.null(df) || nrow(df) == 0L) {
     stop("medsim_audit_results: no result rows to audit")
   }
-  violations <- .medsim_audit_seed_provenance(
-    df, nsim = nsim,
-    collapse_threshold = collapse_threshold,
-    collapse_digits    = collapse_digits,
-    collapse_min_cell  = collapse_min_cell,
-    collapse_exclude   = collapse_exclude)
+  # A combined object carries each chunk's provenance; a chunk flagged
+  # partial is missing results that the row-level audit below cannot see
+  # (the surviving ids can still form a contiguous 1..k block).
+  provs <- if (is.data.frame(results)) NULL else results$chunk_provenance
+  violations <- c(
+    .medsim_partial_chunk_violation(provs),
+    .medsim_audit_seed_provenance(
+      df, nsim = nsim,
+      collapse_threshold = collapse_threshold,
+      collapse_digits    = collapse_digits,
+      collapse_min_cell  = collapse_min_cell,
+      collapse_exclude   = collapse_exclude))
   .medsim_signal_violations(violations, results, on_violation,
                             context = "medsim_audit_results")
   invisible(violations)
@@ -680,6 +674,51 @@ medsim_audit_results <- function(results,
 .medsim_is_dgp_failure <- function(error) {
   if (is.null(error)) return(logical(0))
   !is.na(error) & startsWith(error, "data_generator error: ")
+}
+
+# The `partial_chunk` violation, shared by medsim_combine_chunks() and
+# medsim_audit_results() so the two cannot drift.
+#
+# A task that fails mid-run writes what it has and flags its chunk
+# `partial = TRUE` (medsim_run_chunk(), on the failure path). Gate A.1's
+# contiguity check cannot catch this on its own: `expected <- seq_len(max(ids))`
+# is self-validating only up to the highest id actually present, so a
+# truncation (e.g. 20 reps intended, 15 written) that still lands a contiguous
+# 1..15 block produces ZERO contiguity violations without an external `nsim`.
+# The provenance marker is the only reliable signal that a chunk is short.
+#
+# `chunk_is_empty` comes from the chunk files at combine time. Without it
+# (standalone audit), emptiness is read from the provenance `n_rows` stamp;
+# chunks written before that stamp existed get a generic detail.
+.medsim_partial_chunk_violation <- function(provs, chunk_is_empty = NULL) {
+  if (length(provs) == 0L) return(list())
+  partial_flags <- vapply(provs, function(p) isTRUE(p$partial), logical(1))
+  if (!any(partial_flags)) return(list())
+  if (is.null(chunk_is_empty)) {
+    chunk_is_empty <- vapply(provs, function(p) {
+      if (is.null(p$n_rows)) NA else p$n_rows == 0L
+    }, logical(1))
+  }
+  flagged_empty <- chunk_is_empty[partial_flags]
+  # A flagged chunk may hold SOME completed reps or NONE at all (every rep
+  # failed -- reachable since #50 PM1). Saying "holds only its completed
+  # reps" of an empty chunk describes the wrong failure to the user.
+  detail <- if (anyNA(flagged_empty)) {
+    "a replication task failed in them, so they hold fewer reps than assigned"
+  } else if (all(flagged_empty)) {
+    "every replication in them failed -- they hold no results at all"
+  } else if (any(flagged_empty)) {
+    sprintf(paste("a replication task failed mid-run; %d of the flagged",
+                  "chunk(s) hold no results at all, the rest hold only",
+                  "their completed reps"), sum(flagged_empty))
+  } else {
+    "a replication task failed mid-run and they hold only their completed reps"
+  }
+  list(list(
+    type = "partial_chunk",
+    message = sprintf(
+      "%d of %d chunk file(s) are flagged partial (%s) -- results are missing, not just truncated",
+      sum(partial_flags), length(partial_flags), detail)))
 }
 
 # -- Gate A internals -------------------------------------------------------

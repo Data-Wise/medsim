@@ -65,6 +65,16 @@
   result never replaces a complete one: it warns, keeps the complete file, and
   still exits with an error.
 
+* **`medsim_audit_results()` now reports partial chunks.** It audited only the
+  result rows, so a combined object recovered with `on_violation = "warn"`
+  passed a later standalone audit even when its `chunk_provenance` flagged a
+  chunk as partial: the surviving replication ids can still be contiguous. The
+  audit now raises the same `partial_chunk` violation, with the same message, as
+  `medsim_combine_chunks()`. Chunk provenance also records `n_rows`, so the
+  audit can say whether a flagged chunk is empty or truncated. Chunks written
+  before this version get a generic description. A bare data.frame carries no
+  provenance and skips the check.
+
 * **All-reps-failed chunks are no longer silently dropped (#50).**
   `medsim_run_chunk()` short-circuited before writing a file when no
   replication survived, so the chunk carried no `partial = TRUE` provenance

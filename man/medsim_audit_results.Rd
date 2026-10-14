@@ -70,6 +70,12 @@ An all-failed cell (\code{n_ok == 0}) is reported as \code{cell_failed}, not
 collapse.
 \item \strong{Seed-space collisions} -- no two scenarios map onto overlapping
 \code{\link[=.medsim_det_seed]{.medsim_det_seed()}} sequences (the ~1e6-bucket name hash can collide).
+\item \strong{Partial chunks} -- for a combined object, any chunk whose provenance
+is flagged \code{partial} (a task failed mid-run) is reported as a
+\code{partial_chunk} violation, exactly as \code{\link[=medsim_combine_chunks]{medsim_combine_chunks()}} reports
+it. The surviving ids of a partial chunk can still be contiguous, so
+checks 1-3 alone would pass it. A bare data.frame carries no provenance
+and skips this check.
 }
 
 Frames without the schema-v2 stamp (produced before medsim 0.5.0, when
