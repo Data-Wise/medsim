@@ -1,7 +1,7 @@
 # SPEC: Ground-truth integrity — fail loud, never cache a failure, never report an empty analysis as complete
 
 - **Issue:** #41 (rescoped — see Problem)
-- **Status:** **PROPOSAL — v2, amended after adversarial review (2026-08-22).** Implementation-ready. v1 shipped a **blocker** (a self-heal that healed nothing) and a **wrong-function** guard target; both fixed below. Amendments R1–R9 are marked inline.
+- **Status:** **IMPLEMENTED 2026-10-14 (`feature/truth-integrity`); see Implementation log.** Was: PROPOSAL — v2, amended after adversarial review (2026-08-22). Implementation-ready. v1 shipped a **blocker** (a self-heal that healed nothing) and a **wrong-function** guard target; both fixed below. Amendments R1–R9 are marked inline.
 - **Created:** 2026-08-22
 - **Author:** medsim maintainer (grounded from code trace + 3 empirical reproductions; hardened by one adversarial pass)
 - **Refs:** #34 (Gate A/`on_violation` architecture this reuses), #43 (`medsim_run_failure` precedent for fail-loud), #27 (truth-cache fingerprint guard — the mechanism that *fails* to help here), PR #49 (the atomic-write pattern this copies)
@@ -685,7 +685,15 @@ Natural increments, shippable in this order:
 
 ## Implementation log
 
-_(empty — append one line per landed increment, per the #34 SPEC's convention)_
+- 2026-10-14 · `feature/truth-integrity` · all four increments in one PR, as asked for 0.6.0:
+  - **Layer 1 (D5 + D6 + D8 + R4):** a classed sentinel, never cached. On the read side, both the classed sentinel and the legacy unclassed `list(error = <chr>)` count as misses (the shape heuristic, not a version-salted fingerprint). `truth_on_failure = c("warn", "stop")` keeps D-1's `"warn"` default. Failed or unusable scenarios are absent from `$truth`, which is bound on the column union (`.medsim_rbind_union`).
+  - **Layer 3 (D7):** one guard, `.medsim_require_truth()`, at both `medsim_analyze()` and `medsim_analyze_coverage()`. The interval branch is dispatched after it.
+  - **D3 + D4:** `medsim_cache_save()` writes a unique tmp file per writer in `dirname(file)` and checks the rename. The `seed` docs are fixed, and so is `print()`'s "provenance only" line.
+  - **D1 + D2′ + R5:** truth is gated to `chunk_id == 1L`, with `config$compute_truth_every_chunk`. `truth_requested` is stamped in provenance. The truth union runs across all chunks. `truth_coverage` (degenerate / missing / lost) is raised in the combine body and in `medsim_audit_results()`, with a data.frame carve-out.
+  - Note: #57 (`c81f571`) had briefly shipped an ungated pass-through to `dev`. This increment replaces it.
+  - Evidence: `tests/testthat/test-truth-integrity.R`, 20 tests. 16 fail on `dev`; the other 4 are the SPEC's negative controls plus case 18, which has nothing to catch on `dev` because it wrote no tmp file. Full suite: 556 / 0 / 0 / 1 skip. The E-1 transcript gives call count 1 on `dev` and 2 on the branch.
+  - R9: the existing `test-runner.R` warning test still passes, because the default stays `"warn"` under D-1. It becomes the Case-4 skeleton when the default flips.
+  - **Open:** flip `truth_on_failure` to `"stop"`. D-1 ties the flip to "the next version bump, after the Missing Effect Hopper re-run completes"; that run has completed. The author decides whether the flip goes in 0.6.0.
 
 ---
 
