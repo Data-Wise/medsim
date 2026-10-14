@@ -22,6 +22,18 @@
   so all chunks compute the same values and `medsim_combine_chunks()` keeps one
   row per scenario. The default (`NULL`) keeps the old behavior.
 
+## Bug fixes
+
+* **Overlapping attempts at one chunk no longer share a temporary file.**
+  `medsim_run_chunk()` wrote every attempt to `.chunk_NNNN.rds.tmp` before
+  renaming it into place. A SLURM retry that overlapped a still-running attempt
+  could therefore interleave writes, or rename the other attempt's half-written
+  file into place. Each attempt now writes its own temporary file (process ID
+  plus a random suffix) in `output_dir` and removes it on exit. When attempts
+  compete, a complete result always replaces the chunk file, and a partial
+  result never replaces a complete one: it warns, keeps the complete file, and
+  still exits with an error.
+
 ## Documentation
 
 * **Three new articles.** "Tutorial: Your First Coverage Study" builds a

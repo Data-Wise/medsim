@@ -211,6 +211,76 @@ test_that("medsim_run_chunk writes a partial=TRUE chunk on task failure, re-stop
   expect_equal(nrow(chunk2$results), 4L)
 })
 
+# ---- Concurrent attempts at one chunk: unique tmp + acceptance rule --------
+
+chunk_cfg <- function(out) {
+  cfg <- medsim_config("test", output_dir = out, n_cores = 1L)
+  cfg$n_replications <- 4L
+  cfg$n_chunks <- 1L
+  cfg$chunk_id <- 1L
+  cfg
+}
+good_method <- function(data, params) list(indirect = mean(data$X))
+make_failing_method <- function() {
+  call_n <- 0L
+  function(data, params) {
+    call_n <<- call_n + 1L
+    if (call_n == 3L) return(list(indirect = 0.1, error = 0.05))
+    list(indirect = mean(data$X))
+  }
+}
+
+test_that("medsim_run_chunk does not touch another attempt's in-flight tmp file", {
+  out <- withr::local_tempdir()
+  # Planted defect: the tmp path every attempt shared before this fix,
+  # standing in for an overlapping attempt that is still writing.
+  other_tmp <- file.path(out, paste0(".", .medsim_chunk_filename(1L), ".tmp"))
+  writeLines("in-flight write of another attempt", other_tmp)
+
+  path <- medsim_run_chunk(list(pfl_scenario()), good_method, chunk_cfg(out),
+                           verbose = FALSE)
+
+  expect_true(file.exists(other_tmp))
+  expect_identical(readLines(other_tmp), "in-flight write of another attempt")
+  expect_s3_class(readRDS(path), "medsim_results")
+  # this attempt's own tmp file is gone; only the planted one remains
+  expect_identical(list.files(out, pattern = "\\.tmp$", all.files = TRUE),
+                   basename(other_tmp))
+})
+
+test_that("a partial attempt never replaces a complete chunk; a complete one replaces a partial", {
+  out <- withr::local_tempdir()
+  sc <- list(pfl_scenario())
+  chunk_path <- file.path(out, .medsim_chunk_filename(1L))
+
+  # complete first, then a failing retry finishes last
+  medsim_run_chunk(sc, good_method, chunk_cfg(out), verbose = FALSE)
+  complete <- readRDS(chunk_path)
+  expect_warning(
+    expect_error(
+      medsim_run_chunk(sc, make_failing_method(), chunk_cfg(out), verbose = FALSE),
+      class = "medsim_run_failure"
+    ),
+    "already holds a complete result"
+  )
+  kept <- readRDS(chunk_path)
+  expect_false(isTRUE(attr(kept, "provenance")$partial))
+  expect_identical(kept$results, complete$results)
+  expect_length(list.files(out, pattern = "\\.tmp$", all.files = TRUE), 0L)
+
+  # partial first, then a complete retry replaces it
+  out2 <- withr::local_tempdir()
+  path2 <- file.path(out2, .medsim_chunk_filename(1L))
+  expect_error(
+    medsim_run_chunk(sc, make_failing_method(), chunk_cfg(out2), verbose = FALSE),
+    class = "medsim_run_failure"
+  )
+  expect_true(isTRUE(attr(readRDS(path2), "provenance")$partial))
+  medsim_run_chunk(sc, good_method, chunk_cfg(out2), verbose = FALSE)
+  expect_false(isTRUE(attr(readRDS(path2), "provenance")$partial))
+  expect_equal(nrow(readRDS(path2)$results), 4L)
+})
+
 # ---- Case 10: DGP failures still detected at combine (B1 regression guard) -
 
 test_that("DGP failures are still detected at combine via the dgp_failure gate (#43 case 10, B1 regression guard)", {

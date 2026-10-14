@@ -271,17 +271,42 @@ medsim_run_chunk <- function(scenarios, method, config, verbose = TRUE,
   # output_dir, not tempdir() -- tempdir() is typically a different
   # filesystem on HPC, and a cross-device file.rename() fails by returning
   # FALSE, not by erroring.
-  tmp_path <- file.path(output_dir, paste0(".", basename(out_path), ".tmp"))
+  #
+  # The tmp name is unique per attempt (pid + random suffix): a SLURM retry of
+  # the same chunk can overlap a still-running first attempt, and a shared tmp
+  # path would let the two writers interleave, or let one rename move the
+  # other's half-written file into place. The leading "." and ".tmp" suffix
+  # keep tmp files out of medsim_combine_chunks()'s "chunk_*.rds" glob.
+  tmp_path <- tempfile(
+    pattern = sprintf(".%s.%d.", basename(out_path), Sys.getpid()),
+    tmpdir  = output_dir, fileext = ".tmp"
+  )
+  on.exit(if (file.exists(tmp_path)) unlink(tmp_path), add = TRUE)
   saveRDS(results, tmp_path)
-  renamed <- file.rename(tmp_path, out_path)
-  if (!isTRUE(renamed)) {
-    stop(sprintf(paste(
-      "medsim_run_chunk: failed to atomically rename '%s' to '%s'",
-      "(cross-device rename? tmp and output_dir must be on the same",
-      "filesystem)"), tmp_path, out_path), call. = FALSE)
-  }
 
-  if (verbose) message(sprintf("[medsim_run_chunk] saved -> %s", out_path))
+  # Competing attempts: a complete attempt always replaces the chunk file
+  # (its replications are seeded from (scenario, rep id), so complete attempts
+  # agree). A partial attempt never replaces a complete file -- otherwise a
+  # failed retry finishing last would throw away a good chunk.
+  is_partial <- !is.null(run_failure)
+  keep_existing <- is_partial && file.exists(out_path) &&
+    isFALSE(tryCatch(attr(readRDS(out_path), "provenance")$partial,
+                     error = function(e) NA))
+  if (keep_existing) {
+    warning(sprintf(paste(
+      "medsim_run_chunk: chunk %d failed partway, but '%s' already holds a",
+      "complete result from another attempt; kept that file and discarded",
+      "this partial one."), chunk_id, out_path), call. = FALSE)
+  } else {
+    renamed <- file.rename(tmp_path, out_path)
+    if (!isTRUE(renamed)) {
+      stop(sprintf(paste(
+        "medsim_run_chunk: failed to atomically rename '%s' to '%s'",
+        "(cross-device rename? tmp and output_dir must be on the same",
+        "filesystem)"), tmp_path, out_path), call. = FALSE)
+    }
+    if (verbose) message(sprintf("[medsim_run_chunk] saved -> %s", out_path))
+  }
 
   if (!is.null(run_failure)) {
     # Re-stop so the SLURM task exits nonzero and sacct/the array log show
