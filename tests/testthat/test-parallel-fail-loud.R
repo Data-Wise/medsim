@@ -563,3 +563,25 @@ test_that("partial-chunk detail degrades gracefully for provenance without n_row
   expect_match(v0[[1L]]$message, "hold no results at all", fixed = TRUE)
 })
 
+
+test_that("partial-chunk detail counts empty chunks when only some flagged chunks are empty", {
+  provs <- list(list(partial = TRUE, n_rows = 0L),
+                list(partial = TRUE, n_rows = 3L),
+                list(partial = FALSE, n_rows = 4L))
+  v <- .medsim_partial_chunk_violation(provs)
+  expect_match(v[[1L]]$message, "2 of 3 chunk file(s) are flagged partial", fixed = TRUE)
+  expect_match(v[[1L]]$message, "1 of the flagged chunk(s) hold no results at all",
+               fixed = TRUE)
+})
+
+test_that("a partial attempt replaces an existing chunk file that cannot be read", {
+  out <- withr::local_tempdir()
+  chunk_path <- file.path(out, .medsim_chunk_filename(1L))
+  writeLines("not an RDS file", chunk_path)
+  expect_error(
+    medsim_run_chunk(list(pfl_scenario()), make_failing_method(), chunk_cfg(out),
+                     verbose = FALSE),
+    class = "medsim_run_failure"
+  )
+  expect_true(isTRUE(attr(readRDS(chunk_path), "provenance")$partial))
+})
