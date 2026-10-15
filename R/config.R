@@ -52,6 +52,14 @@
 #' @param r_module Character: Environment module string for `module load`.
 #'   Defaults to `"r/4.4.0-ytj2"` (UNM CARC Hopper) in cluster mode.
 #' @param ... Additional custom parameters
+#' @param n Positive whole number or `NULL`: the sample size of each simulated
+#'   data set. [medsim_run()] and [medsim_run_chunk()] call every scenario's
+#'   `data_generator(n = n)`. `NULL` (the default) leaves it unset, and the
+#'   runner uses 200. Because it follows `...`, it must be named in full:
+#'   `medsim_config("local", n = 100)`.
+#' @param n_truth Positive whole number or `NULL`: the sample size of the single
+#'   large data set drawn to compute ground truth (see `compute_truth` in
+#'   [medsim_run()]). `NULL` (the default) uses 10000.
 #'
 #' @return A list with simulation configuration parameters
 #'
@@ -101,6 +109,9 @@
 #' # Cluster mode (auto-detects SLURM cores)
 #' config_cluster <- medsim_config(mode = "cluster")
 #'
+#' # Sample size of each simulated data set (default 200)
+#' config_n100 <- medsim_config(mode = "local", n = 100)
+#'
 #' # Custom parameters
 #' config_custom <- medsim_config(
 #'   mode = "local",
@@ -128,7 +139,9 @@ medsim_config <- function(mode = "auto",
                           walltime = NULL,
                           mem_per_cpu = NULL,
                           r_module = NULL,
-                          ...) {
+                          ...,
+                          n = NULL,
+                          n_truth = NULL) {
 
   # Deprecated: seed_stream is stored for back-compatibility but has never
   # been consumed by medsim_run()/medsim_run_chunk()/medsim_run_parallel().
@@ -212,6 +225,19 @@ medsim_config <- function(mode = "auto",
   # Determine number of cores if NULL
   if (is.null(config$n_cores)) {
     config$n_cores <- medsim_detect_cores()
+  }
+
+  # Sample sizes: stored only when set, so a config built without them is
+  # unchanged (the pilot identity check compares config$n, NULL == NULL).
+  for (arg in c("n", "n_truth")) {
+    value <- get(arg)
+    if (is.null(value)) next
+    if (!is.numeric(value) || length(value) != 1L || is.na(value) ||
+        value < 1 || value != round(value)) {
+      stop(sprintf("medsim_config(): `%s` must be a single positive whole number", arg),
+           call. = FALSE)
+    }
+    config[[arg]] <- as.integer(value)
   }
 
   # Add custom parameters
@@ -324,6 +350,11 @@ print.medsim_config <- function(x, ...) {
   cat("Simulation Parameters:\n")
   cat(sprintf("  Replications:        %d\n", x$n_replications))
   cat(sprintf("  Scenarios:           %s\n", x$scenarios))
+  cat(sprintf("  Sample size (n):     %s\n",
+              if (is.null(x$n)) "200 (default)" else x$n))
+  if (!is.null(x$n_truth)) {
+    cat(sprintf("  Truth sample size:   %d\n", x$n_truth))
+  }
   cat("\n")
 
   cat("Computing Resources:\n")
@@ -337,7 +368,7 @@ print.medsim_config <- function(x, ...) {
 
   # Show custom parameters if any
   standard_params <- c("mode", "name", "n_replications", "n_cores",
-                       "scenarios", "output_dir", "seed")
+                       "scenarios", "output_dir", "seed", "n", "n_truth")
   custom_params <- setdiff(names(x), standard_params)
 
   if (length(custom_params) > 0) {

@@ -113,13 +113,25 @@ medsim_analyze <- function(results,
   # --- Compute Metrics ---
   accuracy_list <- list()
 
+  # Output columns without a truth are skipped. A known companion of a scored
+  # parameter (`<p>_se`, `<p>_ci_lower`, `<p>_ci_upper`, `<p>_p`) is skipped
+  # silently: it is an SE, interval or p-value, not an estimate. Any other
+  # truthless column is reported once, in a single warning after the loop, so
+  # a forgotten compute_truth value is still flagged.
+  has_truth <- estimate_cols[paste0(estimate_cols, "_truth") %in% names(merged)]
+  companion_re <- "^(.+)_(se|ci_lower|ci_upper|p)$"
+  is_companion <- function(col) {
+    grepl(companion_re, col) && sub(companion_re, "\\1", col) %in% has_truth
+  }
+  no_truth <- character()
+
   for (param in estimate_cols) {
     estimate_col <- paste0(param, "_estimate")
     truth_col <- paste0(param, "_truth")
 
     # Skip if truth not available
     if (!truth_col %in% names(merged)) {
-      warning(sprintf("No ground truth for parameter '%s', skipping", param))
+      if (!is_companion(param)) no_truth <- c(no_truth, param)
       next
     }
 
@@ -229,6 +241,14 @@ medsim_analyze <- function(results,
 
     by_scenario_df <- do.call(rbind, scenario_list)
     rownames(by_scenario_df) <- NULL
+  }
+
+  if (length(no_truth) > 0L) {
+    warning(sprintf(paste(
+      "No ground truth for %d output column(s), skipped: %s.",
+      "Return them from compute_truth to score them."),
+      length(no_truth), paste0("'", no_truth, "'", collapse = ", ")),
+      call. = FALSE)
   }
 
   # --- Overall Summary ---
