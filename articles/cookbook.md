@@ -1,0 +1,378 @@
+# Cookbook: Recipes for Common Tasks
+
+Short answers to “how do I …?”. The recipes share the objects built in
+[Tutorial: Your First Coverage
+Study](https://data-wise.github.io/medsim/articles/tutorial-first-study.md).
+Run this setup first: it defines the `sobel` method, the `truth`
+function, the tutorial’s two `scenarios`, a `config` and a finished
+`results` object.
+
+``` r
+
+library(medsim)
+
+sobel <- function(data, params) {
+  fm <- summary(lm(M ~ X, data = data))$coefficients
+  fy <- summary(lm(Y ~ X + M, data = data))$coefficients
+  a  <- fm["X", "Estimate"]; sa <- fm["X", "Std. Error"]
+  b  <- fy["M", "Estimate"]; sb <- fy["M", "Std. Error"]
+  se <- sqrt(b^2 * sa^2 + a^2 * sb^2)
+  list(indirect = a * b, indirect_se = se,
+       indirect_ci_lower = a * b - 1.96 * se,
+       indirect_ci_upper = a * b + 1.96 * se,
+       indirect_p = 2 * pnorm(-abs(a * b / se)))
+}
+truth <- function(data, params) list(indirect = params$indirect)
+
+two_path <- function(a, b, name) {
+  medsim_scenario(
+    name = name,
+    data_generator = function(n) {
+      X <- rnorm(n); M <- a * X + rnorm(n); Y <- b * M + rnorm(n)
+      data.frame(X = X, M = M, Y = Y)
+    },
+    params = list(a = a, b = b, indirect = a * b)
+  )
+}
+scenarios <- list(two_path(0.39, 0.39, "Medium"), two_path(0, 0.39, "Null (a = 0)"))
+config    <- medsim_config("local", n_replications = 500, output_dir = tempdir())
+results   <- medsim_run(sobel, scenarios, config, compute_truth = truth)
+```
+
+## Design
+
+### Build a factorial grid of scenarios
+
+Generate scenarios from a parameter grid rather than writing them by
+hand. Put every design factor in the name: names seed the replications,
+and they become the row labels of every table.
+
+``` r
+
+grid <- expand.grid(a = c(0, 0.14, 0.39), b = c(0, 0.39))
+
+make_scenario <- function(a, b) {
+  medsim_scenario(
+    name = sprintf("a=%.2f b=%.2f", a, b),
+    data_generator = function(n) {
+      X <- rnorm(n)
+      M <- a * X + rnorm(n)
+      Y <- b * M + rnorm(n)
+      data.frame(X = X, M = M, Y = Y)
+    },
+    params = list(a = a, b = b, indirect = a * b)
+  )
+}
+grid_scenarios <- Map(make_scenario, grid$a, grid$b)
+length(grid_scenarios)
+#> [1] 6
+```
+
+### Vary the sample size
+
+[`medsim_run()`](https://data-wise.github.io/medsim/reference/medsim_run.md)
+calls every generator with the configuration’s `n` (200 by default). To
+study several sample sizes, run once per size and stack the analyses:
+
+``` r
+
+sizes <- c(100, 200, 500)
+by_n <- lapply(sizes, function(size) {
+  config <- medsim_config("local", n_replications = 500, n = size)
+  medsim_run(sobel, grid_scenarios, config, compute_truth = truth)
+})
+
+# Scenario names repeat across the runs, so tag each analysis with its n
+power_by_n <- do.call(rbind, Map(function(res, n) {
+  cbind(n = n, medsim_analyze_power(res)$by_scenario)
+}, by_n, sizes))
+power_by_n[power_by_n$scenario == "a=0.14 b=0.39", c("n", "scenario", "power")]
+#>      n      scenario power
+#> 5  100 a=0.14 b=0.39 0.176
+#> 11 200 a=0.14 b=0.39 0.460
+#> 17 500 a=0.14 b=0.39 0.858
+```
+
+Each run in `by_n` analyzes on its own. Because the scenario names
+repeat, keep the `n` column when you stack results; without it the
+sample sizes would be indistinguishable.
+
+`n` must be named in full: `medsim_config("local", n = 100)`. It follows
+`...` in the signature, so it never partially matches `n_replications`.
+
+If the sample size must vary *within* one run (for example, on a cluster
+array), make it a scenario parameter and have the generator ignore the
+runner’s `n`:
+
+``` r
+
+make_scenario_n <- function(a, b, size) {
+  medsim_scenario(
+    name = sprintf("a=%.2f b=%.2f n=%d", a, b, size),
+    data_generator = function(n) {   # runner's n deliberately ignored
+      X <- rnorm(size)
+      M <- a * X + rnorm(size)
+      Y <- b * M + rnorm(size)
+      data.frame(X = X, M = M, Y = Y)
+    },
+    params = list(a = a, b = b, n = size, indirect = a * b)
+  )
+}
+```
+
+> **Warning**
+>
+> [`medsim_run()`](https://data-wise.github.io/medsim/reference/medsim_run.md)
+> computes the truth from one large draw, `data_generator(n = 10000)`
+> (set its size with `medsim_config(n_truth = )`). A generator that
+> ignores `n` hands `compute_truth` a sample of size `size` instead.
+> That is harmless when the truth comes from `params`, as here, but
+> wrong when `compute_truth` estimates the truth from the data.
+
+### Nonnormal variables
+
+[`medsim_rnonnormal()`](https://data-wise.github.io/medsim/reference/medsim_rnonnormal.md)
+draws from a distribution with a given mean, SD, skewness and excess
+kurtosis (Fleishman’s power method). Use it for a predictor, a mediator
+residual or an outcome residual:
+
+``` r
+
+nonnormal_generator <- function(n) {
+  X <- rnorm(n)
+  M <- 0.39 * X + medsim_rnonnormal(n, skew = 2, kurtosis = 7)
+  Y <- 0.39 * M + rnorm(n)
+  data.frame(X = X, M = M, Y = Y)
+}
+```
+
+Check a new skew-kurtosis pair before you rely on it: in a draw of
+200,000 the sample skewness and excess kurtosis should be close to the
+targets. The pair above gives about 1.97 and 6.5.
+
+### Missing data
+
+[`medsim_amputate()`](https://data-wise.github.io/medsim/reference/medsim_amputate.md)
+removes values from one variable under MCAR, MAR or MNAR. Apply it
+inside the generator, after the complete data are drawn:
+
+``` r
+
+missing_generator <- function(n) {
+  X <- rnorm(n)
+  M <- 0.39 * X + rnorm(n)
+  Y <- 0.39 * M + rnorm(n)
+  medsim_amputate(data.frame(X = X, M = M, Y = Y),
+                  target = "M", mechanism = "MAR", prop = 0.3,
+                  predictors = "X")
+}
+set.seed(1)
+colMeans(is.na(missing_generator(200)))
+#>     X     M     Y
+#> 0.000 0.335 0.000
+```
+
+`prop` is a target proportion, so each data set’s realized rate varies
+around it. For full missing-data designs (grids over mechanism, rate and
+nonnormality, and the MI estimators), see the [Missing-Data
+Mediation](https://data-wise.github.io/medsim/articles/missing-data-mediation.md)
+article.
+
+## Running
+
+### Smoke-test before a long run
+
+``` r
+
+smoke <- medsim_run(sobel, scenarios, medsim_config("test"),
+                    compute_truth = truth)
+stopifnot(all(is.na(smoke$results$error)))
+```
+
+Twenty replications per scenario take seconds and catch a broken method
+or generator before you spend hours on it.
+
+### Choose the number of replications
+
+``` r
+
+medsim_nsim_for_mcse(target_mcse = 0.005, p = 0.95)  # coverage near .95
+#> [1] 1900
+medsim_nsim_for_mcse(target_mcse = 0.005, p = 0.05)  # type I error near .05
+#> [1] 1900
+medsim_nsim_for_mcse(target_mcse = 0.01,  p = 0.5)   # worst case (power near .5)
+#> [1] 2500
+```
+
+### Keep a scratch run out of your project
+
+[`medsim_run()`](https://data-wise.github.io/medsim/reference/medsim_run.md)
+caches truth values in the configuration’s `output_dir`. Point it at a
+temporary directory for throwaway runs:
+
+``` r
+
+config <- medsim_config("test", output_dir = tempdir())
+```
+
+### Use several cores
+
+`medsim_run(..., parallel = TRUE)` (the default) spreads replications
+over `config$n_cores` workers. Set the count explicitly, or let `medsim`
+pick it:
+
+``` r
+
+config <- medsim_config("local", n_cores = 4)
+medsim_detect_cores()                         # cores on this machine
+medsim_get_optimal_cores(n_tasks = 1000)      # leaves 2 cores free by default
+```
+
+Results do not depend on the number of cores: each replication is seeded
+from its scenario name and replication number, not from the worker it
+runs on.
+
+### Methods that sometimes fail
+
+You don’t need to wrap a method in
+[`tryCatch()`](https://rdrr.io/r/base/conditions.html).
+[`medsim_run()`](https://data-wise.github.io/medsim/reference/medsim_run.md)
+catches the error, records its message in the `error` column, and moves
+on:
+
+``` r
+
+flaky <- function(data, params) {
+  if (runif(1) < 0.2) stop("did not converge")
+  sobel(data, params)
+}
+res <- medsim_run(flaky, scenarios, config, compute_truth = truth)
+table(res$results$error, useNA = "ifany")
+```
+
+[`medsim_analyze_coverage()`](https://data-wise.github.io/medsim/reference/medsim_analyze_coverage.md)
+reports the failures per scenario (`n_failed`, `failure_rate`) and
+computes coverage over the replications that succeeded. Report the
+failure rate next to coverage: a method that fails on the hardest data
+sets looks better than it is.
+
+### Run on a SLURM cluster
+
+Split the replications into chunks, run one chunk per array task, then
+combine under an integrity audit. You can dry-run the whole array on
+your own machine by looping over the chunk IDs that SLURM would assign:
+
+``` r
+
+cl_config <- medsim_config("cluster", n_replications = 200, n_chunks = 4,
+                           output_dir = file.path(tempdir(), "sim_out"))
+medsim_write_submit_script(cl_config)   # writes submit_array.sh
+
+# On the cluster each array task runs one chunk (chunk_id comes from
+# SLURM_ARRAY_TASK_ID). Locally, loop over the IDs:
+for (id in seq_len(cl_config$n_chunks)) {
+  cl_config$chunk_id <- id
+  medsim_run_chunk(scenarios, sobel, cl_config, compute_truth = truth)
+}
+
+combined <- medsim_combine_chunks(cl_config$output_dir,
+                                  expected_chunks = cl_config$n_chunks)
+table(combined$results$scenario)
+#>
+#>       Medium Null (a = 0)
+#>          200          200
+```
+
+[`medsim_combine_chunks()`](https://data-wise.github.io/medsim/reference/medsim_combine_chunks.md)
+returns an ordinary `medsim_results` object. Pass `compute_truth` to
+every chunk: without it the combined object carries no truth, and
+[`medsim_analyze_coverage()`](https://data-wise.github.io/medsim/reference/medsim_analyze_coverage.md)
+and
+[`medsim_analyze()`](https://data-wise.github.io/medsim/reference/medsim_analyze.md)
+have nothing to score against. Only chunk 1 computes it; the other
+chunks ignore the argument but record that truth was requested, so if
+chunk 1’s truth is lost the combine raises a `truth_coverage` violation
+instead of quietly returning no truth:
+
+``` r
+
+medsim_analyze_coverage(combined, ci_levels = 0.95)$by_scenario[
+  , c("scenario", "coverage", "n_valid")]
+#>       scenario coverage n_valid
+#> 1       Medium     0.94     200
+#> 2 Null (a = 0)     0.95     200
+```
+
+Chunk 1 runs longer than the others, since it also computes truth. To
+keep it in line with the rest, compute truth once before you submit: a
+short
+[`medsim_run()`](https://data-wise.github.io/medsim/reference/medsim_run.md)
+over the same scenarios, `compute_truth` and `output_dir` fills the
+truth cache, and chunk 1 then loads the truth instead of computing it.
+Keep passing `compute_truth` to the chunks, since that is what lets the
+combine notice lost truth. (Set
+`config$compute_truth_every_chunk <- TRUE` only if truth is cheap and
+chunk 1 may not finish.)
+
+The [Cluster
+Testing](https://data-wise.github.io/medsim/articles/cluster-testing.md)
+article covers the two-tier testing model, chunk sizing and the audit
+checks.
+
+## Saving and reporting
+
+### Save and reload results
+
+``` r
+
+medsim_cache_save(results, "results/sobel.rds")
+results <- medsim_cache_load("results/sobel.rds")
+```
+
+[`medsim_cache_save()`](https://data-wise.github.io/medsim/reference/medsim_cache_save.md)
+compresses by default. `medsim_cache_list("results")` lists the cached
+files in a directory,
+[`medsim_cache_info()`](https://data-wise.github.io/medsim/reference/medsim_cache_info.md)
+describes one file, and `medsim_cache_clear("results")` removes them (it
+asks first).
+
+### Bias with Monte Carlo SEs
+
+[`medsim_analyze_performance()`](https://data-wise.github.io/medsim/reference/medsim_analyze_performance.md)
+reports bias, empirical SE, model SE and RMSE, each with its Monte Carlo
+SE. It takes the results object and looks up the truth itself:
+
+``` r
+
+medsim_analyze_performance(results)
+```
+
+It also accepts a results data.frame that already has `<param>_truth`
+columns, for example one you assembled yourself.
+
+### Write a table as CSV or Markdown
+
+[`medsim_write_table()`](https://data-wise.github.io/medsim/reference/medsim_write_table.md)
+picks the format from the file extension (`.tex`, `.csv`, `.md`) and
+creates the directory if needed:
+
+``` r
+
+cov <- medsim_analyze_coverage(results, ci_levels = 0.95)
+medsim_write_table(medsim_table_coverage(cov), "tables/coverage.csv")
+```
+
+CSV output drops the LaTeX formatting (it warns you), so keep the `.tex`
+version for the manuscript.
+
+### Restyle a figure
+
+Plots are `ggplot2` objects:
+
+``` r
+
+library(ggplot2)
+medsim_plot_coverage(cov) +
+  theme_minimal(base_size = 12) +
+  labs(title = NULL)
+```

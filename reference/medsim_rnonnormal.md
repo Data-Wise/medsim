@@ -1,0 +1,42 @@
+# Draw nonnormal values with a target marginal skew/kurtosis
+
+Fleishman / Vale?Maurelli power-method draws. Pure base R; no hard
+dependency. Warns/errors on (skew, kurtosis) outside the
+Fleishman-feasible region.
+
+## Usage
+
+``` r
+medsim_rnonnormal(n, mean = 0, sd = 1, skew = 0, kurtosis = 0)
+```
+
+## Arguments
+
+- n:
+
+  Integer sample size.
+
+- mean, sd:
+
+  Target marginal mean and SD (applied after standardizing).
+
+- skew:
+
+  Target marginal skewness (third standardized moment).
+
+- kurtosis:
+
+  Target marginal excess kurtosis (fourth standardized moment minus 3).
+
+## Value
+
+Numeric vector of length `n` with the requested marginal moments.
+
+## Examples
+
+``` r
+x <- medsim_rnonnormal(500, skew = 1.5, kurtosis = 4)
+c(mean = mean(x), sd = stats::sd(x))
+#>        mean          sd 
+#> -0.00918241  1.02477739 
+```
