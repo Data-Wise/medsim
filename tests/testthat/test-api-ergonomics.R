@@ -149,3 +149,15 @@ test_that("medsim_analyze_performance warns when some scenarios lack truth", {
   expect_no_warning(medsim_analyze_performance(api_run()))
 })
 
+
+test_that("print shows n_truth when it is set", {
+  out <- capture.output(print(medsim_config("test", n_truth = 5000)))
+  expect_true(any(grepl("Truth sample size:   5000", out, fixed = TRUE)))
+})
+
+test_that("a stale <param>_truth column is replaced by the object's truth", {
+  res <- api_run()
+  expected <- medsim_analyze_performance(res)
+  res$results$indirect_truth <- 99
+  expect_equal(medsim_analyze_performance(res), expected)
+})
