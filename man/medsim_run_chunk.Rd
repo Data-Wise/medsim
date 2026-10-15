@@ -10,7 +10,8 @@ medsim_run_chunk(
   config,
   verbose = TRUE,
   code_sha = NULL,
-  compute_truth = NULL
+  compute_truth = NULL,
+  truth_on_failure = c("stop", "warn")
 )
 }
 \arguments{
@@ -46,6 +47,11 @@ over the same scenarios, \code{compute_truth} and \code{output_dir} warms the tr
 cache, and chunk 1 then loads the truth instead of computing it. Keep
 passing \code{compute_truth} to the chunks: it is what records
 \code{truth_requested}, so a lost truth is still reported at combine.}
+
+\item{truth_on_failure}{\code{"stop"} (default) or \code{"warn"}, passed to
+\code{\link[=medsim_run]{medsim_run()}}. Under \code{"stop"} a failed truth stops chunk 1 before any
+replication runs, so no chunk file is written and the array task exits
+nonzero.}
 }
 \value{
 Invisibly, the path of the RDS file written. If a task-level error

@@ -693,7 +693,7 @@ Natural increments, shippable in this order:
   - Note: #57 (`c81f571`) had briefly shipped an ungated pass-through to `dev`. This increment replaces it.
   - Evidence: `tests/testthat/test-truth-integrity.R`, 20 tests. 16 fail on `dev`; the other 4 are the SPEC's negative controls plus case 18, which has nothing to catch on `dev` because it wrote no tmp file. Full suite: 556 / 0 / 0 / 1 skip. The E-1 transcript gives call count 1 on `dev` and 2 on the branch.
   - R9: the existing `test-runner.R` warning test still passes, because the default stays `"warn"` under D-1. It becomes the Case-4 skeleton when the default flips.
-  - **Open:** flip `truth_on_failure` to `"stop"`. D-1 ties the flip to "the next version bump, after the Missing Effect Hopper re-run completes"; that run has completed. The author decides whether the flip goes in 0.6.0.
+  - **Flipped 2026-10-14 (author: "do recommend"):** `truth_on_failure` defaults to `"stop"` in `medsim_run()`, `medsim_compute_all_truth()` and the new `medsim_run_chunk(truth_on_failure = )` pass-through. The R9 test is rewritten as a stop assertion with a `"warn"` companion, and case 4 now pins `"stop"`. Earlier note: D-1 ties the flip to "the next version bump, after the Missing Effect Hopper re-run completes"; that run has completed. The author decides whether the flip goes in 0.6.0.
 
 ---
 

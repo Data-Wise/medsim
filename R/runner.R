@@ -19,10 +19,11 @@
 #'   Takes same arguments as `method`. If NULL, no ground truth computed.
 #' @param parallel Logical: Use parallel processing (default TRUE)
 #' @param verbose Logical: Print progress messages (default TRUE)
-#' @param truth_on_failure `"warn"` (default) or `"stop"`: what to do when
+#' @param truth_on_failure `"stop"` (default) or `"warn"`: what to do when
 #'   `compute_truth` errors, or succeeds but returns no usable parameter, for a
-#'   scenario. Either way the scenario is omitted from `$truth` and nothing is
-#'   cached. See *Ground Truth*. The default will change to `"stop"`.
+#'   scenario. `"stop"` aborts before any replication runs; `"warn"` continues
+#'   with the scenario omitted from `$truth`. Nothing is cached either way. See
+#'   *Ground Truth*.
 #'
 #' @return A medsim_results object (list) containing:
 #'   - `results`: data.frame with all simulation results
@@ -85,11 +86,11 @@
 #'
 #' A failed or unusable truth is never cached, so the next run retries it, and
 #' the scenario is left out of `$truth`. What happens to the run is set by
-#' `truth_on_failure`: `"warn"` (the current default) warns and continues;
-#' `"stop"` raises a `medsim_truth_failure_error` (subclass of `medsim_error`)
-#' carrying `$scenario` and `$parent`. Truth is computed in Step 1, before any
-#' replication runs, so stopping wastes no replication compute. **The default
-#' will change to `"stop"` in a future release.**
+#' `truth_on_failure`: `"stop"` (the default) raises a
+#' `medsim_truth_failure_error` (subclass of `medsim_error`) carrying
+#' `$scenario` and `$parent`; `"warn"` warns and continues. Truth is computed in
+#' Step 1, before any replication runs, so stopping wastes no replication
+#' compute.
 #'
 #' ## Task-level failures
 #'
@@ -144,7 +145,7 @@ medsim_run <- function(method,
                        compute_truth = NULL,
                        parallel = TRUE,
                        verbose = TRUE,
-                       truth_on_failure = c("warn", "stop")) {
+                       truth_on_failure = c("stop", "warn")) {
   truth_on_failure <- match.arg(truth_on_failure)
 
   # --- Input Validation ---
@@ -672,7 +673,7 @@ medsim_compute_all_truth <- function(scenarios,
                                      config,
                                      parallel = TRUE,
                                      verbose = TRUE,
-                                     truth_on_failure = c("warn", "stop")) {
+                                     truth_on_failure = c("stop", "warn")) {
   truth_on_failure <- match.arg(truth_on_failure)
 
   truth_list <- vector("list", length(scenarios))

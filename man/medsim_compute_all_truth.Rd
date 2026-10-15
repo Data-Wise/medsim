@@ -10,7 +10,7 @@ medsim_compute_all_truth(
   config,
   parallel = TRUE,
   verbose = TRUE,
-  truth_on_failure = c("warn", "stop")
+  truth_on_failure = c("stop", "warn")
 )
 }
 \arguments{

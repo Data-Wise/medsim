@@ -188,6 +188,11 @@ medsim_write_submit_script <- function(config,
 #'   passing `compute_truth` to the chunks: it is what records
 #'   `truth_requested`, so a lost truth is still reported at combine.
 #'
+#' @param truth_on_failure `"stop"` (default) or `"warn"`, passed to
+#'   [medsim_run()]. Under `"stop"` a failed truth stops chunk 1 before any
+#'   replication runs, so no chunk file is written and the array task exits
+#'   nonzero.
+#'
 #' @return Invisibly, the path of the RDS file written. If a task-level error
 #'   (a `medsim_run_failure` from [medsim_run()]) interrupts the chunk, whatever
 #'   replications completed are still written -- atomically, with provenance
@@ -206,7 +211,9 @@ medsim_write_submit_script <- function(config,
 #'
 #' @export
 medsim_run_chunk <- function(scenarios, method, config, verbose = TRUE,
-                             code_sha = NULL, compute_truth = NULL) {
+                             code_sha = NULL, compute_truth = NULL,
+                             truth_on_failure = c("stop", "warn")) {
+  truth_on_failure <- match.arg(truth_on_failure)
   if (!inherits(config, "medsim_config")) {
     stop("config must be a medsim_config object")
   }
@@ -242,7 +249,8 @@ medsim_run_chunk <- function(scenarios, method, config, verbose = TRUE,
   # internal/GRILL-medsim-43-parallel-fail-loud-2026-07-31.md).
   run_failure <- NULL
   results <- tryCatch(
-    medsim_run(method, scenarios, chunk_config, compute_truth = chunk_truth),
+    medsim_run(method, scenarios, chunk_config, compute_truth = chunk_truth,
+               truth_on_failure = truth_on_failure),
     medsim_run_failure = function(e) {
       run_failure <<- e
       e$results

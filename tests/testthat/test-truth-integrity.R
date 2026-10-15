@@ -46,10 +46,11 @@ test_that("case 1 (E-1): a transient truth failure is retried, not reused from c
   expect_identical(attempts, 2L)          # recomputed, the failure was not cached
   expect_equal(res$truth$indirect, 0.1)
 
-  # same under the shipped "warn" default
+  # same under truth_on_failure = "warn"
   out2 <- withr::local_tempdir()
   attempts <- 0L
-  first <- ti_capture_warnings(ti_run(list(ti_sc()), flaky, out2))
+  first <- ti_capture_warnings(ti_run(list(ti_sc()), flaky, out2,
+                                      truth_on_failure = "warn"))
   expect_null(first$value$truth)
   ti_run(list(ti_sc()), flaky, out2)
   expect_identical(attempts, 2L)
@@ -69,7 +70,8 @@ test_that("case 1 negative: a successful truth is cached and reused", {
 
 test_that("case 2: a failed truth computation leaves no cache file", {
   out <- withr::local_tempdir()
-  ti_capture_warnings(ti_run(list(ti_sc()), function(data, params) stop("boom"), out))
+  expect_error(ti_run(list(ti_sc()), function(data, params) stop("boom"), out),
+               class = "medsim_truth_failure_error")
   expect_false(file.exists(file.path(out, "truth_scenario_1.rds")))
   ti_run(list(ti_sc()), ti_good_truth, out)
   expect_true(file.exists(file.path(out, "truth_scenario_1.rds")))
@@ -121,11 +123,15 @@ test_that("case 4: truth_on_failure = 'stop' names the scenario and the original
   expect_identical(conditionMessage(err$parent), "deliberate")
 })
 
-test_that("case 4: the shipped default is 'warn' (the flip to 'stop' must be deliberate)", {
-  expect_identical(eval(formals(medsim_run)$truth_on_failure)[1L], "warn")
+test_that("case 4: the default is 'stop' (flipped for 0.6.0, decision D-1); 'warn' continues", {
+  # formals() holds the package's own default, c("stop", "warn"); eval() only
+  # evaluates that literal to read its first element.
+  expect_identical(eval(formals(medsim_run)$truth_on_failure)[1L], "stop")
+  expect_identical(eval(formals(medsim_run_chunk)$truth_on_failure)[1L], "stop")
   out <- withr::local_tempdir()
   got <- ti_capture_warnings(
-    ti_run(list(ti_sc("a"), ti_sc("b")), function(data, params) stop("all fail"), out))
+    ti_run(list(ti_sc("a"), ti_sc("b")), function(data, params) stop("all fail"), out,
+           truth_on_failure = "warn"))
   expect_true(any(grepl("Truth computation failed for a", got$warnings)))
   expect_null(got$value$truth)            # absent, not a degenerate frame
 })
@@ -136,7 +142,8 @@ test_that("case 5 (E-3): a mixed failure under 'warn' completes; the failed scen
     if (params$indirect == 0) stop("fails for null")
     list(indirect = params$indirect)
   }
-  got <- ti_capture_warnings(ti_run(list(ti_sc("ok", 0.1), ti_sc("bad", 0)), half, out))
+  got <- ti_capture_warnings(ti_run(list(ti_sc("ok", 0.1), ti_sc("bad", 0)), half, out,
+                                    truth_on_failure = "warn"))
   expect_identical(got$value$truth$scenario, "ok")
   expect_identical(names(got$value$truth), c("scenario", "indirect"))
 })
@@ -147,7 +154,8 @@ test_that("case 15 (D8): a successful but unreadable truth is reported, with the
   expect_error(ti_run(list(ti_sc()), vec, out, truth_on_failure = "stop"),
                "NAMED LIST of length-1 numerics")
   len2 <- function(data, params) list(indirect = c(0.05, 0.15))
-  got <- ti_capture_warnings(ti_run(list(ti_sc()), len2, withr::local_tempdir()))
+  got <- ti_capture_warnings(ti_run(list(ti_sc()), len2, withr::local_tempdir(),
+                                    truth_on_failure = "warn"))
   expect_true(any(grepl("has no usable parameter", got$warnings)))
   expect_null(got$value$truth)
   expect_false(file.exists(file.path(out, "truth_scenario_1.rds")))   # never cached
@@ -240,13 +248,14 @@ test_that("case 12 (D4): ?medsim_config says seed drives the truth pass", {
 # ---- D1 + D2' + R5 -----------------------------------------------------------
 
 ti_chunk <- function(out, id, n_chunks = 2L, truth = ti_good_truth, every = FALSE,
-                     scenarios = list(ti_sc())) {
+                     scenarios = list(ti_sc()), on_failure = "stop") {
   cfg <- ti_cfg(out, reps = 4L)
   cfg$n_chunks <- n_chunks
   cfg$chunk_id <- id
   if (every) cfg$compute_truth_every_chunk <- TRUE
   suppressMessages(medsim_run_chunk(scenarios, ti_method, cfg, verbose = FALSE,
-                                    compute_truth = truth))
+                                    compute_truth = truth,
+                                    truth_on_failure = on_failure))
 }
 
 test_that("case 10 (D1): only chunk 1 computes truth unless every chunk is opted in", {
@@ -270,9 +279,12 @@ test_that("case 17 (R5): truth carried only by a later chunk survives the combin
 })
 
 test_that("cases 6 + 17: lost or missing truth raises truth_coverage at combine", {
-  # (c) requested but lost: chunk 1's truth failed for every scenario
+  # (c) requested but lost. Under the default "stop", chunk 1 aborts before any
+  # replication and writes no file; chunk 2 still records truth_requested.
   out <- withr::local_tempdir()
-  ti_capture_warnings(ti_chunk(out, 1L, truth = function(data, params) stop("x")))
+  expect_error(ti_chunk(out, 1L, truth = function(data, params) stop("x")),
+               class = "medsim_truth_failure_error")
+  expect_false(file.exists(file.path(out, .medsim_chunk_filename(1L))))
   ti_chunk(out, 2L)
   expect_error(suppressWarnings(medsim_combine_chunks(out, verbose = FALSE)),
                "truth_coverage/missing")
@@ -284,7 +296,8 @@ test_that("cases 6 + 17: lost or missing truth raises truth_coverage at combine"
     list(indirect = params$indirect)
   }
   scs <- list(ti_sc("ok", 0.1), ti_sc("bad", 0))
-  ti_capture_warnings(ti_chunk(out2, 1L, n_chunks = 1L, truth = half, scenarios = scs))
+  ti_capture_warnings(ti_chunk(out2, 1L, n_chunks = 1L, truth = half, scenarios = scs,
+                               on_failure = "warn"))
   got <- ti_capture_warnings(
     medsim_combine_chunks(out2, on_violation = "warn", verbose = FALSE))
   expect_true(any(grepl("truth_coverage/missing: 1 scenario(s) have results but no truth row (bad)",

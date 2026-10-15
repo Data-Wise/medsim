@@ -29,11 +29,12 @@
   older versions cached are treated as misses and recomputed. A truth function
   that succeeds but returns an unusable shape (a bare named vector, or a list
   element of length > 1) is reported, where before it contributed nothing
-  silently. `medsim_run(truth_on_failure = )` sets what happens to the run:
-  `"warn"` (the current default) continues without that scenario's truth;
-  `"stop"` raises a `medsim_truth_failure_error`. The default will become
-  `"stop"` in a future release. Scenarios whose truth functions return
-  different parameters no longer crash the truth table.
+  silently. **Breaking:** `medsim_run(truth_on_failure = )` and
+  `medsim_run_chunk(truth_on_failure = )` default to `"stop"`, which raises a
+  `medsim_truth_failure_error` before any replication runs; this used to warn
+  and continue with an empty truth. Pass `truth_on_failure = "warn"` to
+  continue without that scenario's truth. Scenarios whose truth functions
+  return different parameters no longer crash the truth table.
 * **`truth_coverage` violation (#41).** `medsim_combine_chunks()` and
   `medsim_audit_results()` raise it when truth rows carry no parameters, when a
   scenario has results but no truth, or when chunks were asked for truth and
