@@ -141,7 +141,12 @@ tooling-2026-08-22: **Session-report delivery + `obsidian-ops` search, both fixe
   before trusting a scoped search.** Vault index also repaired: 73 ghost rows and 6
   unscannable notes (malformed YAML front matter) → 0/0, disk == db == 3,654.
 
-next: 🟢 **PHASE 0 MERGED (PR #51, `dd0d059`). Next is PHASE 1 — issue #41.**
+next: 🟢 **v0.6.0 RELEASED 2026-10-14** (release PR #60, merge `0caced5`, tag `v0.6.0`): #41 truth
+  integrity (PR #59, `truth_on_failure` now defaults to "stop"), the API PR #58, D4 `df` option (#55),
+  articles (#56/#57). dev bumped to 0.6.0.9000. Next: #28 cluster docs → 0.6.1; #35 blocked upstream
+  (probmed#32); #29 deferred. R-universe builds `dev` — switching it to `main` is a deferred decision
+  (`internal/GRILL-medsim-060-release-2026-10-14.md`). The plan text below is historical.
+  (was) PHASE 0 MERGED (PR #51, `dd0d059`). Next is PHASE 1 — issue #41.
   (`internal/PLAN-medsim-backlog-2026-08-22.md`). Phase 0's PM2 fix was the gating one: the
   parallel path now has real test coverage, so `--as-cran` evidence for anything touching
   `runner.R`/`parallel.R` is trustworthy for the first time. Phase 1 = #41 non-breaking
