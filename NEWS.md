@@ -2,6 +2,26 @@
 
 ## New features
 
+* **`medsim_config()` gains `n` and `n_truth`.** `n` sets the sample size of
+  each simulated data set (`medsim_run()` passes it to every
+  `data_generator(n = )`). `n_truth` sets the size of the one large draw used to
+  compute ground truth. Both default to `NULL`, which keeps the runner's
+  defaults (200 and 10000) and leaves existing configs unchanged. They follow
+  `...`, so they match only by full name; `medsim_config(n = 100)` used to fail
+  because `n` partially matched `n_replications`, `n_cores` and `n_chunks`. The
+  sample size is now shown by `print()`.
+* **`medsim_analyze_performance()` accepts a `medsim_results` object** and
+  merges its `$truth` table itself, so `medsim_analyze_performance(results)`
+  works like the other `medsim_analyze_*()` functions. A data.frame that already
+  has `<param>_truth` columns still works as before. A missing truth now gives an
+  error that names the parameter and points to `compute_truth`. When only some
+  scenarios lack truth, their bias and RMSE are `NA` and a warning names those
+  scenarios.
+* **`medsim_analyze()` warns once, and only when it matters.** An SE, interval
+  or p-value column of a scored parameter (`<p>_se`, `<p>_ci_lower`,
+  `<p>_ci_upper`, `<p>_p`) is skipped silently. Any other output column without
+  a truth is listed in a single warning, instead of one warning per column.
+
 * **`medsim_method_mbco_mi()` gains `df = c("li", "chan_meng")`.** It sets the
   denominator degrees of freedom of the D4 `F` reference for both `indirect_p`
   and `indirect_p_fixed`. `"li"` (the default) keeps the Li et al. (1991) /
@@ -32,9 +52,8 @@
   Common Tasks" has short recipes: scenario grids, sample size, nonnormal and
   missing data, failing methods, caching and clusters.
 * **The sample size is documented:** `medsim_run()` calls each data generator
-  with `n = config$n` (200 unless set), so a generator's own default `n` is
-  used only when you call it by hand. Set `config$n` after `medsim_config()`
-  returns, because `medsim_config(n = )` partially matches `n_replications`.
+  with the configuration's `n` (200 unless set with `medsim_config(n = )`), so a
+  generator's own default `n` is used only when you call it by hand.
 * **The missing-data vignette runs again.** Five of its six runnable chunks
   failed against the current API (`medsim_amputate(vars =, rate =)`, a
   `medsim_scenario_missing()` call without `true_params`, a grid with `rates`/`skew`,

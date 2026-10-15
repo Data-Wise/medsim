@@ -19,7 +19,9 @@ medsim_config(
   walltime = NULL,
   mem_per_cpu = NULL,
   r_module = NULL,
-  ...
+  ...,
+  n = NULL,
+  n_truth = NULL
 )
 }
 \arguments{
@@ -81,6 +83,16 @@ cluster mode.}
 Defaults to \code{"r/4.4.0-ytj2"} (UNM CARC Hopper) in cluster mode.}
 
 \item{...}{Additional custom parameters}
+
+\item{n}{Positive whole number or \code{NULL}: the sample size of each simulated
+data set. \code{\link[=medsim_run]{medsim_run()}} and \code{\link[=medsim_run_chunk]{medsim_run_chunk()}} call every scenario's
+\code{data_generator(n = n)}. \code{NULL} (the default) leaves it unset, and the
+runner uses 200. Because it follows \code{...}, it must be named in full:
+\code{medsim_config("local", n = 100)}.}
+
+\item{n_truth}{Positive whole number or \code{NULL}: the sample size of the single
+large data set drawn to compute ground truth (see \code{compute_truth} in
+\code{\link[=medsim_run]{medsim_run()}}). \code{NULL} (the default) uses 10000.}
 }
 \value{
 A list with simulation configuration parameters
@@ -140,6 +152,9 @@ config_local <- medsim_config(
 
 # Cluster mode (auto-detects SLURM cores)
 config_cluster <- medsim_config(mode = "cluster")
+
+# Sample size of each simulated data set (default 200)
+config_n100 <- medsim_config(mode = "local", n = 100)
 
 # Custom parameters
 config_custom <- medsim_config(

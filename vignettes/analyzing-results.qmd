@@ -74,22 +74,21 @@ an$by_scenario[, c("scenario", "parameter", "bias", "rmse", "relative_bias")]
 zero, so report absolute bias for null scenarios.
 
 `medsim_analyze()` scores every output column that has a matching truth value.
-It warns about the others (`indirect_se`, `indirect_ci_lower`, ...); those
-warnings are expected when the method returns intervals and p-values.
+It skips SE, interval and p-value columns (`indirect_se`, `indirect_ci_lower`,
+`indirect_ci_upper`, `indirect_p`) silently, because they belong to a scored
+estimate. Any other output column without a truth is named in a single
+warning, so a value you forgot to return from `compute_truth` is still flagged.
 
 ## Performance with Monte Carlo SEs
 
 Every number in a simulation table is itself an estimate. Morris, White and
 Crowther (2019) recommend reporting each with its Monte Carlo SE (MCSE).
 `medsim_analyze_performance()` does that for bias, and compares the method's own
-SE with the empirical SD of its estimates. It reads `<param>_truth` from the
-results table, so merge the truth in first:
+SE with the empirical SD of its estimates:
 
 ```{r}
 #| label: performance
-tr <- results$truth
-names(tr)[-1] <- paste0(names(tr)[-1], "_truth")
-perf <- medsim_analyze_performance(merge(results$results, tr, by = "scenario"))
+perf <- medsim_analyze_performance(results)
 perf
 #>       scenario parameter          bias   bias_mcse empirical_se   model_se
 #> 1       Medium  indirect  0.0013953010 0.001757397   0.03929660 0.03969967
