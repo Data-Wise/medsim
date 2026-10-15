@@ -78,12 +78,21 @@ medsim_cache_save <- function(object,
     )
   )
 
-  # Save to file
-  saveRDS(
-    cache_object,
-    file = file,
-    compress = compress
-  )
+  # Atomic write (#41 D3): a reader never sees a half-written file. The tmp
+  # name is unique per writer (#41 R6): truth caches are shared by every array
+  # task, and two writers to one fixed tmp path could interleave and install a
+  # torn file. The tmp lives next to the target, never in tempdir(): on HPC
+  # tempdir() is often another filesystem, where file.rename() returns FALSE.
+  tmp <- tempfile(pattern = paste0(".", basename(file), "."),
+                  tmpdir = cache_dir, fileext = ".tmp")
+  on.exit(if (file.exists(tmp)) unlink(tmp), add = TRUE)
+  saveRDS(cache_object, file = tmp, compress = compress)
+  if (!isTRUE(file.rename(tmp, file))) {
+    stop(sprintf(paste(
+      "medsim_cache_save: failed to atomically rename '%s' to '%s'",
+      "(cross-device rename? tmp and target must share a filesystem)"),
+      tmp, file), call. = FALSE)
+  }
 
   message(sprintf("* Cached to: %s", file))
 

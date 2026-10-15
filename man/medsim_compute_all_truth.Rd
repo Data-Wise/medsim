@@ -9,7 +9,8 @@ medsim_compute_all_truth(
   truth_function,
   config,
   parallel = TRUE,
-  verbose = TRUE
+  verbose = TRUE,
+  truth_on_failure = c("stop", "warn")
 )
 }
 \arguments{
@@ -22,9 +23,12 @@ medsim_compute_all_truth(
 \item{parallel}{Use parallel processing}
 
 \item{verbose}{Print progress messages}
+
+\item{truth_on_failure}{\code{"warn"} or \code{"stop"}; see \code{\link[=medsim_run]{medsim_run()}}.}
 }
 \value{
-data.frame with ground truth for each scenario
+data.frame with ground truth for each scenario whose truth
+succeeded (failed scenarios are absent), or \code{NULL} if none did.
 }
 \description{
 Internal function to compute ground truth across all scenarios using

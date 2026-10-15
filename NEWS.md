@@ -1,4 +1,4 @@
-# medsim (development version)
+# medsim 0.6.0
 
 ## New features
 
@@ -36,11 +36,36 @@
   `ariv = "fixed"`, and at the nonregular null `a = b = 0`, either df is a
   working reference whose calibration rests on simulation.
 
-* **`medsim_run_chunk()` gains `compute_truth`**, passed to `medsim_run()`.
-  Chunks previously carried no `$truth`, so a combined cluster run supported
-  power analysis but not coverage or bias. Truth is seeded from `config$seed`,
-  so all chunks compute the same values and `medsim_combine_chunks()` keeps one
-  row per scenario. The default (`NULL`) keeps the old behavior.
+* **`medsim_run_chunk()` gains `compute_truth`** (#41). Chunks previously
+  carried no `$truth`, so a combined cluster run supported power analysis but
+  not coverage or bias. Only chunk 1 computes truth, so it is computed once
+  rather than once per chunk. `config$compute_truth_every_chunk <- TRUE` opts
+  every chunk in. Chunk provenance records `truth_requested`.
+  `medsim_combine_chunks()` now unions truth across all chunks: it used to
+  discard every later chunk's truth whenever chunk 1 had none.
+* **Ground-truth integrity (#41).** A failed `compute_truth()` used to be
+  written to the truth cache, and every later run with the same fingerprint
+  loaded the failure. A failure is now never cached, and failure entries that
+  older versions cached are treated as misses and recomputed. A truth function
+  that succeeds but returns an unusable shape (a bare named vector, or a list
+  element of length > 1) is reported, where before it contributed nothing
+  silently. **Breaking:** `medsim_run(truth_on_failure = )` and
+  `medsim_run_chunk(truth_on_failure = )` default to `"stop"`, which raises a
+  `medsim_truth_failure_error` before any replication runs; this used to warn
+  and continue with an empty truth. Pass `truth_on_failure = "warn"` to
+  continue without that scenario's truth. Scenarios whose truth functions
+  return different parameters no longer crash the truth table.
+* **`truth_coverage` violation (#41).** `medsim_combine_chunks()` and
+  `medsim_audit_results()` raise it when truth rows carry no parameters, when a
+  scenario has results but no truth, or when chunks were asked for truth and
+  none carries it. It goes through `on_violation`. Runs that never requested
+  truth are unaffected.
+* **`medsim_analyze()` and `medsim_analyze_coverage()` stop on a truth table
+  with no parameter columns** (#41), where they used to return an empty
+  analysis as if it had succeeded.
+* **`medsim_cache_save()` writes atomically** (#41): it writes a temporary file
+  unique to the writer, next to the target, then renames it into place. A
+  failed rename stops with an error.
 
 ## Documentation
 

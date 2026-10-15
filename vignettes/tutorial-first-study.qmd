@@ -29,7 +29,7 @@ You will:
 5. read coverage, type I error and power, each with its Monte Carlo standard
    error (MCSE).
 
-The `#>` output shown below comes from the development version of `medsim` (0.5.1.9000). Because
+The `#>` output shown below comes from `medsim` 0.6.0. Because
 `medsim` seeds every replication from the scenario name and the replication
 number, your run should reproduce these numbers.
 

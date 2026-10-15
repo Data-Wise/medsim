@@ -19,6 +19,11 @@
 #'   Takes same arguments as `method`. If NULL, no ground truth computed.
 #' @param parallel Logical: Use parallel processing (default TRUE)
 #' @param verbose Logical: Print progress messages (default TRUE)
+#' @param truth_on_failure `"stop"` (default) or `"warn"`: what to do when
+#'   `compute_truth` errors, or succeeds but returns no usable parameter, for a
+#'   scenario. `"stop"` aborts before any replication runs; `"warn"` continues
+#'   with the scenario omitted from `$truth`. Nothing is cached either way. See
+#'   *Ground Truth*.
 #'
 #' @return A medsim_results object (list) containing:
 #'   - `results`: data.frame with all simulation results
@@ -75,6 +80,18 @@
 #' - Used to calculate errors/bias in results
 #' - Can use Monte Carlo or analytical methods
 #'
+#' `compute_truth` must return a **named list of length-1 numerics**, e.g.
+#' `list(indirect = 0.09)`. A bare named vector (`c(indirect = 0.09)`) or a list
+#' element of length > 1 contributes no parameter and is treated as a failure.
+#'
+#' A failed or unusable truth is never cached, so the next run retries it, and
+#' the scenario is left out of `$truth`. What happens to the run is set by
+#' `truth_on_failure`: `"stop"` (the default) raises a
+#' `medsim_truth_failure_error` (subclass of `medsim_error`) carrying
+#' `$scenario` and `$parent`; `"warn"` warns and continues. Truth is computed in
+#' Step 1, before any replication runs, so stopping wastes no replication
+#' compute.
+#'
 #' ## Task-level failures
 #'
 #' An error that escapes a replication task -- a contract violation (e.g. the
@@ -127,7 +144,9 @@ medsim_run <- function(method,
                        config,
                        compute_truth = NULL,
                        parallel = TRUE,
-                       verbose = TRUE) {
+                       verbose = TRUE,
+                       truth_on_failure = c("stop", "warn")) {
+  truth_on_failure <- match.arg(truth_on_failure)
 
   # --- Input Validation ---
   if (!is.function(method)) {
@@ -186,11 +205,13 @@ medsim_run <- function(method,
       truth_function = compute_truth,
       config = config,
       parallel = parallel,
-      verbose = verbose
+      verbose = verbose,
+      truth_on_failure = truth_on_failure
     )
 
     if (verbose) {
-      cat(sprintf("  Ground truth computed for %d scenarios\n",
+      cat(sprintf("  Ground truth computed for %d of %d scenarios\n",
+                  if (is.null(truth_results)) 0L else nrow(truth_results),
                   length(scenarios)))
       cat("\n")
     }
@@ -641,17 +662,21 @@ medsim_run_single_replication <- function(scenario, rep_id, method, config) {
 #' @param config Configuration object
 #' @param parallel Use parallel processing
 #' @param verbose Print progress messages
+#' @param truth_on_failure `"warn"` or `"stop"`; see [medsim_run()].
 #'
-#' @return data.frame with ground truth for each scenario
+#' @return data.frame with ground truth for each scenario whose truth
+#'   succeeded (failed scenarios are absent), or `NULL` if none did.
 #'
 #' @keywords internal
 medsim_compute_all_truth <- function(scenarios,
                                      truth_function,
                                      config,
                                      parallel = TRUE,
-                                     verbose = TRUE) {
+                                     verbose = TRUE,
+                                     truth_on_failure = c("stop", "warn")) {
+  truth_on_failure <- match.arg(truth_on_failure)
 
-  truth_list <- list()
+  truth_list <- vector("list", length(scenarios))
 
   for (s_idx in seq_along(scenarios)) {
     scenario <- scenarios[[s_idx]]
@@ -676,12 +701,17 @@ medsim_compute_all_truth <- function(scenarios,
     # cache (no $fingerprint) is treated as a miss and recomputed (safe).
     fingerprint <- .medsim_truth_fingerprint(scenario, truth_function)
     cached <- medsim_cache_load(cache_file)
+    # A cached failure sentinel is a MISS (#41 D5): pre-#41 medsim wrote the
+    # unclassed list(error = <msg>) to disk, and loading it would poison every
+    # later run with the same fingerprint. Recompute instead (self-heal).
     truth_value <- if (is.list(cached) && !is.null(cached$fingerprint) &&
-                       identical(cached$fingerprint, fingerprint)) {
+                       identical(cached$fingerprint, fingerprint) &&
+                       !.medsim_is_truth_sentinel(cached$truth)) {
       cached$truth
     } else {
       NULL
     }
+    from_cache <- !is.null(truth_value)
 
     if (is.null(truth_value)) {
       # Compute truth
@@ -693,27 +723,25 @@ medsim_compute_all_truth <- function(scenarios,
       n_truth <- config$n_truth %||% 10000
       data_truth <- scenario$data_generator(n = n_truth)
 
-      truth_result <- tryCatch(
+      truth_value <- tryCatch(
         truth_function(data_truth, scenario$params),
         error = function(e) {
-          warning(sprintf("Truth computation failed for %s: %s",
-                          scenario$name, e$message))
-          list(error = e$message)
+          structure(list(error = conditionMessage(e)), parent = e,
+                    class = "medsim_truth_failure")
         }
       )
+    } else if (verbose) {
+      cat("    Loaded from cache\n")
+    }
 
-      # Cache result WITH its fingerprint so a later content change invalidates.
-      medsim_cache_save(list(truth = truth_result, fingerprint = fingerprint),
-                        cache_file)
-      truth_value <- truth_result
-
-      if (verbose) {
-        cat("    Cached for future use\n")
-      }
-    } else {
-      if (verbose) {
-        cat("    Loaded from cache\n")
-      }
+    if (inherits(truth_value, "medsim_truth_failure")) {
+      # Never cached (#41 D5): the next run retries.
+      .medsim_truth_failed(
+        scenario$name, truth_on_failure,
+        sprintf("Truth computation failed for %s: %s",
+                scenario$name, truth_value$error),
+        parent = attr(truth_value, "parent"))
+      next
     }
 
     # Create truth data.frame
@@ -732,13 +760,82 @@ medsim_compute_all_truth <- function(scenarios,
       }
     }
 
+    # A truth function can SUCCEED and still contribute nothing (#41 D8): a bare
+    # named vector, or list elements longer than 1, are dropped above.
+    if (ncol(truth_df) == 1L) {
+      .medsim_truth_failed(
+        scenario$name, truth_on_failure,
+        sprintf(paste(
+          "Truth for %s has no usable parameter: compute_truth() returned %s.",
+          "It must return a NAMED LIST of length-1 numerics, e.g.",
+          "list(indirect = 0.09); a bare named vector or a list element of",
+          "length > 1 is dropped."),
+          scenario$name, .medsim_describe_value(truth_value)),
+        parent = NULL)
+      next
+    }
+
+    if (!from_cache) {
+      # Cache result WITH its fingerprint so a later content change invalidates.
+      medsim_cache_save(list(truth = truth_value, fingerprint = fingerprint),
+                        cache_file)
+      if (verbose) {
+        cat("    Cached for future use\n")
+      }
+    }
+
     truth_list[[s_idx]] <- truth_df
   }
 
-  # Combine all truth results
-  truth_combined <- do.call(rbind, truth_list)
+  # Failed scenarios are ABSENT (not present-with-fewer-columns), and scenarios
+  # may return different parameter sets: bind on the column union (#41 R4).
+  .medsim_rbind_union(truth_list)
+}
 
-  return(truth_combined)
+# A truth failure sentinel: the classed one this version builds in memory, or
+# the unclassed list(error = <chr>) that medsim < 0.6.0 wrote to the cache.
+# The legacy arm requires a CHARACTER error, so a legitimate numeric truth
+# parameter named `error` is not mistaken for a failure (#41 R1, case 9).
+.medsim_is_truth_sentinel <- function(x) {
+  inherits(x, "medsim_truth_failure") ||
+    (is.list(x) && identical(names(x), "error") && is.character(x$error))
+}
+
+# Raise or warn for a scenario whose truth failed or was unusable.
+.medsim_truth_failed <- function(scenario, truth_on_failure, message, parent) {
+  if (truth_on_failure == "stop") {
+    stop(structure(
+      class = c("medsim_truth_failure_error", "medsim_error", "error", "condition"),
+      list(message = paste(message,
+                           "(truth_on_failure = \"warn\" continues without it)"),
+           call = NULL, scenario = scenario, parent = parent)))
+  }
+  warning(paste(message, "-- the scenario is left out of $truth and not cached."),
+          call. = FALSE)
+}
+
+.medsim_describe_value <- function(x) {
+  if (is.list(x) && !is.data.frame(x)) {
+    lens <- vapply(x, length, integer(1))
+    sprintf("a list with element length(s) %s", paste(lens, collapse = ", "))
+  } else {
+    sprintf("a %s of length %d", class(x)[1L], length(x))
+  }
+}
+
+# rbind data.frames on the union of their columns, NA-filling absent ones.
+# NULL entries are dropped; an empty input returns NULL.
+.medsim_rbind_union <- function(frames) {
+  frames <- Filter(Negate(is.null), frames)
+  if (length(frames) == 0L) return(NULL)
+  cols <- unique(unlist(lapply(frames, names)))
+  frames <- lapply(frames, function(d) {
+    for (col in setdiff(cols, names(d))) d[[col]] <- NA_real_
+    d[cols]
+  })
+  out <- do.call(rbind, frames)
+  rownames(out) <- NULL
+  out
 }
 
 #' Summarize Simulation Results

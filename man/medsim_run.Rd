@@ -10,7 +10,8 @@ medsim_run(
   config,
   compute_truth = NULL,
   parallel = TRUE,
-  verbose = TRUE
+  verbose = TRUE,
+  truth_on_failure = c("stop", "warn")
 )
 }
 \arguments{
@@ -29,6 +30,12 @@ Takes same arguments as \code{method}. If NULL, no ground truth computed.}
 \item{parallel}{Logical: Use parallel processing (default TRUE)}
 
 \item{verbose}{Logical: Print progress messages (default TRUE)}
+
+\item{truth_on_failure}{\code{"stop"} (default) or \code{"warn"}: what to do when
+\code{compute_truth} errors, or succeeds but returns no usable parameter, for a
+scenario. \code{"stop"} aborts before any replication runs; \code{"warn"} continues
+with the scenario omitted from \verb{$truth}. Nothing is cached either way. See
+\emph{Ground Truth}.}
 }
 \value{
 A medsim_results object (list) containing:
@@ -100,6 +107,18 @@ If \code{compute_truth} is provided:
 \item Used to calculate errors/bias in results
 \item Can use Monte Carlo or analytical methods
 }
+
+\code{compute_truth} must return a \strong{named list of length-1 numerics}, e.g.
+\code{list(indirect = 0.09)}. A bare named vector (\code{c(indirect = 0.09)}) or a list
+element of length > 1 contributes no parameter and is treated as a failure.
+
+A failed or unusable truth is never cached, so the next run retries it, and
+the scenario is left out of \verb{$truth}. What happens to the run is set by
+\code{truth_on_failure}: \code{"stop"} (the default) raises a
+\code{medsim_truth_failure_error} (subclass of \code{medsim_error}) carrying
+\verb{$scenario} and \verb{$parent}; \code{"warn"} warns and continues. Truth is computed in
+Step 1, before any replication runs, so stopping wastes no replication
+compute.
 }
 
 \subsection{Task-level failures}{

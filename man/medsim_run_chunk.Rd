@@ -10,7 +10,8 @@ medsim_run_chunk(
   config,
   verbose = TRUE,
   code_sha = NULL,
-  compute_truth = NULL
+  compute_truth = NULL,
+  truth_on_failure = c("stop", "warn")
 )
 }
 \arguments{
@@ -28,10 +29,29 @@ chunk's provenance. \code{NULL} (default) auto-detects via
 \verb{pkg:medsim-<version>} outside a git tree.}
 
 \item{compute_truth}{Optional function with signature \verb{(data, params)},
-passed to \code{\link[=medsim_run]{medsim_run()}}. Without it the chunk carries no \verb{$truth}, so
-the combined result supports power analysis but not coverage or bias.
-Truth is seeded from \code{config$seed}, so every chunk computes the same
-values and \code{\link[=medsim_combine_chunks]{medsim_combine_chunks()}} keeps one row per scenario.}
+passed to \code{\link[=medsim_run]{medsim_run()}}. Without it the combined result carries no
+\verb{$truth}, so it supports power analysis but not coverage or bias. Only
+\strong{chunk 1} computes truth; every other chunk ignores \code{compute_truth},
+so truth is computed once, not once per chunk. Set
+\code{config$compute_truth_every_chunk <- TRUE} to compute it in every chunk
+(useful only when truth is cheap and chunk 1 may not survive). Truth is
+seeded from \code{config$seed}, so chunks that compute it agree, and
+\code{\link[=medsim_combine_chunks]{medsim_combine_chunks()}} keeps one row per scenario from whichever chunks
+carry it. The chunk's provenance records \code{truth_requested}, so a combine
+that should have truth but does not raises a \code{truth_coverage} violation.
+
+Chunk 1 then runs longer than the others (truth plus its replications);
+size \code{--time} for it, not from a pilot of another chunk. To keep chunk 1
+balanced, compute truth once before submitting: a short \code{medsim_run()}
+over the same scenarios, \code{compute_truth} and \code{output_dir} warms the truth
+cache, and chunk 1 then loads the truth instead of computing it. Keep
+passing \code{compute_truth} to the chunks: it is what records
+\code{truth_requested}, so a lost truth is still reported at combine.}
+
+\item{truth_on_failure}{\code{"stop"} (default) or \code{"warn"}, passed to
+\code{\link[=medsim_run]{medsim_run()}}. Under \code{"stop"} a failed truth stops chunk 1 before any
+replication runs, so no chunk file is written and the array task exits
+nonzero.}
 }
 \value{
 Invisibly, the path of the RDS file written. If a task-level error

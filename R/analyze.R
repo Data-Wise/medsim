@@ -79,10 +79,7 @@ medsim_analyze <- function(results,
     stop("results must be a medsim_results object from medsim_run()")
   }
 
-  if (is.null(results$truth) || nrow(results$truth) == 0) {
-    stop("Cannot compute accuracy metrics: no ground truth available. ",
-         "Provide compute_truth function to medsim_run()")
-  }
+  .medsim_require_truth(results, "accuracy metrics")
 
   # Validate metrics
   valid_metrics <- c("bias", "mae", "rmse", "median_ae", "max_ae", "relative_bias")
@@ -386,10 +383,7 @@ medsim_analyze_coverage <- function(results,
     stop("results must be a medsim_results object from medsim_run()")
   }
 
-  if (is.null(results$truth) || nrow(results$truth) == 0) {
-    stop("Cannot compute coverage: no ground truth available. ",
-         "Provide compute_truth function to medsim_run()")
-  }
+  .medsim_require_truth(results, "coverage")
 
   if (!is.numeric(ci_levels) || any(ci_levels <= 0) || any(ci_levels >= 1)) {
     stop("ci_levels must be numeric values between 0 and 1")
@@ -1235,3 +1229,24 @@ print.medsim_comparison <- function(x, ...) {
 
   invisible(x)
 }
+
+# Whole-frame truth guard shared by medsim_analyze() and
+# medsim_analyze_coverage() (#41 D7). A truth table with rows but no parameter
+# columns -- every compute_truth() call failed, or it returned a shape medsim
+# cannot read -- would otherwise yield an empty analysis reported as success.
+.medsim_require_truth <- function(results, what) {
+  truth <- results$truth
+  if (is.null(truth) || nrow(truth) == 0) {
+    stop("Cannot compute ", what, ": no ground truth available. ",
+         "Provide compute_truth function to medsim_run()", call. = FALSE)
+  }
+  if (length(setdiff(names(truth), "scenario")) == 0L) {
+    stop("Cannot compute ", what, ": ground truth has no parameter columns. ",
+         "Either every compute_truth() call failed, or compute_truth() returned ",
+         "a value medsim cannot read -- it must return a NAMED LIST of length-1 ",
+         "numerics (a bare named vector, or list elements longer than 1, are ",
+         "dropped; see ?medsim_run).", call. = FALSE)
+  }
+  invisible(TRUE)
+}
+

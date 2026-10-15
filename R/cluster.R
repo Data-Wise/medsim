@@ -169,10 +169,29 @@ medsim_write_submit_script <- function(config,
 #'   `git rev-parse HEAD` in the running script's directory, degrading to
 #'   `pkg:medsim-<version>` outside a git tree.
 #' @param compute_truth Optional function with signature `(data, params)`,
-#'   passed to [medsim_run()]. Without it the chunk carries no `$truth`, so
-#'   the combined result supports power analysis but not coverage or bias.
-#'   Truth is seeded from `config$seed`, so every chunk computes the same
-#'   values and [medsim_combine_chunks()] keeps one row per scenario.
+#'   passed to [medsim_run()]. Without it the combined result carries no
+#'   `$truth`, so it supports power analysis but not coverage or bias. Only
+#'   **chunk 1** computes truth; every other chunk ignores `compute_truth`,
+#'   so truth is computed once, not once per chunk. Set
+#'   `config$compute_truth_every_chunk <- TRUE` to compute it in every chunk
+#'   (useful only when truth is cheap and chunk 1 may not survive). Truth is
+#'   seeded from `config$seed`, so chunks that compute it agree, and
+#'   [medsim_combine_chunks()] keeps one row per scenario from whichever chunks
+#'   carry it. The chunk's provenance records `truth_requested`, so a combine
+#'   that should have truth but does not raises a `truth_coverage` violation.
+#'
+#'   Chunk 1 then runs longer than the others (truth plus its replications);
+#'   size `--time` for it, not from a pilot of another chunk. To keep chunk 1
+#'   balanced, compute truth once before submitting: a short `medsim_run()`
+#'   over the same scenarios, `compute_truth` and `output_dir` warms the truth
+#'   cache, and chunk 1 then loads the truth instead of computing it. Keep
+#'   passing `compute_truth` to the chunks: it is what records
+#'   `truth_requested`, so a lost truth is still reported at combine.
+#'
+#' @param truth_on_failure `"stop"` (default) or `"warn"`, passed to
+#'   [medsim_run()]. Under `"stop"` a failed truth stops chunk 1 before any
+#'   replication runs, so no chunk file is written and the array task exits
+#'   nonzero.
 #'
 #' @return Invisibly, the path of the RDS file written. If a task-level error
 #'   (a `medsim_run_failure` from [medsim_run()]) interrupts the chunk, whatever
@@ -192,7 +211,9 @@ medsim_write_submit_script <- function(config,
 #'
 #' @export
 medsim_run_chunk <- function(scenarios, method, config, verbose = TRUE,
-                             code_sha = NULL, compute_truth = NULL) {
+                             code_sha = NULL, compute_truth = NULL,
+                             truth_on_failure = c("stop", "warn")) {
+  truth_on_failure <- match.arg(truth_on_failure)
   if (!inherits(config, "medsim_config")) {
     stop("config must be a medsim_config object")
   }
@@ -211,6 +232,10 @@ medsim_run_chunk <- function(scenarios, method, config, verbose = TRUE,
                     chunk_id, n_chunks, indices[1L], indices[length(indices)]))
   }
 
+  # Truth is computed by chunk 1 only (#41 D1), unless the caller opts every
+  # chunk in; medsim_combine_chunks() unions truth across chunks.
+  chunk_truth <- if (identical(as.integer(chunk_id), 1L) ||
+                     isTRUE(config$compute_truth_every_chunk)) compute_truth
   # Build a per-chunk config with only the reps for this chunk
   chunk_config <- config
   chunk_config$n_replications <- length(indices)
@@ -224,7 +249,8 @@ medsim_run_chunk <- function(scenarios, method, config, verbose = TRUE,
   # internal/GRILL-medsim-43-parallel-fail-loud-2026-07-31.md).
   run_failure <- NULL
   results <- tryCatch(
-    medsim_run(method, scenarios, chunk_config, compute_truth = compute_truth),
+    medsim_run(method, scenarios, chunk_config, compute_truth = chunk_truth,
+               truth_on_failure = truth_on_failure),
     medsim_run_failure = function(e) {
       run_failure <<- e
       e$results
@@ -259,7 +285,8 @@ medsim_run_chunk <- function(scenarios, method, config, verbose = TRUE,
     sec_per_rep    = sec_per_rep,
     timestamp_utc  = format(Sys.time(), tz = "UTC", usetz = TRUE),
     partial        = !is.null(run_failure),
-    n_rows         = n_rows
+    n_rows         = n_rows,
+    truth_requested = !is.null(compute_truth)
   )
 
   output_dir  <- config$output_dir %||% "simulation_results"
@@ -437,14 +464,15 @@ medsim_combine_chunks <- function(output_dir, pattern = "chunk_*.rds",
   # names', the same ragged class fixed within-run by P3.
   all_results <- .medsim_rbind_reps(lapply(chunks, function(ch) ch$results))
 
-  # Truth is scenario-level (same across chunks) -- use the first chunk's
-  truth <- chunks[[1L]]$truth
+  # Truth is scenario-level (same across chunks). Union it across EVERY chunk
+  # that carries it (#41 R5): seeding from chunk 1 discarded all later truth
+  # whenever chunk 1 had none -- e.g. a chunk 1 rerun after its truth landed
+  # elsewhere. One row per scenario (first occurrence); column-union bind so
+  # differing parameter sets cannot crash the merge (#41 R4).
+  truth <- .medsim_rbind_union(lapply(chunks, function(ch) ch$truth))
   if (!is.null(truth)) {
-    for (ch in chunks[-1L]) {
-      if (is.null(ch$truth)) next
-      new_rows <- ch$truth[!ch$truth$scenario %in% truth$scenario, , drop = FALSE]
-      if (nrow(new_rows) > 0L) truth <- rbind(truth, new_rows)
-    }
+    truth <- truth[!duplicated(truth$scenario), , drop = FALSE]
+    rownames(truth) <- NULL
   }
 
   # Build combined medsim_results. Chunk 1's $summary and $config describe ONE
@@ -540,7 +568,8 @@ medsim_combine_chunks <- function(output_dir, pattern = "chunk_*.rds",
   # external `nsim` (empirically confirmed). The provenance marker is the
   # only reliable signal that a chunk is short by design, not by construction.
   violations <- c(violations,
-                  .medsim_partial_chunk_violation(provs, chunk_is_empty))
+                  .medsim_partial_chunk_violation(provs, chunk_is_empty),
+                  .medsim_truth_coverage_violation(all_results, truth, provs))
   shas <- vapply(provs, function(p) {
     if (is.null(p) || is.null(p$code_sha)) NA_character_ else p$code_sha
   }, character(1))
@@ -647,6 +676,10 @@ medsim_audit_results <- function(results,
   provs <- if (is.data.frame(results)) NULL else results$chunk_provenance
   violations <- c(
     .medsim_partial_chunk_violation(provs),
+    # A bare data.frame carries no $truth: nothing to check (#41 case 19).
+    if (!is.data.frame(results)) {
+      .medsim_truth_coverage_violation(df, results$truth, provs)
+    },
     .medsim_audit_seed_provenance(
       df, nsim = nsim,
       collapse_threshold = collapse_threshold,
@@ -719,6 +752,48 @@ medsim_audit_results <- function(results,
     message = sprintf(
       "%d of %d chunk file(s) are flagged partial (%s) -- results are missing, not just truncated",
       sum(partial_flags), length(partial_flags), detail)))
+}
+
+# The `truth_coverage` violation (#41 D2'), shared by medsim_combine_chunks()
+# and medsim_audit_results(). Raised in the combine BODY, never inside
+# .medsim_audit_seed_provenance(), which returns early on a zero-row frame.
+#   (a) degenerate: truth rows exist but carry no parameter columns;
+#   (b) missing:    a scenario has results but no truth row;
+#   (c) lost:       a chunk was asked for truth (provenance truth_requested)
+#                   yet the combined object carries none.
+# A run that never requested truth (truth NULL, no truth_requested) is silent.
+.medsim_truth_coverage_violation <- function(results_df, truth, provs = NULL) {
+  out <- list()
+  if (!is.null(truth)) {
+    if (length(setdiff(names(truth), "scenario")) == 0L) {
+      out[[length(out) + 1L]] <- list(
+        type = "truth_coverage",
+        message = paste(
+          "truth_coverage/degenerate: the truth table has rows but no parameter",
+          "columns -- every compute_truth() call failed, or it returned a shape",
+          "medsim cannot read (see ?medsim_run)"))
+    }
+    have <- if (is.null(results_df)) character() else unique(results_df$scenario)
+    missing <- setdiff(have, truth$scenario)
+    if (length(missing) > 0L) {
+      out[[length(out) + 1L]] <- list(
+        type = "truth_coverage",
+        message = sprintf(paste(
+          "truth_coverage/missing: %d scenario(s) have results but no truth row",
+          "(%s) -- their truth failed or was never computed; coverage and bias",
+          "cannot be computed for them"),
+          length(missing), paste(missing, collapse = ", ")))
+    }
+  } else if (length(provs) > 0L &&
+             any(vapply(provs, function(p) isTRUE(p$truth_requested), logical(1)))) {
+    out[[length(out) + 1L]] <- list(
+      type = "truth_coverage",
+      message = paste(
+        "truth_coverage/missing: compute_truth was passed to the chunks, but no",
+        "chunk carries truth -- chunk 1 (which computes it) failed, is missing,",
+        "or its truth failed for every scenario"))
+  }
+  out
 }
 
 # -- Gate A internals -------------------------------------------------------

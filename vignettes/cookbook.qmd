@@ -282,10 +282,11 @@ table(combined$results$scenario)
 ```
 
 `medsim_combine_chunks()` returns an ordinary `medsim_results` object. Pass
-`compute_truth` to every chunk: without it the chunks carry no truth, and
-`medsim_analyze_coverage()` and `medsim_analyze()` have nothing to score
-against. Every chunk computes the same truth (it is seeded from `config$seed`),
-and the combined object keeps one row per scenario:
+`compute_truth` to every chunk: without it the combined object carries no truth,
+and `medsim_analyze_coverage()` and `medsim_analyze()` have nothing to score
+against. Only chunk 1 computes it; the other chunks ignore the argument but
+record that truth was requested, so if chunk 1's truth is lost the combine
+raises a `truth_coverage` violation instead of quietly returning no truth:
 
 ```{r}
 #| label: cluster-coverage
@@ -295,6 +296,14 @@ medsim_analyze_coverage(combined, ci_levels = 0.95)$by_scenario[
 #> 1       Medium     0.94     200
 #> 2 Null (a = 0)     0.95     200
 ```
+
+Chunk 1 runs longer than the others, since it also computes truth. To keep it
+in line with the rest, compute truth once before you submit: a short
+`medsim_run()` over the same scenarios, `compute_truth` and `output_dir` fills
+the truth cache, and chunk 1 then loads the truth instead of computing it.
+Keep passing `compute_truth` to the chunks, since that is what lets the combine
+notice lost truth. (Set `config$compute_truth_every_chunk <- TRUE` only if
+truth is cheap and chunk 1 may not finish.)
 
 The [Cluster Testing](cluster-testing.html) article covers the two-tier testing
 model, chunk sizing and the audit checks.

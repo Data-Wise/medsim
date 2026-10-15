@@ -22,12 +22,13 @@
 #'   scenario during development
 #' @param output_dir Character: Directory for saving results
 #' @param seed Integer: Base seed, stored on the config and printed for
-#'   provenance. **Does not itself determine replication draws** -- since the
-#'   `.medsim_det_seed()` fix, [medsim_run()] seeds each replication
-#'   deterministically from `(scenario_name, global_rep_id)`, independent of
-#'   `seed`/chunk/worker/cluster-type. `seed` is only consulted if you call
-#'   [medsim_run_parallel()] directly (its own `seed=` argument, documented
-#'   there). See `seed_stream` below for its deprecation.
+#'   provenance. Consulted directly by [medsim_run()] to seed the
+#'   `compute_truth` pass (`set.seed(config$seed)` before computing ground
+#'   truth), so every chunk of an array computes the same truth. **Does not**
+#'   determine individual replication draws -- since the `.medsim_det_seed()`
+#'   fix, those are seeded deterministically from
+#'   `(scenario_name, global_rep_id)`, independent of `seed`/chunk/worker/
+#'   cluster-type. See `seed_stream` below for its deprecation.
 #' @param chunk_id Integer: SLURM array task index (1-based) for this chunk.
 #'   Auto-detected from `SLURM_ARRAY_TASK_ID` when running inside a SLURM
 #'   array job and not supplied explicitly.  `NULL` = no chunking.
@@ -358,7 +359,7 @@ print.medsim_config <- function(x, ...) {
 
   cat("Computing Resources:\n")
   cat(sprintf("  Cores:               %d\n", x$n_cores))
-  cat(sprintf("  Base Seed:           %d (provenance only -- replications are seeded per-rep, see ?medsim_run)\n", x$seed))
+  cat(sprintf("  Base Seed:           %d (seeds the truth pass; replications are seeded per-rep, see ?medsim_run)\n", x$seed))
   cat("\n")
 
   cat("Output:\n")
