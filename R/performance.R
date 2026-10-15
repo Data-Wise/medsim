@@ -7,6 +7,8 @@
 #'   [medsim_combine_chunks()], whose `$truth` table is merged in by scenario;
 #'   or a results data.frame that already has `<param>` and `<param>_truth`
 #'   columns. Either way, a `<param>_se` column (optional) supplies the model SE.
+#'   For a `medsim_results` object, a scenario with no truth for `param` gets
+#'   `NA` bias and RMSE, and a warning names it.
 #' @param param Parameter name (default "indirect").
 #' @return A data.frame, one row per scenario.
 #' @details Truth is taken as the first converged row's `<param>_truth` value
@@ -103,5 +105,17 @@ medsim_table_performance <- function(perf) {
   if (truth_col %in% names(df)) df[[truth_col]] <- NULL
   key <- truth[c("scenario", param)]
   names(key)[2L] <- truth_col
+  # A scenario can lack truth even when the parameter exists elsewhere in
+  # $truth: its truth failed under truth_on_failure = "warn", or the truth
+  # table was bound from scenarios with different parameter sets (NA-filled).
+  # Its bias and RMSE would come back NA with no explanation; say so.
+  have <- key$scenario[!is.na(key[[truth_col]])]
+  missing <- setdiff(unique(df$scenario), have)
+  if (length(missing) > 0L) {
+    warning(sprintf(paste(
+      "medsim_analyze_performance(): no truth for '%s' in %d scenario(s): %s.",
+      "Their bias, bias_mcse and rmse are NA."),
+      param, length(missing), paste(missing, collapse = ", ")), call. = FALSE)
+  }
   merge(df, key, by = "scenario", all.x = TRUE, sort = FALSE)
 }

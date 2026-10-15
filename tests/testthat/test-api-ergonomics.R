@@ -130,3 +130,22 @@ test_that("a companion suffix is reported when its base has no truth", {
   res <- api_run(orphan)
   expect_warning(medsim_analyze(res), "'orphan_se'")
 })
+
+test_that("medsim_analyze_performance warns when some scenarios lack truth", {
+  res <- api_run()
+  # partial truth, as truth_on_failure = "warn" can leave it: api_null missing
+  res$truth <- res$truth[res$truth$scenario == "api_medium", , drop = FALSE]
+  expect_warning(perf <- medsim_analyze_performance(res),
+                 "no truth for 'indirect' in 1 scenario\\(s\\): api_null")
+  expect_true(is.na(perf$bias[perf$scenario == "api_null"]))
+  expect_false(is.na(perf$bias[perf$scenario == "api_medium"]))
+
+  # an NA-filled truth value (column-union bind) counts as missing too
+  res2 <- api_run()
+  res2$truth$indirect[res2$truth$scenario == "api_null"] <- NA_real_
+  expect_warning(medsim_analyze_performance(res2), "api_null")
+
+  # full truth: silent
+  expect_no_warning(medsim_analyze_performance(api_run()))
+})
+

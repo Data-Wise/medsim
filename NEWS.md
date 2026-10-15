@@ -14,7 +14,9 @@
   merges its `$truth` table itself, so `medsim_analyze_performance(results)`
   works like the other `medsim_analyze_*()` functions. A data.frame that already
   has `<param>_truth` columns still works as before. A missing truth now gives an
-  error that names the parameter and points to `compute_truth`.
+  error that names the parameter and points to `compute_truth`. When only some
+  scenarios lack truth, their bias and RMSE are `NA` and a warning names those
+  scenarios.
 * **`medsim_analyze()` warns once, and only when it matters.** An SE, interval
   or p-value column of a scored parameter (`<p>_se`, `<p>_ci_lower`,
   `<p>_ci_upper`, `<p>_p`) is skipped silently. Any other output column without

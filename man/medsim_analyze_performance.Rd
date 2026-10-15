@@ -10,7 +10,9 @@ medsim_analyze_performance(results, param = "indirect")
 \item{results}{A \code{medsim_results} object from \code{\link[=medsim_run]{medsim_run()}} or
 \code{\link[=medsim_combine_chunks]{medsim_combine_chunks()}}, whose \verb{$truth} table is merged in by scenario;
 or a results data.frame that already has \verb{<param>} and \verb{<param>_truth}
-columns. Either way, a \verb{<param>_se} column (optional) supplies the model SE.}
+columns. Either way, a \verb{<param>_se} column (optional) supplies the model SE.
+For a \code{medsim_results} object, a scenario with no truth for \code{param} gets
+\code{NA} bias and RMSE, and a warning names it.}
 
 \item{param}{Parameter name (default "indirect").}
 }
