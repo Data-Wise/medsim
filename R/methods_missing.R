@@ -19,6 +19,8 @@
 #       r4                = <num>,   # own-branch ARIV (standard Chan-Meng)
 #       r4_fixed          = <num>    # fixed-branch ARIV
 #   `ariv = "fixed"` swaps which p-value populates `indirect_p` (default "own" = legacy).
+#   `df = "chan_meng"` refers both D4 p-values to the Chan & Meng (2022) eq. 2.15 denominator df
+#   (default "li" = legacy Li et al. 1991); D4, r4 and the RNG stream are unchanged.
 #
 # VERIFIED 2026-06-11 (R/runner.R:329): method is invoked as `method(data, scenario$params)`,
 #   i.e. the contract is `function(data, params)` where `params` IS the scenario's params list.
@@ -28,8 +30,9 @@
 #'
 #' Multiple imputation (via `mice`) + **D4-stacked MBCO** likelihood-ratio
 #' inference for the union null `H0: ab = 0`. Ports the validated
-#' `Missing Effect/code/prototype-d4-mbco.R` (phase-2, exact match vs
-#' `mitml::testModels(method = "D4")`): per-imputation MBCO LRTs are pooled with
+#' `Missing Effect/code/prototype-d4-mbco.R` (phase-2; the D4 statistic matches
+#' `mitml::testModels(method = "D4")`, and so does the p-value with
+#' `df = "chan_meng"`): per-imputation MBCO LRTs are pooled with
 #' the Reiter/Chan-Meng D4 rule (Grund et al. 2021) into an F reference.
 #'
 #' The point estimate is the Rubin-pooled `a*b`; the CI is a Monte-Carlo product
@@ -51,12 +54,38 @@
 #'   (with a single imputation there is no stacked fit: `stacked_branch` is
 #'   that fit's branch and `r4 = r4_fixed = 0`; on the error path all six are
 #'   `NA`).
+#' @param df Denominator degrees of freedom for the D4 `F` reference, used for
+#'   both `indirect_p` and `indirect_p_fixed`: `"li"` (default, legacy) is the
+#'   Li et al. (1991) / Meng-Rubin approximation, \eqn{\nu = 4 + (k(K-1) - 4)\{1 +
+#'   (1 - 2/(k(K-1)))/r_4\}^2} when \eqn{k(K-1) > 4}; `"chan_meng"` is Chan and
+#'   Meng (2022, eq. 2.15), \eqn{\nu = k(K-1)(1 + 1/r_4)^2}, the reference used by
+#'   `mitml::testModels(method = "D4")`. Both give \eqn{\nu = \infty} (a
+#'   chi-square reference) when \eqn{r_4 = 0}. Chan and Meng derive eq. 2.15 for the
+#'   own-branch \eqn{r_4} at a regular null; for `ariv = "fixed"`, and at the
+#'   nonregular null \eqn{a = b = 0}, either choice is a working reference whose
+#'   calibration rests on simulation. The choice changes only the p-values: the
+#'   statistic, \eqn{r_4} and the random-number stream are identical.
 #' @param ... Reserved for future MI / MBCO options.
 #' @return A `function(data, params)` returning the shared method contract (see file header).
+#' @examples
+#' \donttest{
+#' if (requireNamespace("mice", quietly = TRUE)) {
+#'   set.seed(1)
+#'   d <- data.frame(X = rnorm(200))
+#'   d$M <- 0.39 * d$X + rnorm(200)
+#'   d$Y <- 0.39 * d$M + 0.14 * d$X + rnorm(200)
+#'   d <- medsim_amputate(d, target = "M", mechanism = "MAR", prop = 0.25)
+#'   fit <- medsim_method_mbco_mi(model = NULL, m = 10, ariv = "fixed", df = "chan_meng")
+#'   out <- fit(d, list())
+#'   out[c("indirect", "indirect_p", "indirect_p_fixed", "r4_fixed")]
+#' }
+#' }
 #' @export
-medsim_method_mbco_mi <- function(model, m = 20L, ariv = c("own", "fixed"), ...) {
+medsim_method_mbco_mi <- function(model, m = 20L, ariv = c("own", "fixed"),
+                                  df = c("li", "chan_meng"), ...) {
   m <- as.integer(m)
   ariv <- match.arg(ariv)
+  df <- match.arg(df)
   function(data, params) {
     out <- list(
       indirect = NA_real_, indirect_ci_lower = NA_real_,
@@ -98,9 +127,9 @@ medsim_method_mbco_mi <- function(model, m = 20L, ariv = c("own", "fixed"), ...)
           ## The stacked-fit triple is shared: fit it once, reuse for both ARIVs.
           lls_S <- .medsim_mbco_lls(do.call(rbind, implist), covs)
           d4_own <- .medsim_d4_mbco(implist, covs, lls_list = lls_list,
-                                    lls_S = lls_S)
+                                    lls_S = lls_S, df = df)
           d4_fix <- .medsim_d4_mbco(implist, covs, lls_list = lls_list,
-                                    lls_S = lls_S, fixed_branch = TRUE)
+                                    lls_S = lls_S, fixed_branch = TRUE, df = df)
           p_own <- unname(d4_own[["p"]])
           p_fix <- unname(d4_fix[["p"]])
           r4_own <- unname(d4_own[["r4"]])
@@ -141,6 +170,18 @@ medsim_method_mbco_mi <- function(model, m = 20L, ariv = c("own", "fixed"), ...)
 #'
 #' @inheritParams medsim_method_mbco_mi
 #' @return A `function(data, params)` returning the shared method contract (`branch_switch = NA`).
+#' @examples
+#' \donttest{
+#' if (requireNamespace("mice", quietly = TRUE)) {
+#'   set.seed(1)
+#'   d <- data.frame(X = rnorm(200))
+#'   d$M <- 0.39 * d$X + rnorm(200)
+#'   d$Y <- 0.39 * d$M + 0.14 * d$X + rnorm(200)
+#'   d <- medsim_amputate(d, target = "M", mechanism = "MAR", prop = 0.25)
+#'   out <- medsim_method_mc_ci(model = NULL, m = 10)(d, list())
+#'   out[c("indirect", "indirect_ci_lower", "indirect_ci_upper")]
+#' }
+#' }
 #' @export
 medsim_method_mc_ci <- function(model, m = 20L, ...) {
   m <- as.integer(m)
@@ -210,6 +251,14 @@ medsim_method_mc_ci <- function(model, m = 20L, ...) {
 #' @param model Mediation model spec.
 #' @param ... Passed to the underlying weighting / fitting routines.
 #' @return A `function(data, params)` returning the shared method contract (`branch_switch = NA`).
+#' @examples
+#' set.seed(1)
+#' d <- data.frame(X = rnorm(200))
+#' d$M <- 0.39 * d$X + rnorm(200)
+#' d$Y <- 0.39 * d$M + 0.14 * d$X + rnorm(200)
+#' d <- medsim_amputate(d, target = "M", mechanism = "MAR", prop = 0.25)
+#' out <- medsim_method_ipw(model = NULL)(d, list())
+#' out[c("indirect", "indirect_ci_lower", "indirect_ci_upper")]
 #' @export
 medsim_method_ipw <- function(model, ...) {
   function(data, params) {
@@ -379,13 +428,19 @@ medsim_method_ipw <- function(model, ...) {
 
 # D4 pooled test (Reiter 2007 / Chan & Meng 2022 / Grund et al. 2021) from the
 # per-imputation LRTs `d_k` and the stacked-data LRT `d_S`; `k` = # constraints.
-.medsim_d4_from_stats <- function(d_k, d_S, k = 1) {
+# `df = "li"`: Li et al. (1991) / Meng-Rubin denominator df (legacy default);
+# `df = "chan_meng"`: Chan & Meng (2022) eq. 2.15, k(K-1)(1 + 1/r4)^2, as in
+# mitml::testModels(method = "D4", ariv = "positive"). r4 = 0 gives nu = Inf in both.
+.medsim_d4_from_stats <- function(d_k, d_S, k = 1, df = c("li", "chan_meng")) {
+  df <- match.arg(df)
   kk <- length(d_k)
   dbar <- mean(d_k)
   r4 <- max(0, (kk + 1) / (k * (kk - 1)) * (dbar - d_S))
   d4 <- d_S / (k * (1 + r4))
   km1 <- k * (kk - 1)
-  nu <- if (km1 > 4) {
+  nu <- if (df == "chan_meng") {
+    km1 * (1 + 1 / r4)^2
+  } else if (km1 > 4) {
     4 + (km1 - 4) * (1 + (1 - 2 / km1) / r4)^2
   } else {
     0.5 * km1 * (1 + 1 / k) * (1 + 1 / r4)^2
@@ -405,7 +460,7 @@ medsim_method_ipw <- function(model, ...) {
 # (and hence r4) down. The numerator d_S is identical in both cases. Returns the
 # stacked branch (1 = a = 0) as `stacked_branch` either way.
 .medsim_d4_mbco <- function(implist, covs = character(0), lls_list = NULL,
-                            fixed_branch = FALSE, lls_S = NULL) {
+                            fixed_branch = FALSE, lls_S = NULL, df = "li") {
   kk <- length(implist)
   if (is.null(lls_list)) {
     lls_list <- lapply(implist, function(d) .medsim_mbco_lls(d, covs))
@@ -421,7 +476,7 @@ medsim_method_ipw <- function(model, ...) {
   } else {
     vapply(lls_list, .medsim_mbco_T_from_lls, 0)
   }
-  c(.medsim_d4_from_stats(d_k, d_S, k = 1), stacked_branch = stacked_branch)
+  c(.medsim_d4_from_stats(d_k, d_S, k = 1, df = df), stacked_branch = stacked_branch)
 }
 
 # Base-R Monte-Carlo CI for the product a*b given (a,b) ~ independent normals.

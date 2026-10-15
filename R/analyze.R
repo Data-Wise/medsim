@@ -79,10 +79,7 @@ medsim_analyze <- function(results,
     stop("results must be a medsim_results object from medsim_run()")
   }
 
-  if (is.null(results$truth) || nrow(results$truth) == 0) {
-    stop("Cannot compute accuracy metrics: no ground truth available. ",
-         "Provide compute_truth function to medsim_run()")
-  }
+  .medsim_require_truth(results, "accuracy metrics")
 
   # Validate metrics
   valid_metrics <- c("bias", "mae", "rmse", "median_ae", "max_ae", "relative_bias")
@@ -116,13 +113,25 @@ medsim_analyze <- function(results,
   # --- Compute Metrics ---
   accuracy_list <- list()
 
+  # Output columns without a truth are skipped. A known companion of a scored
+  # parameter (`<p>_se`, `<p>_ci_lower`, `<p>_ci_upper`, `<p>_p`) is skipped
+  # silently: it is an SE, interval or p-value, not an estimate. Any other
+  # truthless column is reported once, in a single warning after the loop, so
+  # a forgotten compute_truth value is still flagged.
+  has_truth <- estimate_cols[paste0(estimate_cols, "_truth") %in% names(merged)]
+  companion_re <- "^(.+)_(se|ci_lower|ci_upper|p)$"
+  is_companion <- function(col) {
+    grepl(companion_re, col) && sub(companion_re, "\\1", col) %in% has_truth
+  }
+  no_truth <- character()
+
   for (param in estimate_cols) {
     estimate_col <- paste0(param, "_estimate")
     truth_col <- paste0(param, "_truth")
 
     # Skip if truth not available
     if (!truth_col %in% names(merged)) {
-      warning(sprintf("No ground truth for parameter '%s', skipping", param))
+      if (!is_companion(param)) no_truth <- c(no_truth, param)
       next
     }
 
@@ -234,6 +243,14 @@ medsim_analyze <- function(results,
     rownames(by_scenario_df) <- NULL
   }
 
+  if (length(no_truth) > 0L) {
+    warning(sprintf(paste(
+      "No ground truth for %d output column(s), skipped: %s.",
+      "Return them from compute_truth to score them."),
+      length(no_truth), paste0("'", no_truth, "'", collapse = ", ")),
+      call. = FALSE)
+  }
+
   # --- Overall Summary ---
   summary_stats <- data.frame(
     n_scenarios = length(unique(results$results$scenario)),
@@ -253,6 +270,38 @@ medsim_analyze <- function(results,
   class(analysis) <- c("medsim_analysis", "list")
 
   return(analysis)
+}
+
+#' Split a failure count into data_generator() vs method() failures (#43 G3)
+#'
+#' @description
+#' A `data_generator()` failure row (`error` prefixed `"data_generator
+#' error: "`) means the estimator never ran for that replication -- lumping
+#' it into the same `failure_rate` as a `method()` failure (estimator ran,
+#' produced no usable CI) conflates two different reliability signals.
+#' `failure_rate` and `dgp_failure_rate` deliberately use DIFFERENT
+#' denominators and do not sum to an overall failure fraction: `failure_rate`
+#' is conditional on the DGP having succeeded (excludes DGP-failure reps from
+#' both numerator and denominator); `dgp_failure_rate` is unconditional
+#' (always over `n_total`).
+#'
+#' @param error_vec The (possibly `NULL`) `error` column for these rows,
+#'   BEFORE any NA-based valid/invalid subsetting.
+#' @param n_valid Count of rows with a usable (non-NA) CI/truth (post-filter).
+#' @param n_total Total row count for this parameter/scenario, before
+#'   filtering (same basis `error_vec` is indexed against).
+#' @return `list(n_failed, failure_rate, n_dgp_failed, dgp_failure_rate)`.
+#' @keywords internal
+.medsim_failure_split <- function(error_vec, n_valid, n_total) {
+  n_dgp_failed <- sum(.medsim_is_dgp_failure(error_vec))
+  denom <- n_total - n_dgp_failed
+  n_failed <- denom - n_valid
+  list(
+    n_failed         = n_failed,
+    failure_rate     = if (denom > 0L) n_failed / denom else NA_real_,
+    n_dgp_failed     = n_dgp_failed,
+    dgp_failure_rate = if (n_total > 0L) n_dgp_failed / n_total else NA_real_
+  )
 }
 
 #' Analyze Coverage Rates
@@ -275,7 +324,11 @@ medsim_analyze <- function(results,
 #'   Default NULL uses standard CI-column-based coverage.
 #'
 #' @return A list with class "medsim_coverage" containing:
-#'   - `coverage`: data.frame with coverage rates
+#'   - `coverage`: data.frame with coverage rates, plus `n_failed`/`failure_rate`
+#'     (`method()` failures, conditional on `data_generator()` having
+#'     succeeded) and `n_dgp_failed`/`dgp_failure_rate` (`data_generator()`
+#'     failures, unconditional -- the two rates use different denominators
+#'     and do not sum, by design; see [.medsim_failure_split()])
 #'   - `by_scenario`: data.frame with coverage by scenario (if by_scenario=TRUE)
 #'   - `summary`: Overall summary statistics
 #'
@@ -318,7 +371,6 @@ medsim_analyze <- function(results,
 #' }
 #'
 #' @seealso [medsim_analyze()], [medsim_analyze_power()]
-#'
 #' @export
 medsim_analyze_coverage <- function(results,
                                     ci_levels = c(0.90, 0.95, 0.99),
@@ -331,10 +383,7 @@ medsim_analyze_coverage <- function(results,
     stop("results must be a medsim_results object from medsim_run()")
   }
 
-  if (is.null(results$truth) || nrow(results$truth) == 0) {
-    stop("Cannot compute coverage: no ground truth available. ",
-         "Provide compute_truth function to medsim_run()")
-  }
+  .medsim_require_truth(results, "coverage")
 
   if (!is.numeric(ci_levels) || any(ci_levels <= 0) || any(ci_levels >= 1)) {
     stop("ci_levels must be numeric values between 0 and 1")
@@ -405,13 +454,16 @@ medsim_analyze_coverage <- function(results,
 
     # Store result
     n_total <- length(merged[[lower_col]])
+    split <- .medsim_failure_split(merged$error, length(in_ci), n_total)
     coverage_list[[param]] <- data.frame(
-      parameter     = param,
-      coverage      = coverage_rate,
-      coverage_mcse = sqrt(coverage_rate * (1 - coverage_rate) / length(in_ci)),
-      n_valid       = length(in_ci),
-      n_failed      = n_total - length(in_ci),
-      failure_rate  = (n_total - length(in_ci)) / n_total,
+      parameter        = param,
+      coverage         = coverage_rate,
+      coverage_mcse    = sqrt(coverage_rate * (1 - coverage_rate) / length(in_ci)),
+      n_valid          = length(in_ci),
+      n_failed         = split$n_failed,
+      failure_rate     = split$failure_rate,
+      n_dgp_failed     = split$n_dgp_failed,
+      dgp_failure_rate = split$dgp_failure_rate,
       stringsAsFactors = FALSE
     )
   }
@@ -451,14 +503,18 @@ medsim_analyze_coverage <- function(results,
 
         n_total_s <- length(scenario_data[[lower_col]])
         cov_s     <- mean(in_ci)
+        split_s   <- .medsim_failure_split(scenario_data$error, length(in_ci),
+                                           n_total_s)
         scenario_list[[paste(scenario_name, param, sep = "_")]] <- data.frame(
-          scenario      = scenario_name,
-          parameter     = param,
-          coverage      = cov_s,
-          coverage_mcse = sqrt(cov_s * (1 - cov_s) / length(in_ci)),
-          n_valid       = length(in_ci),
-          n_failed      = n_total_s - length(in_ci),
-          failure_rate  = (n_total_s - length(in_ci)) / n_total_s,
+          scenario         = scenario_name,
+          parameter        = param,
+          coverage         = cov_s,
+          coverage_mcse    = sqrt(cov_s * (1 - cov_s) / length(in_ci)),
+          n_valid          = length(in_ci),
+          n_failed         = split_s$n_failed,
+          failure_rate     = split_s$failure_rate,
+          n_dgp_failed     = split_s$n_dgp_failed,
+          dgp_failure_rate = split_s$dgp_failure_rate,
           stringsAsFactors = FALSE
         )
       }
@@ -532,6 +588,7 @@ medsim_analyze_coverage <- function(results,
     truth <- merged[[truth_col]]
     valid <- !is.na(lo) & !is.na(hi) & !is.na(truth)
     n_total <- length(valid)  # before subsetting -> gives the failed count
+    error_all <- merged$error  # aligned with n_total, before subsetting
     lo <- lo[valid]; hi <- hi[valid]; truth <- truth[valid]
     if (length(lo) == 0L) next
 
@@ -542,13 +599,16 @@ medsim_analyze_coverage <- function(results,
     # excluded from the numerator AND denominator and accounted separately, so
     # a near-singular tail (e.g. all-NA reps) never poisons the coverage number.
     cov_rate <- mean(in_bounds)
+    split <- .medsim_failure_split(error_all, length(in_bounds), n_total)
     row <- data.frame(
-      parameter       = param,
-      coverage        = cov_rate,
-      coverage_mcse   = sqrt(cov_rate * (1 - cov_rate) / length(in_bounds)),
-      n_valid         = length(in_bounds),
-      n_failed        = n_total - length(in_bounds),
-      failure_rate    = (n_total - length(in_bounds)) / n_total,
+      parameter        = param,
+      coverage         = cov_rate,
+      coverage_mcse    = sqrt(cov_rate * (1 - cov_rate) / length(in_bounds)),
+      n_valid          = length(in_bounds),
+      n_failed         = split$n_failed,
+      failure_rate     = split$failure_rate,
+      n_dgp_failed     = split$n_dgp_failed,
+      dgp_failure_rate = split$dgp_failure_rate,
       stringsAsFactors = FALSE
     )
 
@@ -573,7 +633,9 @@ medsim_analyze_coverage <- function(results,
     coverage_df <- data.frame(
       parameter = character(0), coverage = numeric(0),
       coverage_mcse = numeric(0), n_valid = integer(0),
-      n_failed = integer(0), failure_rate = numeric(0), mean_width = numeric(0),
+      n_failed = integer(0), failure_rate = numeric(0),
+      n_dgp_failed = integer(0), dgp_failure_rate = numeric(0),
+      mean_width = numeric(0),
       stringsAsFactors = FALSE)
   }
   rownames(coverage_df) <- NULL
@@ -602,16 +664,20 @@ medsim_analyze_coverage <- function(results,
         valid <- !is.na(lo) & !is.na(hi) & !is.na(truth)
         if (!any(valid)) next
         n_total_s <- length(valid)  # before subsetting
+        error_s <- d$error  # aligned with n_total_s, before subsetting
         lo <- lo[valid]; hi <- hi[valid]; truth <- truth[valid]
         in_bounds <- (truth >= lo) & (truth <= hi)
         cov_s <- mean(in_bounds)
+        split_s <- .medsim_failure_split(error_s, length(in_bounds), n_total_s)
         sc_list[[paste(sc, param, sep = "_")]] <- data.frame(
           scenario = sc, parameter = param,
           coverage = cov_s,
           coverage_mcse = sqrt(cov_s * (1 - cov_s) / length(in_bounds)),
           n_valid = length(in_bounds),
-          n_failed = n_total_s - length(in_bounds),
-          failure_rate = (n_total_s - length(in_bounds)) / n_total_s,
+          n_failed = split_s$n_failed,
+          failure_rate = split_s$failure_rate,
+          n_dgp_failed = split_s$n_dgp_failed,
+          dgp_failure_rate = split_s$dgp_failure_rate,
           mean_width = mean(hi - lo), stringsAsFactors = FALSE
         )
       }
@@ -1163,3 +1229,24 @@ print.medsim_comparison <- function(x, ...) {
 
   invisible(x)
 }
+
+# Whole-frame truth guard shared by medsim_analyze() and
+# medsim_analyze_coverage() (#41 D7). A truth table with rows but no parameter
+# columns -- every compute_truth() call failed, or it returned a shape medsim
+# cannot read -- would otherwise yield an empty analysis reported as success.
+.medsim_require_truth <- function(results, what) {
+  truth <- results$truth
+  if (is.null(truth) || nrow(truth) == 0) {
+    stop("Cannot compute ", what, ": no ground truth available. ",
+         "Provide compute_truth function to medsim_run()", call. = FALSE)
+  }
+  if (length(setdiff(names(truth), "scenario")) == 0L) {
+    stop("Cannot compute ", what, ": ground truth has no parameter columns. ",
+         "Either every compute_truth() call failed, or compute_truth() returned ",
+         "a value medsim cannot read -- it must return a NAMED LIST of length-1 ",
+         "numerics (a bare named vector, or list elements longer than 1, are ",
+         "dropped; see ?medsim_run).", call. = FALSE)
+  }
+  invisible(TRUE)
+}
+

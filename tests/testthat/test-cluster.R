@@ -264,6 +264,120 @@ test_that("medsim_combine_chunks includes new scenarios from later chunks", {
   expect_equal(sort(unique(combined$truth$scenario)), c("s1", "s2"))
 })
 
+# ---- #43 PR-A: combine-gate hardening (schema-vote exemption, partial_chunk,
+# dgp_failure) -----------------------------------------------------------
+
+make_v2_chunk_result <- function(scenario = "s1", reps = 1:3, code_sha = "abc123",
+                                  partial = FALSE) {
+  results_df <- data.frame(
+    scenario    = scenario,
+    replication = reps,
+    estimate    = rnorm(length(reps)),
+    elapsed     = 0.01
+  )
+  attr(results_df, "medsim_schema") <- 2L
+  attr(results_df, "medsim_meta_cols") <- c("scenario", "replication", "elapsed")
+  truth_df <- data.frame(scenario = scenario, NDE = 0.2, NIE = 0.3)
+  r <- list(results = results_df, truth = truth_df, config = list(),
+            scenarios = list(), method_name = "test", timestamp = Sys.time())
+  class(r) <- c("medsim_results", "list")
+  attr(r, "provenance") <- list(code_sha = code_sha, partial = partial)
+  r
+}
+
+make_empty_v2_chunk <- function(code_sha = "abc123") {
+  r <- list(results = NULL, truth = NULL, config = list(),
+            scenarios = list(), method_name = "test", timestamp = Sys.time())
+  class(r) <- c("medsim_results", "list")
+  attr(r, "provenance") <- list(code_sha = code_sha, partial = FALSE)
+  r
+}
+
+test_that("medsim_combine_chunks flags a partial chunk even when ids are contiguous (#43 B2)", {
+  tmp_dir <- tempfile()
+  dir.create(tmp_dir)
+  on.exit(unlink(tmp_dir, recursive = TRUE))
+
+  # Task died after writing 5 of an intended 10 reps -- contiguity alone sees
+  # a clean 1..15 block across both chunks and would find nothing.
+  ch1 <- make_v2_chunk_result(reps = 1:10, partial = FALSE)
+  ch2 <- make_v2_chunk_result(reps = 11:15, partial = TRUE)
+  saveRDS(ch1, file.path(tmp_dir, "chunk_0001.rds"))
+  saveRDS(ch2, file.path(tmp_dir, "chunk_0002.rds"))
+
+  expect_warning(
+    combined <- medsim_combine_chunks(tmp_dir, on_violation = "warn", verbose = FALSE),
+    "partial_chunk"
+  )
+  expect_equal(sort(combined$results$replication), 1:15)
+})
+
+test_that("medsim_combine_chunks: an empty chunk does not disable schema-v2 audits (#43 B3)", {
+  tmp_dir <- tempfile()
+  dir.create(tmp_dir)
+  on.exit(unlink(tmp_dir, recursive = TRUE))
+
+  # A legitimately empty chunk (e.g. n_chunks > n_reps) sits between two
+  # v2-stamped chunks with a deliberate gap (4-5 missing) -- if the empty
+  # chunk struck schema_v2 for the whole combine, A.1 would skip and never
+  # report the gap.
+  ch1 <- make_v2_chunk_result(reps = 1:3)
+  ch2 <- make_empty_v2_chunk()
+  ch3 <- make_v2_chunk_result(reps = 6:8)
+  saveRDS(ch1, file.path(tmp_dir, "chunk_0001.rds"))
+  saveRDS(ch2, file.path(tmp_dir, "chunk_0002.rds"))
+  saveRDS(ch3, file.path(tmp_dir, "chunk_0003.rds"))
+
+  expect_warning(
+    combined <- medsim_combine_chunks(tmp_dir, on_violation = "warn", verbose = FALSE),
+    "rep_gap"
+  )
+  expect_identical(attr(combined$results, "medsim_schema"), 2L)
+})
+
+test_that("medsim_combine_chunks does not error when EVERY chunk is empty (schema-vote vacuous truth)", {
+  tmp_dir <- tempfile()
+  dir.create(tmp_dir)
+  on.exit(unlink(tmp_dir, recursive = TRUE))
+
+  # chunk_v2 has length 0 when every chunk is empty -> schema_v2 is vacuously
+  # TRUE, but all_results is NULL (.medsim_rbind_reps drops every input) --
+  # attr(NULL, ...) <- 2L errors, unlike attr(NULL, ...) <- NULL, which is
+  # why the pre-fix all-FALSE vote never hit this.
+  saveRDS(make_empty_v2_chunk(), file.path(tmp_dir, "chunk_0001.rds"))
+  saveRDS(make_empty_v2_chunk(), file.path(tmp_dir, "chunk_0002.rds"))
+
+  combined <- suppressWarnings(
+    medsim_combine_chunks(tmp_dir, on_violation = "warn", verbose = FALSE)
+  )
+  expect_true(is.null(combined$results))
+})
+
+test_that(".medsim_is_dgp_failure handles NULL, absent, and present error columns (#43)", {
+  expect_equal(.medsim_is_dgp_failure(NULL), logical(0))
+  expect_equal(
+    .medsim_is_dgp_failure(c(NA, "boom", "data_generator error: singular fit")),
+    c(FALSE, FALSE, TRUE)
+  )
+})
+
+test_that("medsim_audit_results surfaces a dgp_failure violation (#43 §5a)", {
+  df <- data.frame(
+    scenario    = "s1",
+    replication = 1:4,
+    estimate    = c(0.1, 0.2, NA, 0.4),
+    elapsed     = 0.01,
+    error       = c(NA, NA, "data_generator error: draw failed", NA)
+  )
+  attr(df, "medsim_schema") <- 2L
+  attr(df, "medsim_meta_cols") <- c("scenario", "replication", "elapsed", "error")
+
+  expect_warning(
+    medsim_audit_results(df, on_violation = "warn", collapse_min_cell = 1L),
+    "dgp_failure"
+  )
+})
+
 # ── medsim_run_chunk ───────────────────────────────────────────────────────
 
 test_that("medsim_run_chunk errors without chunk_id", {
@@ -306,6 +420,45 @@ test_that("medsim_run_chunk runs successfully and writes chunk RDS", {
   expect_true(file.exists(out_path))
   result <- readRDS(out_path)
   expect_s3_class(result, "medsim_results")
+})
+
+test_that("medsim_run_chunk passes compute_truth, so combined chunks support coverage", {
+  sc <- medsim_scenario(
+    name = "chunk_truth_test",
+    data_generator = function(n = 100) {
+      data.frame(X = rnorm(n), M = rnorm(n), Y = rnorm(n))
+    },
+    params = list(indirect = 0.15)
+  )
+  method <- function(data, params) {
+    list(indirect = 0.1, indirect_ci_lower = 0, indirect_ci_upper = 0.3)
+  }
+  truth <- function(data, params) list(indirect = params$indirect)
+  tmp_dir <- tempfile()
+  dir.create(tmp_dir)
+  on.exit(unlink(tmp_dir, recursive = TRUE))
+
+  for (id in 1:2) {
+    cfg <- medsim_config("test", chunk_id = id, n_chunks = 2L, output_dir = tmp_dir)
+    suppressMessages(medsim_run_chunk(list(sc), method, cfg, verbose = FALSE,
+                                      compute_truth = truth))
+  }
+  combined <- suppressMessages(
+    medsim_combine_chunks(tmp_dir, expected_chunks = 2L, verbose = FALSE))
+
+  expect_equal(nrow(combined$truth), 1L)
+  expect_equal(combined$truth$indirect, 0.15)
+  cov <- medsim_analyze_coverage(combined, ci_levels = 0.95)
+  expect_equal(cov$coverage$coverage, 1)
+  expect_equal(cov$coverage$n_valid, 20L)
+
+  # Without compute_truth the chunk carries no truth (the pre-existing default)
+  tmp2 <- tempfile()
+  dir.create(tmp2)
+  on.exit(unlink(tmp2, recursive = TRUE), add = TRUE)
+  cfg <- medsim_config("test", chunk_id = 1L, n_chunks = 1L, output_dir = tmp2)
+  path <- suppressMessages(medsim_run_chunk(list(sc), method, cfg, verbose = FALSE))
+  expect_null(readRDS(path)$truth)
 })
 
 test_that("medsim_run_chunk emits verbose messages", {

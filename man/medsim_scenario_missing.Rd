@@ -34,3 +34,11 @@ Wraps \code{\link[=medsim_scenario]{medsim_scenario()}} with a \code{data_genera
 with optional nonnormal residuals (\code{\link[=medsim_rnonnormal]{medsim_rnonnormal()}}), then (2) amputes \code{target}
 under \code{mechanism} (\code{\link[=medsim_amputate]{medsim_amputate()}}).
 }
+\examples{
+scn <- medsim_scenario_missing(
+  name = "MAR_M_30",
+  true_params = list(a = 0.39, b = 0.39, cp = 0.14),
+  mechanism = "MAR", prop = 0.3
+)
+scn$name
+}

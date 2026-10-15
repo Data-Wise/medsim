@@ -22,9 +22,9 @@ analysis under `MCAR`/`MAR`/`MNAR` missingness and Fleishman-power
 nonnormality.
 
 This vignette walks through generating nonnormal data, amputating it under a
-missingness mechanism, and comparing two estimators of the indirect effect's
-confidence interval: multiple-imputation-based (`MBCO-MI`) and the
-Monte-Carlo delta-method CI (`MC-CI`).
+missingness mechanism, and comparing two ways to test the indirect effect under
+multiple imputation: the D4-stacked MBCO likelihood-ratio test (`MBCO-MI`) and
+the Monte-Carlo product interval on the Rubin-pooled paths (`MC-CI`).
 
 ## Installation
 
@@ -59,60 +59,66 @@ c(mean = mean(x), sd = sd(x))
 
 ## Step 2: Insert Missingness
 
-`medsim_amputate()` inserts `NA`s under a chosen missingness mechanism (MCAR,
-MAR, or MNAR) using a logistic amputer calibrated to a target missing rate:
+`medsim_amputate()` inserts `NA`s into the `target` column(s) under a chosen
+missingness mechanism (MCAR, MAR, or MNAR), with a logistic amputer calibrated
+to the target proportion `prop`:
 
 ```{r}
 #| label: amputate
 set.seed(1)
 d <- data.frame(X = rnorm(500), M = rnorm(500), Y = rnorm(500))
 
-d_mar <- medsim_amputate(d, vars = "M", mechanism = "MAR", rate = 0.3)
+d_mar <- medsim_amputate(d, target = "M", mechanism = "MAR", prop = 0.3)
 mean(is.na(d_mar$M))
-#> [1] 0.3
 ```
 
 ## Step 3: Define a Missing-Data Scenario
 
-`medsim_scenario_missing()` builds a single scenario combining a DGM, an
-amputation mechanism, and a target missing rate. `medsim_scenario_missing_grid()`
-expands a factorial grid over mechanism x rate x nonnormality — the
-canonical building block for a full missing-data simulation study:
+`medsim_scenario_missing()` builds a single scenario combining the generating
+paths (`true_params`: `a`, `b`, `cp`), an amputation mechanism, a target missing
+proportion, and optional nonnormal residuals. `medsim_scenario_missing_grid()`
+crosses a list of effect-size cells with mechanisms, proportions, and residual
+shapes, the building block for a full missing-data simulation study:
 
 ```{r}
 #| label: scenario
 scn <- medsim_scenario_missing(
   name = "MAR-30pct",
+  true_params = list(a = 0.39, b = 0.39, cp = 0.14),
   mechanism = "MAR",
-  rate = 0.3,
-  skew = 0,
-  kurtosis = 0
+  prop = 0.3
 )
 
 grid <- medsim_scenario_missing_grid(
+  true_params_list = list(
+    small  = list(a = 0.14, b = 0.14, cp = 0.14),
+    medium = list(a = 0.39, b = 0.39, cp = 0.14)
+  ),
   mechanisms = c("MCAR", "MAR", "MNAR"),
-  rates = c(0.1, 0.3),
-  skew = c(0, 1.5)
+  props = c(0.1, 0.3),
+  nonnormal_list = list(normal = NULL, skew = list(skew = 1.5, kurtosis = 4))
 )
 length(grid)
 ```
 
 ## Step 4: Run Both Estimators
 
-Both `medsim_method_mbco_mi()` and `medsim_method_mc_ci()` follow the
-`method(data, params)` contract and return the same 6-field core result — this
-is what lets `medsim_run()` compare them scenario-for-scenario. (MBCO-MI
-additionally emits branch-mixing diagnostics — `indirect_p_fixed`, `branch_mix`,
-`p_branch_a`, `stacked_branch`, `r4`, `r4_fixed` — which `medsim_run()` NA-pads
-for the MC-CI rows.)
+`medsim_method_mbco_mi()` and `medsim_method_mc_ci()` are factories: each
+returns a function with the `method(data, params)` contract and the same 6-field
+core result. `medsim_run()` takes one method, so run each and compare the
+results scenario by scenario. (MBCO-MI additionally emits branch diagnostics:
+`indirect_p_fixed`, `branch_mix`, `p_branch_a`, `stacked_branch`, `r4`,
+`r4_fixed`.)
 
 ```{r}
 #| label: run
 results <- medsim_run(
-  method = list(
-    "MBCO-MI" = medsim_method_mbco_mi,
-    "MC-CI"   = medsim_method_mc_ci
-  ),
+  method = medsim_method_mbco_mi(model = NULL, m = 20),
+  scenarios = list(scn),
+  config = medsim_config("test")
+)
+results_mc <- medsim_run(
+  method = medsim_method_mc_ci(model = NULL, m = 20),
   scenarios = list(scn),
   config = medsim_config("test")
 )
@@ -120,13 +126,39 @@ results <- medsim_run(
 summary(results)
 ```
 
+### Fixed-branch correction and the reference degrees of freedom
+
+Two options of `medsim_method_mbco_mi()` change how the D4 test is referred to
+its `F` distribution. Neither changes the data, the imputations, or the D4
+statistic:
+
+- `ariv = "fixed"` computes the relative increase in variance (`r4`) from
+  per-imputation statistics on the branch that the stacked constrained fit
+  selects, so imputations that disagree on the branch cannot deflate it. The
+  default `ariv = "own"` is the standard Chan-Meng pooling. Both p-values are
+  always returned (`indirect_p`, `indirect_p_fixed`); `ariv` chooses which one
+  fills `indirect_p`.
+- `df = "chan_meng"` uses the Chan and Meng (2022, eq. 2.15) denominator degrees
+  of freedom, as `mitml::testModels(method = "D4")` does; the default
+  `df = "li"` keeps the Li et al. (1991) approximation. Only the p-values change.
+
+```{r}
+#| label: ariv-df
+results_fixed <- medsim_run(
+  method = medsim_method_mbco_mi(model = NULL, m = 20, ariv = "fixed", df = "chan_meng"),
+  scenarios = list(scn),
+  config = medsim_config("test")
+)
+```
+
 ## Step 5: Branch-Switch Diagnostics
 
-Under the union-null LRT used by MBCO, an imputed dataset can "branch-switch"
-between the null and alternative decisions across imputations.
-`medsim_summarize_branch_switch()` reports that rate per scenario — a
-diagnostic for how much the missing-data mechanism destabilizes the test
-decision:
+MBCO fits the union null `ab = 0` as the better of two single-path fits,
+`a = 0` or `b = 0`, and the imputations of one dataset can disagree on which
+branch wins. Each MBCO-MI row records the majority branch (`branch_switch`,
+1 = `a = 0`) and whether the imputations disagreed (`branch_mix`).
+`medsim_summarize_branch_switch()` reports, per scenario, the share of
+replicates in which the `a = 0` branch wins:
 
 ```{r}
 #| label: branch-switch
@@ -141,7 +173,7 @@ against the imputation-based approaches:
 ```{r}
 #| label: ipw
 results_ipw <- medsim_run(
-  method = medsim_method_ipw,
+  method = medsim_method_ipw(model = NULL),
   scenarios = list(scn),
   config = medsim_config("test")
 )
@@ -152,5 +184,7 @@ results_ipw <- medsim_run(
 - See `vignette("getting-started")` for the general `medsim_run()` workflow.
 - See `vignette("estimand-kinds")` for how missing-data scenarios relate to
   the estimand-kind system used elsewhere in medsim.
-- `medsim_method_mbco_mi()` reproduces `mitml::testModels(method = "D4")`
-  exactly when `mice`/`mitml` are installed (Reiter/Chan-Meng D4 pooling).
+- `medsim_method_mbco_mi()` reproduces the `mitml::testModels(method = "D4")`
+  statistic when `mice`/`mitml` are installed (Reiter/Chan-Meng D4 pooling). Its
+  p-value matches `mitml` (with `ariv = "positive"`) under `df = "chan_meng"`; the
+  default `df = "li"` keeps the legacy Li et al. (1991) denominator df.

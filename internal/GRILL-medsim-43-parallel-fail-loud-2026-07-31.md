@@ -1,7 +1,10 @@
 # GRILL — medsim #43: fail-loud parallel/serial replication errors
 
-**Date**: 2026-07-31 · **Target**: issue #43 · **Base**: dev @ v0.5.0.9000
-**Status**: PROPOSAL — all questions resolved; awaiting go.
+**Date**: 2026-07-31 · **Amended**: 2026-08-22 (implementation log) · **Target**: issue #43 · **Base**: dev @ v0.5.0.9000
+**Status**: ✅ **IMPLEMENTED & MERGED** — three PRs, all squashed to `dev`
+2026-08-22; **issue #43 CLOSED** 2026-08-22T22:16Z. Final state on `dev`:
+**1197 pass / 0 fail / 0 error / 1 skip**, `R CMD check --as-cran` **0/0/0**.
+See §6 Implementation log for what the build changed versus this design.
 **Location**: canonical design doc for #43 (see §0).
 
 **Method**: 4 interactive grill rounds (19 decisions) + 2 independent adversarial
@@ -236,3 +239,114 @@ the 1-NOTE baseline, then independent adversarial review of the branch diff befo
 integration.
 
 Release vehicle: ride `dev`, no 0.5.1 patch (r-universe publishes `0.5.0.9000`).
+
+---
+
+## 6. Implementation log (2026-08-22)
+
+Shipped as **three** PRs, not the two this design planned. All squash-merged
+to `dev`; issue #43 closed 2026-08-22T22:16Z. Final `dev` state: **1197 pass /
+0 fail / 0 error / 1 skip**, `R CMD check --as-cran` **0/0/0**.
+
+| PR | Squash | Scope | Note |
+|---|---|---|---|
+| **#47** | `523ce14` | numeric-kind `error` → `est_error` rename | **Not in this design** — see L1 |
+| **#48** | `43946e9` | PR-A — combine gates (§5, §5a) | `/code-review` found a hard crash not in the design; fixed pre-merge (L2) |
+| **#49** | `8ed4c1f` | PR-B — runner, chunk write, accounting (§1–§4, §6, §7) | Rebased onto #48's squashed tip before merge |
+
+### What the build changed versus this design
+
+| # | Design said | Build found | Resolution |
+|---|---|---|---|
+| L1 | **Q3:** two PRs; PR-B waits on `task_bac224eb` | That branch bundled a clean `est_error` rename with a **dangerous** parallel re-raise — a plain `stop()` discarding completed replications (A/B measured: `dev` returns 15 of 20 rows, the branch discards all 15) | Branch **split**: the rename shipped alone as **PR #47**; the re-raise was rebuilt properly as PR-B's data-carrying `medsim_run_failure`. Three PRs, not two. |
+| L2 | §4's chunk-write rescue is the risky part | `/code-review` on PR-A found an unrelated **hard crash**: with *every* chunk empty, `schema_v2` is vacuously TRUE (zero-length `all()`) while `all_results` is NULL — and `attr(NULL, "x") <- 2L` **errors** in R, unlike assigning NULL, which is a silent no-op. Unreachable before PR-A | Guarded (`schema_v2 && !is.null(all_results)`), regression test at `test-cluster.R:338`. Worse than the reviewer's "inconsistent object" framing — it was a crash. |
+| L3 | Cases 4/7: trigger a task-level failure with `stop()` inside `method()` | **Wrong trigger.** A plain `stop()` in `method()` is caught by the *existing* inner `tryCatch` and becomes an ordinary failure row — it never escapes to the sweep | Tests use the reserved-`error`-field contract violation instead: `method()` returns successfully with `list(indirect =, error =)`, failing the post-method check **outside** the method-level handler. |
+| L4 | Case 7: reps after a mid-chunk failure are lost (expected 2 of 4 rows) | `lapply` runs **every** task regardless of an earlier failure — only the failing rep is lost | Expected counts corrected 2 → 3, in both the direct chunk read and the post-combine assertion. |
+| L5 | The partial payload just needs `rbind` | The `medsim_run_failure` payload was **not schema-v2 stamped**, so PR-A's own schema vote read it as legacy and disabled Gates A.1/A.3 — surfaced as unexpected "lack the schema-v2 stamp" warnings in the new tests | Shared `.medsim_stamp_schema_v2()` helper applied on both the normal-completion and partial-failure paths. |
+
+### Verification cases — as built
+
+Implemented **1, 2, 3, 4, 6, 7, 10, 11, 13** in
+`tests/testthat/test-parallel-fail-loud.R` (11 `test_that` blocks: the nine
+numbered cases plus the `medsim_check_results()` empty-list and
+`medsim_summarize_results()` all-NA guards from §1/§2). Cases **8, 9, 12** live
+in `tests/testthat/test-cluster.R` as designed (PR-A, hand-built fixtures),
+alongside L2's regression test. Case 5 stays removed (fail-fast dropped, Q2).
+
+### Release vehicle — superseded by events
+
+This design said "ride `dev`, no 0.5.1 patch". **v0.5.1 was released
+2026-08-17**, before the work landed, so #43 shipped onto `0.5.1.9000` and
+rides the next release instead.
+
+### ⚠️ Post-merge adversarial review (2026-08-22) — 2 MAJOR defects found in the shipped code
+
+An adversarial review run *after* the merge found two confirmed gaps that the
+pre-merge reviews missed. **Both are still live on `dev`.**
+
+| # | Severity | Defect |
+|---|---|---|
+| **PM1** | MAJOR, CONFIRMED | **An all-reps-failed chunk writes no file, so a trailing failed chunk combines with ZERO violations.** `R/cluster.R:224-229` early-`stop()`s before the provenance stamp when nothing survived, so the `partial_chunk` marker never exists. Critically, **the very defect class #43 was filed for** — the deterministic reserved-`error` contract violation — fails *every* rep of any chunk it touches, so `partial_chunk` can never fire for it. Reproduced: 2 chunks × 10 reps with chunk 2 all-failing ⇒ `combined rows: 10 of 20`, `n_replications: 10`, **audit violations: NONE**, clean exit. Mitigations that keep it MAJOR not BLOCKER: the SLURM task does exit nonzero; a *middle* chunk trips `rep_gap`; `expected_chunks` catches it when supplied. But `expected_chunks` is optional and combine is meant to be the integrity layer. **Fix:** move the provenance stamp + atomic write above the line-227 early stop — PR #48's machinery already supports an empty flagged chunk (empty chunks are exempt from the schema vote, and `partial_flags` reads provenance of all chunks). |
+| **PM2** | MAJOR, CONFIRMED | **Test theater: the three "real parallel" tests silently exercise the SERIAL path under `R CMD check --as-cran`.** §5 of this design mandated cases 1/6/13 assert `n_replications >= 4`, `n_cores >= 2`, **and unset `_R_CHECK_LIMIT_CORES_`**. The first two shipped; the env-var guard did not (`grep` for `local_envvar` in `test-parallel-fail-loud.R`: 0 hits). Independently reproduced: with the var set, worker pid == main pid (`parallel actually used: FALSE`) and all 11 tests still pass. **So the `--as-cran 0/0/0` in the merge gate exercised zero parallel-path code in that file.** Local `devtools::test()` does spawn real workers, which is why the gap went unnoticed. **Fix:** `withr::local_envvar("_R_CHECK_LIMIT_CORES_" = NA)` in cases 1/6/13, plus a PID assertion so a future fallback regression fails loudly rather than silently. |
+
+Minor findings from the same review: `R/cluster.R:773-774` still says the
+`dgp_failure` detector is "Inert today" — PR #49 shipped its writer in the same
+series, so the comment now misleads (a maintainer could prune a live,
+load-bearing detector); §6 of this design promised `test-failure-rate.R`
+invariants would be updated and that file was never touched in
+`aad6d02..8ed4c1f` (its existing assertions remain arithmetically valid, so no
+test is wrong — but the deviation was unrecorded until now); a scenario whose
+reps are 100% DGP failures produces **no row at all** in coverage output, so
+its `dgp_failure_rate = 1` never reaches the analysis tables; and the
+`is.function(data_generator)` contract check sits *inside* the per-task
+`tryCatch` rather than outside it as designed (loud either way).
+
+**Resolution (2026-08-22, issue #50 — PR #51 MERGED, squash `dd0d059`; issue closed).**
+PM1 and PM2 both fixed, each with a positive control proving the new assertion
+can fail. PM2 refinement worth recording, found while verifying the fix: the "runs
+serial under `--as-cran`" framing is true only where `NOT_CRAN=true` is also
+set. Under **`devtools::check()`** -- the project's actual gate -- it is: the
+tests run, and before this fix they ran serial. Under a bare
+`rcmdcheck::rcmdcheck(args = "--as-cran")` `NOT_CRAN` is unset, so
+`skip_on_cran()` skips all four outright (16 "On CRAN" skips observed). Either
+way PM2's conclusion stands -- the parallel path had no gate coverage -- but
+the mechanism differs by harness, and only the devtools path is fixable here
+(skipping on true CRAN is correct policy: spawning workers is not allowed).
+
+PM2: `pfl_parallel_config()` now clears `_R_CHECK_LIMIT_CORES_`,
+pins `n_cores = 2L`, and raises the fixture to 6 reps -- 4 sat *exactly* on the
+`length(tasks) < 4` boundary (tasks are per-replication, `R/runner.R:228`), so
+one trimmed rep would have silently re-armed the fallback. A new PID guard
+asserts worker pid != main pid and >1 distinct worker. PM1: the early `stop()`
+is gone; the write path's own re-`stop()` at the end already preserved the
+nonzero exit. Both MINORs closed: the "Inert today" comment is rewritten as
+ARMED, and the `test-failure-rate.R` deviation is now recorded in that file's
+header (no assertion there was wrong -- the accounting split changed which
+column carries the reason, not the arithmetic).
+
+A high-effort review of the PR then found **three further defects**, all in the
+all-array-tasks-failed path PM1 newly makes reachable (before it, that run wrote
+zero files and combine hard-stopped on "No chunk files found"). The generalizable
+point: **fixing a silent skip exposes downstream code that never executed before.**
+(1) MEDIUM -- the seed audit saw `attr(NULL, "medsim_schema")` as NULL and warned the
+chunks came from "an older medsim", sending a user whose array all died to chase a
+version mismatch that does not exist; (2) `config$n_replications` was `-Inf`;
+(3) `partial_chunk` claimed reps the chunk did not hold. Fixed in `30ed22b`, guarded
+by case 21 with a reverted-guard positive control. Final: 1219 pass / 0 fail,
+`--as-cran` 0/0/1.
+
+Confirmed sound by the same review: both new detectors fire on their defects
+and stay silent on their negative controls; the schema vote behaves correctly
+across empty / all-empty / mixed-legacy combines; coverage and `converged`
+accounting are correct on mixed DGP+method-failure fixtures; the
+`medsim_run_failure` payload is properly schema-v2 stamped (L5's fix is
+effective); and a clean run is **bit-identical** to pre-#43 `aad6d02` — no
+silent RNG or ordering drift from the widened DGP `tryCatch`.
+
+### Adjacent work filed after this shipped
+
+None from #43 itself. The 2026-08-22 backlog grill separately found two **new**
+correctness defects in adjacent code — truth-cache poisoning and a
+gauge/probmed weight-bug exposure — tracked in
+[`SPEC-medsim-41-truth-integrity-2026-08-22.md`](SPEC-medsim-41-truth-integrity-2026-08-22.md)
+and [`GRILL-medsim-35-gauge-probmed-exposure-2026-08-22.md`](GRILL-medsim-35-gauge-probmed-exposure-2026-08-22.md).

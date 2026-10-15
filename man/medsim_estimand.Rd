@@ -46,7 +46,7 @@ Five kinds are recognised:\tabular{lll}{
    \code{"interval"} \tab \verb{\{p\}_lower/_upper}, \verb{\{p\}_im_lower/_im_upper}, \code{feasible}, \code{falsified} \tab truth in [lower, upper]; IM-CI coverage \cr
    \code{"probabilistic"} \tab \code{pmed}, \verb{pmed_ci_lower/_upper}, \code{pmed_p}, \code{branch_switch} \tab truth in CI (truth from potential outcomes) \cr
    \code{"variance_share"} \tab \code{{p}}, \verb{\{p\}_ci_lower/_upper} \tab truth in Wald CI (bounded scalar share in [0,1]) \cr
-   \code{"numeric"} \tab \code{error}, \code{abs_error}, \code{elapsed_sec} \tab none \cr
+   \code{"numeric"} \tab \code{est_error}, \code{abs_error}, \code{elapsed_sec} \tab none \cr
 }
 
 
@@ -79,7 +79,7 @@ medsim_estimand("probabilistic",
   extra  = "branch_switch")
 
 # Numerical accuracy (no coverage/power)
-medsim_estimand("numeric", params = "error", ci = "none",
+medsim_estimand("numeric", params = "est_error", ci = "none",
   extra = "elapsed_sec")
 
 }

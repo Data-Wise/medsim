@@ -1,3 +1,223 @@
+# medsim 0.6.0
+
+## New features
+
+* **`medsim_config()` gains `n` and `n_truth`.** `n` sets the sample size of
+  each simulated data set (`medsim_run()` passes it to every
+  `data_generator(n = )`). `n_truth` sets the size of the one large draw used to
+  compute ground truth. Both default to `NULL`, which keeps the runner's
+  defaults (200 and 10000) and leaves existing configs unchanged. They follow
+  `...`, so they match only by full name; `medsim_config(n = 100)` used to fail
+  because `n` partially matched `n_replications`, `n_cores` and `n_chunks`. The
+  sample size is now shown by `print()`.
+* **`medsim_analyze_performance()` accepts a `medsim_results` object** and
+  merges its `$truth` table itself, so `medsim_analyze_performance(results)`
+  works like the other `medsim_analyze_*()` functions. A data.frame that already
+  has `<param>_truth` columns still works as before. A missing truth now gives an
+  error that names the parameter and points to `compute_truth`. When only some
+  scenarios lack truth, their bias and RMSE are `NA` and a warning names those
+  scenarios.
+* **`medsim_analyze()` warns once, and only when it matters.** An SE, interval
+  or p-value column of a scored parameter (`<p>_se`, `<p>_ci_lower`,
+  `<p>_ci_upper`, `<p>_p`) is skipped silently. Any other output column without
+  a truth is listed in a single warning, instead of one warning per column.
+
+* **`medsim_method_mbco_mi()` gains `df = c("li", "chan_meng")`.** It sets the
+  denominator degrees of freedom of the D4 `F` reference for both `indirect_p`
+  and `indirect_p_fixed`. `"li"` (the default) keeps the Li et al. (1991) /
+  Meng-Rubin approximation, so existing results are unchanged. `"chan_meng"`
+  uses Chan and Meng (2022, eq. 2.15), `nu = k(K-1)(1 + 1/r4)^2`, the reference
+  of `mitml::testModels(method = "D4")`; with it, the p-value matches `mitml`
+  (`ariv = "positive"`) to 1e-6, where the legacy df matched only to about 10%.
+  The option re-refers the p-values only: the statistic, `r4`, `r4_fixed` and
+  the random-number stream are identical, so a run can switch df without
+  changing its replicates. Both choices give a chi-square reference when
+  `r4 = 0`. Eq. 2.15 is derived for the own-branch `r4` at a regular null; for
+  `ariv = "fixed"`, and at the nonregular null `a = b = 0`, either df is a
+  working reference whose calibration rests on simulation.
+
+* **`medsim_run_chunk()` gains `compute_truth`** (#41). Chunks previously
+  carried no `$truth`, so a combined cluster run supported power analysis but
+  not coverage or bias. Only chunk 1 computes truth, so it is computed once
+  rather than once per chunk. `config$compute_truth_every_chunk <- TRUE` opts
+  every chunk in. Chunk provenance records `truth_requested`.
+  `medsim_combine_chunks()` now unions truth across all chunks: it used to
+  discard every later chunk's truth whenever chunk 1 had none.
+* **Ground-truth integrity (#41).** A failed `compute_truth()` used to be
+  written to the truth cache, and every later run with the same fingerprint
+  loaded the failure. A failure is now never cached, and failure entries that
+  older versions cached are treated as misses and recomputed. A truth function
+  that succeeds but returns an unusable shape (a bare named vector, or a list
+  element of length > 1) is reported, where before it contributed nothing
+  silently. **Breaking:** `medsim_run(truth_on_failure = )` and
+  `medsim_run_chunk(truth_on_failure = )` default to `"stop"`, which raises a
+  `medsim_truth_failure_error` before any replication runs; this used to warn
+  and continue with an empty truth. Pass `truth_on_failure = "warn"` to
+  continue without that scenario's truth. Scenarios whose truth functions
+  return different parameters no longer crash the truth table.
+* **`truth_coverage` violation (#41).** `medsim_combine_chunks()` and
+  `medsim_audit_results()` raise it when truth rows carry no parameters, when a
+  scenario has results but no truth, or when chunks were asked for truth and
+  none carries it. It goes through `on_violation`. Runs that never requested
+  truth are unaffected.
+* **`medsim_analyze()` and `medsim_analyze_coverage()` stop on a truth table
+  with no parameter columns** (#41), where they used to return an empty
+  analysis as if it had succeeded.
+* **`medsim_cache_save()` writes atomically** (#41): it writes a temporary file
+  unique to the writer, next to the target, then renames it into place. A
+  failed rename stops with an error.
+
+## Documentation
+
+* **Three new articles.** "Tutorial: Your First Coverage Study" builds a
+  complete study step by step, from the data-generating model to coverage and
+  type I error with Monte Carlo SEs. "Analyzing and Reporting Results" maps each
+  question to its analysis function, and explains method comparison under common
+  random numbers, tables, figures and `medsim_workflow()`. "Cookbook: Recipes for
+  Common Tasks" has short recipes: scenario grids, sample size, nonnormal and
+  missing data, failing methods, caching and clusters.
+* **The sample size is documented:** `medsim_run()` calls each data generator
+  with the configuration's `n` (200 unless set with `medsim_config(n = )`), so a
+  generator's own default `n` is used only when you call it by hand.
+* **The missing-data vignette runs again.** Five of its six runnable chunks
+  failed against the current API (`medsim_amputate(vars =, rate =)`, a
+  `medsim_scenario_missing()` call without `true_params`, a grid with `rates`/`skew`,
+  and `medsim_run()` given a list of method factories). They now use `target`/`prop`,
+  `true_params`, `props`/`nonnormal_list`, and one method per `medsim_run()` call.
+  The vignette also gains a section on `ariv` and `df`, and no longer describes
+  `MC-CI` as a delta-method interval or `branch_switch` as a switching rate.
+* **`branch_switch` is documented as what it is:** the majority union-null branch
+  (1 = `a = 0`), so `medsim_summarize_branch_switch()` reports the share of
+  replicates whose majority branch is `a = 0`; imputation disagreement is `branch_mix`.
+* **The README and `medsim_method_mbco_mi()` no longer claim an exact `mitml`
+  match:** the D4 statistic matches, and the p-value matches only with
+  `df = "chan_meng"`.
+* **Runnable `@examples`** for `medsim_rnonnormal()`, `medsim_amputate()`,
+  `medsim_scenario_missing()`, `medsim_scenario_missing_grid()`,
+  `medsim_method_mbco_mi()`, `medsim_method_mc_ci()`, `medsim_method_ipw()`
+  and `medsim_summarize_branch_switch()` (the imputation-based ones in `\donttest{}`).
+
+## Bug fixes
+
+* **Overlapping attempts at one chunk no longer share a temporary file.**
+  `medsim_run_chunk()` wrote every attempt to `.chunk_NNNN.rds.tmp` before
+  renaming it into place. A SLURM retry that overlapped a still-running attempt
+  could therefore interleave writes, or rename the other attempt's half-written
+  file into place. Each attempt now writes its own temporary file (process ID
+  plus a random suffix) in `output_dir` and removes it on exit. When attempts
+  compete, a complete result always replaces the chunk file, and a partial
+  result never replaces a complete one: it warns, keeps the complete file, and
+  still exits with an error.
+
+* **`medsim_audit_results()` now reports partial chunks.** It audited only the
+  result rows, so a combined object recovered with `on_violation = "warn"`
+  passed a later standalone audit even when its `chunk_provenance` flagged a
+  chunk as partial: the surviving replication ids can still be contiguous. The
+  audit now raises the same `partial_chunk` violation, with the same message, as
+  `medsim_combine_chunks()`. Chunk provenance also records `n_rows`, so the
+  audit can say whether a flagged chunk is empty or truncated. Chunks written
+  before this version get a generic description. A bare data.frame carries no
+  provenance and skips the check.
+
+* **All-reps-failed chunks are no longer silently dropped (#50).**
+  `medsim_run_chunk()` short-circuited before writing a file when no
+  replication survived, so the chunk carried no `partial = TRUE` provenance
+  marker -- and a trailing all-failed chunk therefore combined with **zero**
+  integrity violations. The reserved-`error` contract violation fails *every*
+  replication of any chunk it touches, so `partial_chunk` could never fire for
+  the very defect class it was built to catch. Such chunks now write a flagged,
+  zero-row file (already a supported shape downstream) before re-`stop()`ing,
+  so `medsim_combine_chunks()` reports `partial_chunk` as designed. No API
+  change, but note the behavior change this intends: a run that previously
+  combined silently past an all-failed chunk now stops under the default
+  `on_violation = "stop"`.
+
+* **An all-chunks-failed combine now reports the real cause (#50).** With
+  every array task failing, `medsim_combine_chunks()` reached the seed audit
+  with zero rows and warned that the chunks *"lack the schema-v2 stamp
+  (produced by an older medsim)"* -- advice to chase a version mismatch that
+  does not exist, on a run whose actual problem is that every replication
+  failed. The audit now returns early on zero rows, `partial_chunk` says
+  "they hold no results at all" rather than "only their completed reps",
+  and `config$n_replications` is `0` instead of `-Inf`.
+
+* **The "real parallel" tests no longer run the serial path under
+  `R CMD check --as-cran` (#50).** `medsim_run_parallel()` falls back to
+  sequential execution when `_R_CHECK_LIMIT_CORES_` is set, and the three
+  cases meant to exercise the parallel failure path never cleared it -- so the
+  release gate's `--as-cran` run covered no parallel code in that file while
+  every assertion still passed. The fallback is correctness-preserving, which
+  is why nothing noticed. Those cases now clear the variable, keep the fixture
+  clear of the four-task fallback floor, and a new positive-control test
+  asserts replications actually execute on worker processes.
+
+* **Numeric-kind contract collision fixed.** v0.5.0 declared `error` both as
+  the mandatory result column of the `"numeric"` estimand kind
+  (`medsim_scenario_numeric()`, `medsim_estimand()` docs) and as a reserved
+  failure-schema field that `medsim_run()` rejects when a successful
+  `method()` returns it -- the documented numeric contract was unusable as
+  written. The mandatory column is now `est_error` (breaking only for code
+  written against the never-runnable v0.5.0 contract).
+
+* **`medsim_combine_chunks()` schema-vote fixed to not be vetoed by an empty
+  chunk.** A single legitimately empty chunk (e.g. `n_chunks > n_reps`)
+  counted as "not schema-v2" in the whole-combine vote, stripping the
+  schema-v2 stamp and silently skipping the replication-id contiguity and
+  cross-scenario seed-collision audits for every chunk, not just the empty
+  one. Empty chunks are now exempted from the vote.
+
+* **New `partial_chunk` integrity violation.** A chunk written by a task that
+  failed mid-run can still present a clean, contiguous id block (e.g. 1-15 of
+  an intended 20) that the contiguity audit alone cannot distinguish from a
+  genuinely complete chunk. `medsim_combine_chunks()`/`medsim_audit_results()`
+  now flag any chunk whose provenance is marked `partial = TRUE`.
+
+* **New `dgp_failure` Gate A violation.** A `data_generator()` failure row
+  (introduced alongside this fix) still carries a valid, contiguous global
+  replication id, so the contiguity audit alone can no longer detect it as
+  missing data. `medsim_combine_chunks()`/`medsim_audit_results()` now report
+  the count of `data_generator()`-failure rows directly.
+
+* **`medsim_run(parallel = TRUE)` no longer silently drops replications on a
+  task-level error.** An error escaping a replication task -- a contract
+  violation (the reserved-`error`-field stop) or an infrastructure error, as
+  opposed to a `method()`/`data_generator()` failure (both of which already
+  became failure rows) -- was caught internally and then silently dropped by
+  `.medsim_rbind_reps()`'s row filter: the run "succeeded" with fewer rows and
+  no diagnostic. `medsim_run()` now stops with a `medsim_run_failure`
+  condition (subclass of `medsim_error`) carrying whatever completed before
+  the failure -- recover it with
+  `tryCatch(medsim_run(...), medsim_run_failure = function(e) e$results)`.
+  Serial (`parallel = FALSE`) execution gets the same per-task handling, so
+  both modes now behave identically on a task-level error.
+
+* **`data_generator()` failures are now failure rows, not silent aborts (or
+  crashes) that stop the whole run.** A failing `data_generator()` produces a
+  failure row (`error = "data_generator error: <msg>"`, distinct from a
+  `method()` failure's plain message) and the run continues; the estimator
+  correctly never runs for that replication, and `converged` stays `NA`
+  rather than being forced to `0` (which would have poisoned
+  `converged_mean`). `medsim_analyze_coverage()`'s output gains
+  `n_dgp_failed`/`dgp_failure_rate` alongside the existing
+  `n_failed`/`failure_rate` (now conditional on `data_generator()` having
+  succeeded) -- the two rates use different denominators and do not sum, by
+  design.
+
+* **`medsim_run_chunk()` rescues partial results on a task-level failure.** A
+  chunk interrupted by a `medsim_run_failure` now writes its completed
+  replications atomically (with provenance `partial = TRUE`) before
+  re-`stop()`ing, instead of losing the whole chunk. The array task still
+  exits nonzero for `sacct` visibility -- this is forensics, not a
+  `--requeue` signal.
+
+* **`medsim_check_results(list())` no longer errors** on the supported
+  `n_replications == 0` case (empty task list).
+
+* **`medsim_summarize_results()` reports `NA`, not `Inf`/`-Inf`, for an
+  all-`NA` cell** (e.g. every replication in a scenario a `data_generator()`
+  failure) -- `min()`/`max()` no longer emit a "no non-missing arguments"
+  warning for a cell with genuinely nothing to summarize.
+
 # medsim 0.5.1
 
 ## New features

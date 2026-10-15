@@ -25,3 +25,11 @@ A list of \code{medsim_scenario} objects.
 Convenience: expand \code{SPEC-simulation-design} cells (mechanism x prop x n x effect x
 nonnormality) into a list of \code{\link[=medsim_scenario_missing]{medsim_scenario_missing()}} objects in one call.
 }
+\examples{
+grid <- medsim_scenario_missing_grid(
+  true_params_list = list(small = list(a = 0.14, b = 0.14, cp = 0.14)),
+  mechanisms = c("MCAR", "MAR"),
+  props = c(0.1, 0.3)
+)
+length(grid)
+}

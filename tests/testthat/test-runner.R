@@ -596,8 +596,8 @@ test_that("medsim_compute_all_truth uses cache on second call (cache-hit path)",
   )
 })
 
-test_that("medsim_compute_all_truth warns and records error when truth_fn fails", {
-  # runner.R:417-419: tryCatch error branch → warning + list(error = e$message)
+test_that("medsim_compute_all_truth stops by default when truth_fn fails, warns under 'warn'", {
+  # #41 D6: the default flipped from warn-and-cache-the-failure to stop (0.6.0)
   out_dir <- withr::local_tempdir()
   sc <- medsim_scenario(
     name = "truth_error_test",
@@ -609,11 +609,24 @@ test_that("medsim_compute_all_truth warns and records error when truth_fn fails"
   failing_truth <- function(data, params) stop("deliberate truth failure")
   cfg <- medsim_config("test", output_dir = out_dir)
 
-  expect_warning(
+  err <- tryCatch(
     suppressMessages(
       medsim_compute_all_truth(list(sc), truth_function = failing_truth,
                                config = cfg, parallel = FALSE, verbose = FALSE)
     ),
+    medsim_truth_failure_error = function(e) e
+  )
+  expect_s3_class(err, "medsim_truth_failure_error")
+  expect_identical(err$scenario, "truth_error_test")
+  expect_match(conditionMessage(err), "deliberate truth failure")
+
+  expect_warning(
+    out <- suppressMessages(
+      medsim_compute_all_truth(list(sc), truth_function = failing_truth,
+                               config = cfg, parallel = FALSE, verbose = FALSE,
+                               truth_on_failure = "warn")
+    ),
     "Truth computation failed"
   )
+  expect_null(out)
 })

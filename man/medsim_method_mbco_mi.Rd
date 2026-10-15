@@ -4,7 +4,13 @@
 \alias{medsim_method_mbco_mi}
 \title{MBCO-MI estimator adapter}
 \usage{
-medsim_method_mbco_mi(model, m = 20L, ariv = c("own", "fixed"), ...)
+medsim_method_mbco_mi(
+  model,
+  m = 20L,
+  ariv = c("own", "fixed"),
+  df = c("li", "chan_meng"),
+  ...
+)
 }
 \arguments{
 \item{model}{Mediation model spec (accepted for API symmetry; the estimator
@@ -24,6 +30,18 @@ diagnostics \code{branch_mix}, \code{p_branch_a}, \code{stacked_branch}, \code{r
 that fit's branch and \code{r4 = r4_fixed = 0}; on the error path all six are
 \code{NA}).}
 
+\item{df}{Denominator degrees of freedom for the D4 \code{F} reference, used for
+both \code{indirect_p} and \code{indirect_p_fixed}: \code{"li"} (default, legacy) is the
+Li et al. (1991) / Meng-Rubin approximation, \eqn{\nu = 4 + (k(K-1) - 4)\{1 +
+(1 - 2/(k(K-1)))/r_4\}^2} when \eqn{k(K-1) > 4}; \code{"chan_meng"} is Chan and
+Meng (2022, eq. 2.15), \eqn{\nu = k(K-1)(1 + 1/r_4)^2}, the reference used by
+\code{mitml::testModels(method = "D4")}. Both give \eqn{\nu = \infty} (a
+chi-square reference) when \eqn{r_4 = 0}. Chan and Meng derive eq. 2.15 for the
+own-branch \eqn{r_4} at a regular null; for \code{ariv = "fixed"}, and at the
+nonregular null \eqn{a = b = 0}, either choice is a working reference whose
+calibration rests on simulation. The choice changes only the p-values: the
+statistic, \eqn{r_4} and the random-number stream are identical.}
+
 \item{...}{Reserved for future MI / MBCO options.}
 }
 \value{
@@ -32,8 +50,9 @@ A \verb{function(data, params)} returning the shared method contract (see file h
 \description{
 Multiple imputation (via \code{mice}) + \strong{D4-stacked MBCO} likelihood-ratio
 inference for the union null \code{H0: ab = 0}. Ports the validated
-\verb{Missing Effect/code/prototype-d4-mbco.R} (phase-2, exact match vs
-\code{mitml::testModels(method = "D4")}): per-imputation MBCO LRTs are pooled with
+\verb{Missing Effect/code/prototype-d4-mbco.R} (phase-2; the D4 statistic matches
+\code{mitml::testModels(method = "D4")}, and so does the p-value with
+\code{df = "chan_meng"}): per-imputation MBCO LRTs are pooled with
 the Reiter/Chan-Meng D4 rule (Grund et al. 2021) into an F reference.
 }
 \details{
@@ -41,4 +60,18 @@ The point estimate is the Rubin-pooled \code{a*b}; the CI is a Monte-Carlo produ
 interval on the pooled paths; the p-value is the D4-pooled MBCO test. With no
 missingness (or without \code{mice}) it degrades to the complete-case MBCO LRT with
 a chi-square reference -- never to a Sobel normal approximation for the test.
+}
+\examples{
+\donttest{
+if (requireNamespace("mice", quietly = TRUE)) {
+  set.seed(1)
+  d <- data.frame(X = rnorm(200))
+  d$M <- 0.39 * d$X + rnorm(200)
+  d$Y <- 0.39 * d$M + 0.14 * d$X + rnorm(200)
+  d <- medsim_amputate(d, target = "M", mechanism = "MAR", prop = 0.25)
+  fit <- medsim_method_mbco_mi(model = NULL, m = 10, ariv = "fixed", df = "chan_meng")
+  out <- fit(d, list())
+  out[c("indirect", "indirect_p", "indirect_p_fixed", "r4_fixed")]
+}
+}
 }

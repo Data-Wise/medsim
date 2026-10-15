@@ -19,7 +19,9 @@ medsim_config(
   walltime = NULL,
   mem_per_cpu = NULL,
   r_module = NULL,
-  ...
+  ...,
+  n = NULL,
+  n_truth = NULL
 )
 }
 \arguments{
@@ -43,12 +45,13 @@ scenario during development}
 \item{output_dir}{Character: Directory for saving results}
 
 \item{seed}{Integer: Base seed, stored on the config and printed for
-provenance. \strong{Does not itself determine replication draws} -- since the
-\code{.medsim_det_seed()} fix, \code{\link[=medsim_run]{medsim_run()}} seeds each replication
-deterministically from \verb{(scenario_name, global_rep_id)}, independent of
-\code{seed}/chunk/worker/cluster-type. \code{seed} is only consulted if you call
-\code{\link[=medsim_run_parallel]{medsim_run_parallel()}} directly (its own \verb{seed=} argument, documented
-there). See \code{seed_stream} below for its deprecation.}
+provenance. Consulted directly by \code{\link[=medsim_run]{medsim_run()}} to seed the
+\code{compute_truth} pass (\code{set.seed(config$seed)} before computing ground
+truth), so every chunk of an array computes the same truth. \strong{Does not}
+determine individual replication draws -- since the \code{.medsim_det_seed()}
+fix, those are seeded deterministically from
+\verb{(scenario_name, global_rep_id)}, independent of \code{seed}/chunk/worker/
+cluster-type. See \code{seed_stream} below for its deprecation.}
 
 \item{chunk_id}{Integer: SLURM array task index (1-based) for this chunk.
 Auto-detected from \code{SLURM_ARRAY_TASK_ID} when running inside a SLURM
@@ -81,6 +84,16 @@ cluster mode.}
 Defaults to \code{"r/4.4.0-ytj2"} (UNM CARC Hopper) in cluster mode.}
 
 \item{...}{Additional custom parameters}
+
+\item{n}{Positive whole number or \code{NULL}: the sample size of each simulated
+data set. \code{\link[=medsim_run]{medsim_run()}} and \code{\link[=medsim_run_chunk]{medsim_run_chunk()}} call every scenario's
+\code{data_generator(n = n)}. \code{NULL} (the default) leaves it unset, and the
+runner uses 200. Because it follows \code{...}, it must be named in full:
+\code{medsim_config("local", n = 100)}.}
+
+\item{n_truth}{Positive whole number or \code{NULL}: the sample size of the single
+large data set drawn to compute ground truth (see \code{compute_truth} in
+\code{\link[=medsim_run]{medsim_run()}}). \code{NULL} (the default) uses 10000.}
 }
 \value{
 A list with simulation configuration parameters
@@ -140,6 +153,9 @@ config_local <- medsim_config(
 
 # Cluster mode (auto-detects SLURM cores)
 config_cluster <- medsim_config(mode = "cluster")
+
+# Sample size of each simulated data set (default 200)
+config_n100 <- medsim_config(mode = "local", n = 100)
 
 # Custom parameters
 config_custom <- medsim_config(

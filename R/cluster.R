@@ -168,15 +168,52 @@ medsim_write_submit_script <- function(config,
 #'   chunk's provenance. `NULL` (default) auto-detects via
 #'   `git rev-parse HEAD` in the running script's directory, degrading to
 #'   `pkg:medsim-<version>` outside a git tree.
+#' @param compute_truth Optional function with signature `(data, params)`,
+#'   passed to [medsim_run()]. Without it the combined result carries no
+#'   `$truth`, so it supports power analysis but not coverage or bias. Only
+#'   **chunk 1** computes truth; every other chunk ignores `compute_truth`,
+#'   so truth is computed once, not once per chunk. Set
+#'   `config$compute_truth_every_chunk <- TRUE` to compute it in every chunk
+#'   (useful only when truth is cheap and chunk 1 may not survive). Truth is
+#'   seeded from `config$seed`, so chunks that compute it agree, and
+#'   [medsim_combine_chunks()] keeps one row per scenario from whichever chunks
+#'   carry it. The chunk's provenance records `truth_requested`, so a combine
+#'   that should have truth but does not raises a `truth_coverage` violation.
 #'
-#' @return Invisibly, the path of the RDS file written.
+#'   Chunk 1 then runs longer than the others (truth plus its replications);
+#'   size `--time` for it, not from a pilot of another chunk. To keep chunk 1
+#'   balanced, compute truth once before submitting: a short `medsim_run()`
+#'   over the same scenarios, `compute_truth` and `output_dir` warms the truth
+#'   cache, and chunk 1 then loads the truth instead of computing it. Keep
+#'   passing `compute_truth` to the chunks: it is what records
+#'   `truth_requested`, so a lost truth is still reported at combine.
+#'
+#' @param truth_on_failure `"stop"` (default) or `"warn"`, passed to
+#'   [medsim_run()]. Under `"stop"` a failed truth stops chunk 1 before any
+#'   replication runs, so no chunk file is written and the array task exits
+#'   nonzero.
+#'
+#' @return Invisibly, the path of the RDS file written. If a task-level error
+#'   (a `medsim_run_failure` from [medsim_run()]) interrupts the chunk, whatever
+#'   replications completed are still written -- atomically, with provenance
+#'   `partial = TRUE` -- before this function re-`stop()`s so the array task
+#'   still exits nonzero (`sacct` visibility, not a `--requeue` signal).
+#'   **This holds even when NO replication completed**: a chunk whose every
+#'   replication failed writes a flagged, zero-row file rather than no file at
+#'   all. That file is the only carrier of the `partial = TRUE` marker, and
+#'   without it a trailing all-failed chunk would combine with zero violations
+#'   (the contiguity audit cannot see it -- the surviving ids are a clean
+#'   `1..k` block). [medsim_combine_chunks()]/[medsim_audit_results()] flag any
+#'   such chunk via the `partial_chunk` violation.
 #'
 #' @seealso [medsim_combine_chunks()], [medsim_audit_results()],
 #'   [medsim_write_submit_script()]
 #'
 #' @export
 medsim_run_chunk <- function(scenarios, method, config, verbose = TRUE,
-                             code_sha = NULL) {
+                             code_sha = NULL, compute_truth = NULL,
+                             truth_on_failure = c("stop", "warn")) {
+  truth_on_failure <- match.arg(truth_on_failure)
   if (!inherits(config, "medsim_config")) {
     stop("config must be a medsim_config object")
   }
@@ -195,33 +232,117 @@ medsim_run_chunk <- function(scenarios, method, config, verbose = TRUE,
                     chunk_id, n_chunks, indices[1L], indices[length(indices)]))
   }
 
+  # Truth is computed by chunk 1 only (#41 D1), unless the caller opts every
+  # chunk in; medsim_combine_chunks() unions truth across chunks.
+  chunk_truth <- if (identical(as.integer(chunk_id), 1L) ||
+                     isTRUE(config$compute_truth_every_chunk)) compute_truth
   # Build a per-chunk config with only the reps for this chunk
   chunk_config <- config
   chunk_config$n_replications <- length(indices)
   chunk_config$rep_offset     <- indices[1L] - 1L
 
-  results <- medsim_run(method, scenarios, chunk_config)
+  # A task-level error (medsim_run_failure, #43 PR-B) still carries whatever
+  # replications completed before the failure -- rescue them to disk instead
+  # of losing an hours-long chunk to one bad replication, then re-stop() so
+  # the array task still exits nonzero (sacct visibility; NOT a --requeue
+  # signal -- a nonzero SLURM exit does not requeue on its own; see
+  # internal/GRILL-medsim-43-parallel-fail-loud-2026-07-31.md).
+  run_failure <- NULL
+  results <- tryCatch(
+    medsim_run(method, scenarios, chunk_config, compute_truth = chunk_truth,
+               truth_on_failure = truth_on_failure),
+    medsim_run_failure = function(e) {
+      run_failure <<- e
+      e$results
+    }
+  )
+
+  # An all-reps-failed chunk still writes a file (#50 PM1). It was previously
+  # short-circuited here as "no partial file worth writing", but the file is
+  # what carries `partial = TRUE` into medsim_combine_chunks() -- without it a
+  # trailing failed chunk combines with ZERO violations, and the reserved-
+  # `error` class that motivated #43 fails EVERY rep, so it could never fire
+  # `partial_chunk` at all. An empty flagged chunk is already a supported
+  # shape downstream: empty chunks are exempt from the schema vote (see
+  # `chunk_is_empty` below) and `partial_flags` reads every chunk's provenance.
+  if (is.null(results)) stop(run_failure %||% "medsim_run_chunk: no results")
 
   # Gate C: provenance header. Auto-detect the code SHA unless caller-stamped
   # (an opt-in-only SHA would leave the combine assertion inert -- grill B5).
   if (is.null(code_sha)) code_sha <- .medsim_detect_code_sha()
   n_rows <- if (is.null(results$results)) 0L else nrow(results$results)
+  sec_per_rep <- if (n_rows > 0L && !all(is.na(results$results$elapsed))) {
+    mean(results$results$elapsed, na.rm = TRUE)
+  } else {
+    NA_real_
+  }
   attr(results, "provenance") <- list(
     r_version      = as.character(getRversion()),
     medsim_version = as.character(utils::packageVersion("medsim")),
     dep_versions   = .medsim_dep_versions(),
     hostname       = Sys.info()[["nodename"]],
     code_sha       = code_sha,
-    sec_per_rep    = if (n_rows > 0L) mean(results$results$elapsed) else NA_real_,
-    timestamp_utc  = format(Sys.time(), tz = "UTC", usetz = TRUE)
+    sec_per_rep    = sec_per_rep,
+    timestamp_utc  = format(Sys.time(), tz = "UTC", usetz = TRUE),
+    partial        = !is.null(run_failure),
+    n_rows         = n_rows,
+    truth_requested = !is.null(compute_truth)
   )
 
   output_dir  <- config$output_dir %||% "simulation_results"
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   out_path <- file.path(output_dir, .medsim_chunk_filename(chunk_id))
-  saveRDS(results, out_path)
 
-  if (verbose) message(sprintf("[medsim_run_chunk] saved -> %s", out_path))
+  # Atomic write: a same-filesystem rename is all-or-nothing, so a crash
+  # mid-write never leaves a half-written chunk file for
+  # medsim_combine_chunks() to read. The tmp file MUST live inside
+  # output_dir, not tempdir() -- tempdir() is typically a different
+  # filesystem on HPC, and a cross-device file.rename() fails by returning
+  # FALSE, not by erroring.
+  #
+  # The tmp name is unique per attempt (pid + random suffix): a SLURM retry of
+  # the same chunk can overlap a still-running first attempt, and a shared tmp
+  # path would let the two writers interleave, or let one rename move the
+  # other's half-written file into place. The leading "." and ".tmp" suffix
+  # keep tmp files out of medsim_combine_chunks()'s "chunk_*.rds" glob.
+  tmp_path <- tempfile(
+    pattern = sprintf(".%s.%d.", basename(out_path), Sys.getpid()),
+    tmpdir  = output_dir, fileext = ".tmp"
+  )
+  on.exit(if (file.exists(tmp_path)) unlink(tmp_path), add = TRUE)
+  saveRDS(results, tmp_path)
+
+  # Competing attempts: a complete attempt always replaces the chunk file
+  # (its replications are seeded from (scenario, rep id), so complete attempts
+  # agree). A partial attempt never replaces a complete file -- otherwise a
+  # failed retry finishing last would throw away a good chunk.
+  is_partial <- !is.null(run_failure)
+  keep_existing <- is_partial && file.exists(out_path) &&
+    isFALSE(tryCatch(attr(readRDS(out_path), "provenance")$partial,
+                     error = function(e) NA))
+  if (keep_existing) {
+    warning(sprintf(paste(
+      "medsim_run_chunk: chunk %d failed partway, but '%s' already holds a",
+      "complete result from another attempt; kept that file and discarded",
+      "this partial one."), chunk_id, out_path), call. = FALSE)
+  } else {
+    renamed <- file.rename(tmp_path, out_path)
+    if (!isTRUE(renamed)) {
+      stop(sprintf(paste(
+        "medsim_run_chunk: failed to atomically rename '%s' to '%s'",
+        "(cross-device rename? tmp and output_dir must be on the same",
+        "filesystem)"), tmp_path, out_path), call. = FALSE)
+    }
+    if (verbose) message(sprintf("[medsim_run_chunk] saved -> %s", out_path))
+  }
+
+  if (!is.null(run_failure)) {
+    # Re-stop so the SLURM task exits nonzero and sacct/the array log show
+    # the failure -- the partial file above is forensics, not a silent
+    # "succeeded" exit code.
+    stop(run_failure)
+  }
+
   invisible(out_path)
 }
 
@@ -244,7 +365,9 @@ medsim_run_chunk <- function(scenarios, method, config, verbose = TRUE,
 #' @param on_violation One of `"stop"` (default), `"warn"`, `"ignore"`: what to
 #'   do when an integrity violation is found (missing chunks, duplicate or
 #'   gapped replication ids, ragged cells, output collapse, all-failed cells,
-#'   cross-scenario seed collisions). `"stop"` signals a
+#'   cross-scenario seed collisions, a chunk flagged partial by a failed
+#'   task -- including one whose every replication failed -- or a nonzero
+#'   count of `data_generator()` failures). `"stop"` signals a
 #'   `medsim_combine_violation` condition that CARRIES the combined results --
 #'   recover an hours-long run's good cells with
 #'   `tryCatch(medsim_combine_chunks(...), medsim_combine_violation = function(e) e$results)`.
@@ -341,14 +464,15 @@ medsim_combine_chunks <- function(output_dir, pattern = "chunk_*.rds",
   # names', the same ragged class fixed within-run by P3.
   all_results <- .medsim_rbind_reps(lapply(chunks, function(ch) ch$results))
 
-  # Truth is scenario-level (same across chunks) -- use the first chunk's
-  truth <- chunks[[1L]]$truth
+  # Truth is scenario-level (same across chunks). Union it across EVERY chunk
+  # that carries it (#41 R5): seeding from chunk 1 discarded all later truth
+  # whenever chunk 1 had none -- e.g. a chunk 1 rerun after its truth landed
+  # elsewhere. One row per scenario (first occurrence); column-union bind so
+  # differing parameter sets cannot crash the merge (#41 R4).
+  truth <- .medsim_rbind_union(lapply(chunks, function(ch) ch$truth))
   if (!is.null(truth)) {
-    for (ch in chunks[-1L]) {
-      if (is.null(ch$truth)) next
-      new_rows <- ch$truth[!ch$truth$scenario %in% truth$scenario, , drop = FALSE]
-      if (nrow(new_rows) > 0L) truth <- rbind(truth, new_rows)
-    }
+    truth <- truth[!duplicated(truth$scenario), , drop = FALSE]
+    rownames(truth) <- NULL
   }
 
   # Build combined medsim_results. Chunk 1's $summary and $config describe ONE
@@ -363,34 +487,64 @@ medsim_combine_chunks <- function(output_dir, pattern = "chunk_*.rds",
   # holding colliding legacy ids => the audit hard-stopped with a misdiagnosed
   # dup_rep_id, violating the never-stop-on-legacy promise). Stamp when ALL
   # chunks are v2; otherwise STRIP whatever rbind inherited and warn once.
-  chunk_v2 <- vapply(chunks, function(ch) {
+  # A NULL/zero-row chunk (a supported case: n_chunks > n_reps, or the empty
+  # tail of an uneven split) carries no schema stamp either way -- voting it
+  # as "not v2" struck schema-v2 status, and with it Gate A.1/A.3, from the
+  # ENTIRE combine over one legitimately empty chunk. Exempt empty chunks from
+  # the vote; only non-empty chunks' actual stamps decide schema_v2.
+  chunk_is_empty <- vapply(chunks, function(ch) {
+    is.null(ch$results) || nrow(ch$results) == 0L
+  }, logical(1))
+  chunk_v2 <- vapply(chunks[!chunk_is_empty], function(ch) {
     identical(attr(ch$results, "medsim_schema", exact = TRUE), 2L)
   }, logical(1))
-  schema_v2 <- all(chunk_v2)
-  if (schema_v2) {
+  schema_v2 <- length(chunk_v2) == 0L || all(chunk_v2)
+  non_empty_idx <- which(!chunk_is_empty)
+  # all_results is NULL when every chunk is empty (.medsim_rbind_reps drops
+  # them all) -- attr<-() errors on NULL for a non-NULL value (works fine for
+  # NULL, which is why the pre-fix all-FALSE vote never hit this), so the
+  # vacuous schema_v2 = TRUE from an empty chunk_v2 must not try to stamp it.
+  if (schema_v2 && !is.null(all_results)) {
     attr(all_results, "medsim_schema") <- 2L
-    attr(all_results, "medsim_meta_cols") <-
-      attr(chunks[[1L]]$results, "medsim_meta_cols", exact = TRUE)
-  } else {
+    attr(all_results, "medsim_meta_cols") <- if (length(non_empty_idx) > 0L) {
+      attr(chunks[[non_empty_idx[1L]]]$results, "medsim_meta_cols",
+           exact = TRUE)
+    } else {
+      NULL
+    }
+  } else if (!schema_v2) {
     attr(all_results, "medsim_schema") <- NULL
     attr(all_results, "medsim_meta_cols") <- NULL
     warning(sprintf(paste(
-      "medsim_combine_chunks: %d of %d chunk files lack the schema-v2 stamp",
-      "(written by an older medsim; `replication` ids are chunk-local and",
-      "collide across chunks). Id-based audits are skipped and rows are NOT",
-      "uniquely identifiable -- re-run the chunks under this medsim version",
-      "for full auditability."),
-      sum(!chunk_v2), length(chunks)), call. = FALSE)
+      "medsim_combine_chunks: %d of %d non-empty chunk files lack the",
+      "schema-v2 stamp (written by an older medsim; `replication` ids are",
+      "chunk-local and collide across chunks). Id-based audits are skipped",
+      "and rows are NOT uniquely identifiable -- re-run the chunks under",
+      "this medsim version for full auditability."),
+      sum(!chunk_v2), length(chunk_v2)), call. = FALSE)
   }
 
   combined$results <- all_results
   combined$truth   <- truth
-  combined$summary <- medsim_summarize_results(all_results)
+  # all_results is NULL when every chunk is empty (all array tasks failed --
+  # reachable since #50 PM1). Summarizing NULL only emits a bare "No numeric
+  # columns to summarize" warning on top of the real diagnosis.
+  combined$summary <- if (is.null(all_results)) {
+    NULL
+  } else {
+    medsim_summarize_results(all_results)
+  }
 
   # Rows-per-scenario is the true combined replication count for both schema
   # versions (schema v1's local ids under-count via max()); chunk-only fields
   # are meaningless on a combined object.
-  combined$config$n_replications <- max(table(all_results$scenario))
+  # max() over an empty table returns -Inf with a bare base-R warning, and that
+  # value would be baked into the returned object (#50 review, finding 2).
+  combined$config$n_replications <- if (is.null(all_results)) {
+    0L
+  } else {
+    max(table(all_results$scenario))
+  }
   combined$config$rep_offset <- NULL
   combined$config$chunk_id   <- NULL
   combined$n_chunks_combined <- length(files)
@@ -404,6 +558,18 @@ medsim_combine_chunks <- function(output_dir, pattern = "chunk_*.rds",
   # on_violation = "warn".
   provs <- lapply(chunks, function(ch) attr(ch, "provenance", exact = TRUE))
   combined$chunk_provenance <- provs
+
+  # A task that fails mid-run writes what it has and flags its chunk
+  # `partial = TRUE` (R/runner.R, on the failure path). Gate A.1's contiguity
+  # check cannot catch this on its own: `expected <- seq_len(max(ids))` is
+  # self-validating only up to the highest id actually present, so a
+  # truncation (e.g. 20 reps intended, 15 written) that still lands a
+  # contiguous 1..15 block produces ZERO contiguity violations without an
+  # external `nsim` (empirically confirmed). The provenance marker is the
+  # only reliable signal that a chunk is short by design, not by construction.
+  violations <- c(violations,
+                  .medsim_partial_chunk_violation(provs, chunk_is_empty),
+                  .medsim_truth_coverage_violation(all_results, truth, provs))
   shas <- vapply(provs, function(p) {
     if (is.null(p) || is.null(p$code_sha)) NA_character_ else p$code_sha
   }, character(1))
@@ -471,6 +637,12 @@ medsim_combine_chunks <- function(output_dir, pattern = "chunk_*.rds",
 #'    collapse.
 #' 3. **Seed-space collisions** -- no two scenarios map onto overlapping
 #'    [.medsim_det_seed()] sequences (the ~1e6-bucket name hash can collide).
+#' 4. **Partial chunks** -- for a combined object, any chunk whose provenance
+#'    is flagged `partial` (a task failed mid-run) is reported as a
+#'    `partial_chunk` violation, exactly as [medsim_combine_chunks()] reports
+#'    it. The surviving ids of a partial chunk can still be contiguous, so
+#'    checks 1-3 alone would pass it. A bare data.frame carries no provenance
+#'    and skips this check.
 #'
 #' Frames without the schema-v2 stamp (produced before medsim 0.5.0, when
 #' `replication` was chunk-LOCAL and collided across chunks) skip checks 1
@@ -498,15 +670,130 @@ medsim_audit_results <- function(results,
   if (is.null(df) || nrow(df) == 0L) {
     stop("medsim_audit_results: no result rows to audit")
   }
-  violations <- .medsim_audit_seed_provenance(
-    df, nsim = nsim,
-    collapse_threshold = collapse_threshold,
-    collapse_digits    = collapse_digits,
-    collapse_min_cell  = collapse_min_cell,
-    collapse_exclude   = collapse_exclude)
+  # A combined object carries each chunk's provenance; a chunk flagged
+  # partial is missing results that the row-level audit below cannot see
+  # (the surviving ids can still form a contiguous 1..k block).
+  provs <- if (is.data.frame(results)) NULL else results$chunk_provenance
+  violations <- c(
+    .medsim_partial_chunk_violation(provs),
+    # A bare data.frame carries no $truth: nothing to check (#41 case 19).
+    if (!is.data.frame(results)) {
+      .medsim_truth_coverage_violation(df, results$truth, provs)
+    },
+    .medsim_audit_seed_provenance(
+      df, nsim = nsim,
+      collapse_threshold = collapse_threshold,
+      collapse_digits    = collapse_digits,
+      collapse_min_cell  = collapse_min_cell,
+      collapse_exclude   = collapse_exclude))
   .medsim_signal_violations(violations, results, on_violation,
                             context = "medsim_audit_results")
   invisible(violations)
+}
+
+#' Test whether failure-row error messages are data_generator() failures
+#'
+#' @description
+#' `medsim_run()`/`medsim_run_chunk()` tag a `data_generator()` failure
+#' differently from a `method()` failure (message prefix
+#' `"data_generator error: "`) so combine-time diagnostics can distinguish
+#' "the estimator failed" from "the estimator never ran." Contract: `NULL` in
+#' (a legacy or user-built frame with no `error` column) returns `logical(0)`,
+#' matching the empty-input behavior callers already rely on for `error`.
+#'
+#' @param error Character vector (typically `df$error`), or `NULL`.
+#' @return Logical vector the same length as `error`.
+#' @keywords internal
+.medsim_is_dgp_failure <- function(error) {
+  if (is.null(error)) return(logical(0))
+  !is.na(error) & startsWith(error, "data_generator error: ")
+}
+
+# The `partial_chunk` violation, shared by medsim_combine_chunks() and
+# medsim_audit_results() so the two cannot drift.
+#
+# A task that fails mid-run writes what it has and flags its chunk
+# `partial = TRUE` (medsim_run_chunk(), on the failure path). Gate A.1's
+# contiguity check cannot catch this on its own: `expected <- seq_len(max(ids))`
+# is self-validating only up to the highest id actually present, so a
+# truncation (e.g. 20 reps intended, 15 written) that still lands a contiguous
+# 1..15 block produces ZERO contiguity violations without an external `nsim`.
+# The provenance marker is the only reliable signal that a chunk is short.
+#
+# `chunk_is_empty` comes from the chunk files at combine time. Without it
+# (standalone audit), emptiness is read from the provenance `n_rows` stamp;
+# chunks written before that stamp existed get a generic detail.
+.medsim_partial_chunk_violation <- function(provs, chunk_is_empty = NULL) {
+  if (length(provs) == 0L) return(list())
+  partial_flags <- vapply(provs, function(p) isTRUE(p$partial), logical(1))
+  if (!any(partial_flags)) return(list())
+  if (is.null(chunk_is_empty)) {
+    chunk_is_empty <- vapply(provs, function(p) {
+      if (is.null(p$n_rows)) NA else p$n_rows == 0L
+    }, logical(1))
+  }
+  flagged_empty <- chunk_is_empty[partial_flags]
+  # A flagged chunk may hold SOME completed reps or NONE at all (every rep
+  # failed -- reachable since #50 PM1). Saying "holds only its completed
+  # reps" of an empty chunk describes the wrong failure to the user.
+  detail <- if (anyNA(flagged_empty)) {
+    "a replication task failed in them, so they hold fewer reps than assigned"
+  } else if (all(flagged_empty)) {
+    "every replication in them failed -- they hold no results at all"
+  } else if (any(flagged_empty)) {
+    sprintf(paste("a replication task failed mid-run; %d of the flagged",
+                  "chunk(s) hold no results at all, the rest hold only",
+                  "their completed reps"), sum(flagged_empty))
+  } else {
+    "a replication task failed mid-run and they hold only their completed reps"
+  }
+  list(list(
+    type = "partial_chunk",
+    message = sprintf(
+      "%d of %d chunk file(s) are flagged partial (%s) -- results are missing, not just truncated",
+      sum(partial_flags), length(partial_flags), detail)))
+}
+
+# The `truth_coverage` violation (#41 D2'), shared by medsim_combine_chunks()
+# and medsim_audit_results(). Raised in the combine BODY, never inside
+# .medsim_audit_seed_provenance(), which returns early on a zero-row frame.
+#   (a) degenerate: truth rows exist but carry no parameter columns;
+#   (b) missing:    a scenario has results but no truth row;
+#   (c) lost:       a chunk was asked for truth (provenance truth_requested)
+#                   yet the combined object carries none.
+# A run that never requested truth (truth NULL, no truth_requested) is silent.
+.medsim_truth_coverage_violation <- function(results_df, truth, provs = NULL) {
+  out <- list()
+  if (!is.null(truth)) {
+    if (length(setdiff(names(truth), "scenario")) == 0L) {
+      out[[length(out) + 1L]] <- list(
+        type = "truth_coverage",
+        message = paste(
+          "truth_coverage/degenerate: the truth table has rows but no parameter",
+          "columns -- every compute_truth() call failed, or it returned a shape",
+          "medsim cannot read (see ?medsim_run)"))
+    }
+    have <- if (is.null(results_df)) character() else unique(results_df$scenario)
+    missing <- setdiff(have, truth$scenario)
+    if (length(missing) > 0L) {
+      out[[length(out) + 1L]] <- list(
+        type = "truth_coverage",
+        message = sprintf(paste(
+          "truth_coverage/missing: %d scenario(s) have results but no truth row",
+          "(%s) -- their truth failed or was never computed; coverage and bias",
+          "cannot be computed for them"),
+          length(missing), paste(missing, collapse = ", ")))
+    }
+  } else if (length(provs) > 0L &&
+             any(vapply(provs, function(p) isTRUE(p$truth_requested), logical(1)))) {
+    out[[length(out) + 1L]] <- list(
+      type = "truth_coverage",
+      message = paste(
+        "truth_coverage/missing: compute_truth was passed to the chunks, but no",
+        "chunk carries truth -- chunk 1 (which computes it) failed, is missing,",
+        "or its truth failed for every scenario"))
+  }
+  out
 }
 
 # -- Gate A internals -------------------------------------------------------
@@ -539,6 +826,15 @@ medsim_audit_results <- function(results,
     violations[[length(violations) + 1L]] <<-
       list(type = type, scenario = scenario, message = message)
   }
+
+  # Zero rows is a real, reachable state since #50 PM1: every array task can
+  # fail, and each now writes a flagged zero-row chunk. There is nothing to
+  # audit, and falling through would be worse than useless -- `attr(NULL,
+  # "medsim_schema")` is NULL, so the legacy branch below would tell the user
+  # their chunks came from "an older medsim" and send them chasing a version
+  # mismatch that does not exist. The genuine problem (every replication
+  # failed) is reported by the `partial_chunk` violation in the caller.
+  if (is.null(df) || nrow(df) == 0L) return(violations)
 
   scenarios <- unique(df$scenario)
   schema_v2 <- identical(attr(df, "medsim_schema", exact = TRUE), 2L)
@@ -653,6 +949,22 @@ medsim_audit_results <- function(results,
         "scenarios %s share RNG seed(s) (name-hash bucket collision in .medsim_det_seed) -- their draws are not independent; rename one scenario",
         paste(sprintf("'%s'", holders), collapse = " and ")))
     }
+  }
+
+  # --- A.4 DGP-failure count (#43 Q1, mandatory) ----------------------------
+  # A data_generator() failure row still carries a valid, contiguous global
+  # rep id -- so once such rows are produced (the runner side of #43), A.1's
+  # contiguity check alone no longer flags them as missing (a real detector
+  # this fix would otherwise silently disable, per the 40-rep/4-DGP-failure
+  # regression). Surfacing the count here restores that visibility.
+  # ARMED and load-bearing: R/runner.R writes the "data_generator error: "
+  # prefix on the DGP-failure path (#43), and test-parallel-fail-loud.R case
+  # 10 is its regression guard. Do not prune this as dead code.
+  n_dgp_failed <- sum(.medsim_is_dgp_failure(df$error))
+  if (n_dgp_failed > 0L) {
+    add("dgp_failure", sprintf(
+      "%d of %d rows are data_generator() failures (estimator never ran for these reps) -- see dgp_failure_rate in medsim_analyze()",
+      n_dgp_failed, nrow(df)))
   }
 
   violations

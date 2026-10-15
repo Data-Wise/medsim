@@ -11,6 +11,9 @@
 #' @param skew Target marginal skewness (third standardized moment).
 #' @param kurtosis Target marginal excess kurtosis (fourth standardized moment minus 3).
 #' @return Numeric vector of length `n` with the requested marginal moments.
+#' @examples
+#' x <- medsim_rnonnormal(500, skew = 1.5, kurtosis = 4)
+#' c(mean = mean(x), sd = stats::sd(x))
 #' @export
 medsim_rnonnormal <- function(n, mean = 0, sd = 1, skew = 0, kurtosis = 0) {
   if (length(n) != 1L || !is.finite(n) || n < 0) {

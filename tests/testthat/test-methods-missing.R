@@ -136,6 +136,95 @@ test_that("D4 pooling reproduces mitml::testModels(method = 'D4') [acceptance]",
   expect_equal(unname(mine[["p"]]), unname(ref$test[1, "P(>F)"]), tolerance = 0.1)
 })
 
+# -- df = "chan_meng": Chan & Meng (2022) eq. 2.15 denominator df ---------------
+
+test_that("df = 'li' is the default and keeps the legacy denominator df", {
+  d_k <- c(3.1, 2.4, 4.0, 2.9, 3.6, 2.2)
+  d_s <- 2.5
+  expect_identical(medsim:::.medsim_d4_from_stats(d_k, d_s),
+                   medsim:::.medsim_d4_from_stats(d_k, d_s, df = "li"))
+  r <- (6 + 1) / (6 - 1) * (mean(d_k) - d_s)
+  nu_li <- 4 + (5 - 4) * (1 + (1 - 2 / 5) / r)^2
+  expect_equal(unname(medsim:::.medsim_d4_from_stats(d_k, d_s)[["nu"]]), nu_li)
+})
+
+test_that("df = 'chan_meng' uses k(K-1)(1 + 1/r4)^2 and changes only the p-value", {
+  d_k <- c(3.1, 2.4, 4.0, 2.9, 3.6, 2.2, 3.3, 2.7, 3.9, 3.0)
+  d_s <- 2.6
+  li <- medsim:::.medsim_d4_from_stats(d_k, d_s, df = "li")
+  cm <- medsim:::.medsim_d4_from_stats(d_k, d_s, df = "chan_meng")
+  r4 <- unname(cm[["r4"]])
+  expect_gt(r4, 0)
+  expect_equal(unname(cm[["nu"]]), 1 * (10 - 1) * (1 + 1 / r4)^2)
+  expect_equal(cm[c("D4", "r4")], li[c("D4", "r4")])
+  expect_equal(unname(cm[["p"]]),
+               stats::pf(unname(cm[["D4"]]), 1, unname(cm[["nu"]]), lower.tail = FALSE))
+  expect_gt(unname(cm[["nu"]]), unname(li[["nu"]]))   # k(K-1) > 4: eq. 2.15 df is larger
+  expect_lt(unname(cm[["p"]]), unname(li[["p"]]))
+})
+
+test_that("both df choices give a chi-square reference when r4 = 0", {
+  d_k <- c(2.0, 2.1, 1.9, 2.0)
+  d_s <- 3                          # dbar < d_S -> r4 clamps to 0
+  li <- medsim:::.medsim_d4_from_stats(d_k, d_s, df = "li")
+  cm <- medsim:::.medsim_d4_from_stats(d_k, d_s, df = "chan_meng")
+  expect_identical(unname(cm[["r4"]]), 0)
+  expect_true(is.infinite(cm[["nu"]]) && is.infinite(li[["nu"]]))
+  expect_equal(unname(cm[["p"]]), stats::pchisq(3, 1, lower.tail = FALSE))
+  expect_equal(unname(li[["p"]]), unname(cm[["p"]]))
+})
+
+test_that("df is validated", {
+  expect_error(medsim:::.medsim_d4_from_stats(c(1, 2), 1, df = "barnard"), "should be one of")
+  expect_error(medsim_method_mbco_mi(model, df = "barnard"), "should be one of")
+})
+
+test_that("df = 'chan_meng' reproduces mitml D4 p-values (ariv = 'positive') [acceptance]", {
+  skip_if_not_installed("mice")
+  skip_if_not_installed("mitml")
+  set.seed(20261014)
+  n <- 200
+  cc <- rnorm(n)
+  x <- rbinom(n, 1, plogis(0.3 * cc))
+  mm <- 0.39 * x + 0.3 * cc + rnorm(n)
+  yy <- 0.2 * x + 0.39 * mm + 0.3 * cc + rnorm(n)
+  d <- data.frame(X = x, M = mm, Y = yy, C = cc)
+  d$M[runif(n) < plogis(qlogis(0.25) + 0.5 * x + 0.5 * cc)] <- NA
+  il <- mice::complete(
+    suppressWarnings(mice::mice(d, m = 20, method = "norm", printFlag = FALSE)), "all"
+  )
+  lrt_lin <- function(z) {
+    2 * (as.numeric(stats::logLik(stats::lm(Y ~ X + M + C, z))) -
+      as.numeric(stats::logLik(stats::lm(Y ~ X + C, z))))
+  }
+  d_k <- vapply(il, lrt_lin, 0)
+  d_s <- lrt_lin(do.call(rbind, il)) / length(il)
+  mine <- medsim:::.medsim_d4_from_stats(d_k, d_s, k = 1, df = "chan_meng")
+  ref <- mitml::testModels(
+    lapply(il, function(z) stats::lm(Y ~ X + M + C, z)),
+    lapply(il, function(z) stats::lm(Y ~ X + C, z)),
+    method = "D4", ariv = "positive"
+  )
+  expect_equal(unname(mine[["D4"]]), unname(ref$test[1, "F.value"]), tolerance = 1e-6)
+  expect_equal(unname(mine[["nu"]]), unname(ref$test[1, "df2"]), tolerance = 1e-6)
+  expect_equal(unname(mine[["p"]]), unname(ref$test[1, "P(>F)"]), tolerance = 1e-6)
+})
+
+test_that("the adapter's df only re-refers the p-values (same data, imputations, r4)", {
+  skip_if_not_installed("mice")
+  d <- toy(200, a = 0.3, b = 0.1)
+  set.seed(7)
+  li <- medsim_method_mbco_mi(model, m = 8, ariv = "fixed")(d, list())
+  set.seed(7)
+  cm <- medsim_method_mbco_mi(model, m = 8, ariv = "fixed", df = "chan_meng")(d, list())
+  expect_equal(cm[c("indirect", "indirect_ci_lower", "indirect_ci_upper", "r4", "r4_fixed",
+                    "stacked_branch", "branch_mix")],
+               li[c("indirect", "indirect_ci_lower", "indirect_ci_upper", "r4", "r4_fixed",
+                    "stacked_branch", "branch_mix")])
+  expect_lte(cm$indirect_p_fixed, li$indirect_p_fixed + 1e-12)
+  expect_equal(cm$indirect_p, cm$indirect_p_fixed)
+})
+
 # -- fixed-branch ARIV + branch-mixing diagnostics (2026-08-17) -----------------
 # Motivation: Missing Effect ms:check 2026-08-16 (Fable KO #2) + the local
 # comparator pilot (code/pilot-comparators-2026-08-16.R): the Chan-Meng r4 pools

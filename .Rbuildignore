@@ -30,3 +30,4 @@
 ^AGENTS\.md$
 ^CLAUDE\.md$
 ^\.token-optimizer$
+^scripts$

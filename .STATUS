@@ -11,25 +11,155 @@ merged-2026-08-17: PR #44 (`feature/mbco-fixed-branch-ariv`, squash `c748d1b` on
   `~/.git-worktrees/medsim/feature-mbco-fixed-branch-ariv` still present (delete when convenient).
   Pre-release adversarial review (3 lenses, 2026-08-17): 1 BLOCKER (Gate A.2 collapse audit
   flagged the new diagnostics), 2 SHOULD-FIX, NITs — all fixed + README/pkgdown refresh in
-  PR #45, MERGED (squash 68a2a18). Worktrees `feature-mbco-fixed-branch-ariv` and
-  `feature-release-0.5.1-review-fixes` still on disk (branches merged; remove when convenient).
-  NEXT for this track: release 0.5.1 (dev→main) so the Missing Effect fixed-branch Hopper re-run can go.
-next: 🔴 ONE DECISION PENDING — branch `claude/pensive-goodall-3e2dfb` (worktree
-  `~/.git-worktrees/medsim/pensive-goodall-3e2dfb`, commit 987d176, clean, 4 behind dev, NO PR)
-  is held at FIX-FIRST after adversarial review. Its `est_error` rename is clean and fixes a live
-  v0.5.0 regression; its bundled parallel re-raise is NOT — a plain stop() converts partial data
-  loss into TOTAL loss (A/B: dev returns 15 of 20 rows, branch discards all 15). Recommended:
-  SPLIT — land the rename (needs `_pkgdown.yml:129` still saying `error`, + the re-raise test
-  fixed to n_cores>=2/n_reps>=4, since n_cores=1 routes to the sequential path), and move the
-  re-raise into PR-B as the data-carrying `medsim_run_failure` condition. THEN: PR-A
-  (`feature/combine-gate-fixes` — schema-vote exemption + partial_chunk + MANDATORY dgp_failure
-  violation) is unblocked and can start now; PR-B follows. Design: internal/GRILL-medsim-43-parallel-fail-loud-2026-07-31.md.
-  v0.5.0 RELEASED 2026-07-31 (chunked-run integrity; BREAKING expected_chunks default), dev at 0.5.0.9000; r-universe serving 0.5.0.9000 (sha 9b0b74d, verified 23:15). Only real
-  next action: CRAN submission is BLOCKED on medrobust (not in mainstream repos, re-verified
-  2026-07-11) — check `available.packages(repos="https://cloud.r-project.org")` for
-  "medrobust"; once TRUE, run `devtools::submit_cran()` from a clean `main` checkout (bump
-  DESCRIPTION off the `.9000` dev suffix first). Everything else below is optional cleanup,
-  not blocking:
+  PR #45, MERGED (squash 68a2a18). Both worktrees + local/remote branches removed 2026-08-17.
+  v0.5.1 RELEASED 2026-08-17 (merge a000108, tag v0.5.1, GitHub release published); dev bumped to
+  0.5.1.9000. Missing Effect fixed-branch Hopper re-run is UNBLOCKED (install from r-universe once
+  it serves 0.5.1.9000, or `pak::pak("Data-Wise/medsim@v0.5.1")`).
+grounded-2026-08-22: Reviewed all open PRs/issues against live GitHub + git state (no drift
+  vs memory except one correction below). 0 open PRs (confirmed). 5 open issues found:
+  #28, #29, #35, #41, #43. Branch-cleanup entry `(3)` further down in this file (dated
+  "[DONE 2026-07-11]") was WRONG — corrected in place; the 7 old feature branches are still
+  on origin, unmerged. #35's "blocked-upstream" status (probmed#32, BCa for ward_residual)
+  should NOT be read as a stable holding pattern right now: probmed#32 had 3 self-correcting
+  comments today (2026-08-22, 00:59/04:34/16:47 UTC), the last a retraction of the prior two,
+  pointing to probmed's `docs/specs/REVIEW-2026-08-22-adversarial-refutation.md` (adversarial
+  review: the whole Phase-2 bootstrap-replacement approach is refuted by measurement, verdict
+  "must not be executed as written"). Do not act on #35 assuming probmed#32 is settled either
+  direction — re-check probmed#32 before picking #35 back up.
+closed-2026-08-22: **Issue #43 CLOSED** — full fix landed same-day across 3 merged PRs
+  (design: `internal/GRILL-medsim-43-parallel-fail-loud-2026-07-31.md`). The held branch
+  `claude/pensive-goodall-3e2dfb` was split per its adversarial review rather than merged as-is
+  (its bundled parallel re-raise would have converted partial data loss into total loss).
+  - PR #47 (`feature/est-error-rename`, squash `523ce14`) — clean half of the split: numeric-kind
+    mandatory column `error` → `est_error` (fixes a v0.5.0 regression: the two `error` meanings
+    collided and made the documented contract unusable), `_pkgdown.yml:129` fixed, new e2e
+    regression test.
+  - PR #48 (`feature/combine-gate-fixes`, squash `43946e9`) — Gate A combine hardening:
+    schema-vote no longer vetoed by a legit empty chunk, new `partial_chunk` violation, new
+    mandatory `dgp_failure` violation. `/code-review` caught a real hard crash
+    (`attr(NULL, ...) <- 2L` errors, unlike a no-op `NULL` assignment) in the all-empty-chunks
+    edge case — fixed + regression test before merge.
+  - PR #49 (`feature/parallel-fail-loud`, squash `8ed4c1f`) — the re-raise done right:
+    `medsim_run()`/`medsim_run_chunk()` stop loud with a data-carrying `medsim_run_failure`
+    condition on task-level errors (serial + parallel, identical shape), rescuing partial
+    results via `e$results` instead of discarding them. Rebased onto #48's squashed tip before
+    merge to keep the diff clean (`git rebase --onto`, one commit auto-dropped as
+    already-upstream). 12 verification cases per the design doc's §5.
+  Net: 1197 pass / 0 fail, R CMD check 0/0/0 on the final merged `dev` state. All 3 worktrees +
+  local/remote branches removed. `pensive-goodall-3e2dfb` **worktree removed 2026-08-22**; its
+  commit `987d176` is NOT an ancestor of dev (the split superseded it — nothing from it merged
+  directly) but stays reachable via branch `claude/pensive-goodall-3e2dfb`, local and origin.
+  Those two refs were deliberately left in place: deleting an unmerged commit is the one
+  irreversible step here, and it is a separate decision from worktree cleanup.
+reviewed-2026-08-22: **Three-reviewer adversarial review of both the plan and what shipped.**
+  Two reviewers independently found the SAME blocker in the #41 spec. Outcomes:
+  - **#41 SPEC amended to v2** (amendments R1-R9 marked inline). v1 had a **BLOCKER**: its
+    cache "self-heal" keyed on a class that the write-side skip guarantees is NEVER written,
+    so no actually-poisoned cache would have healed (real poison is unclassed). v1 also aimed
+    its analyze.R guard at the **wrong function** (`:82` is `medsim_analyze()`; the coverage
+    guard is `:369`, and the headline symptom is on the coverage path), and missed a whole
+    class: a **successful** truth fn returning a bare named vector degenerates identically.
+  - **NEW ISSUE #50** — two MAJOR defects in the just-merged #43 code, still live on dev:
+    (PM1) an all-reps-failed chunk writes no file, so a trailing failed chunk combines with
+    ZERO violations — and the reserved-`error` class that MOTIVATED #43 fails every rep, so
+    `partial_chunk` can never fire for it; (PM2) the three "real parallel" tests never unset
+    `_R_CHECK_LIMIT_CORES_`, so under `--as-cran` they run the SERIAL path (reproduced: worker
+    pid == main pid, all 11 still pass) — **the parallel path has no CI coverage today.**
+  - Confirmed sound: no #41/#43 seam conflict; a clean run is bit-identical to pre-#43.
+plan-2026-08-22: **`internal/PLAN-medsim-backlog-2026-08-22.md` is the sequencing source.**
+  Phase 0 (#50: PM1+PM2) -> 1 (#41 non-breaking) -> 2 (#41 loud layer) -> 3 (#35) -> 4 (#28).
+  Phase 0 first because PM2 means `--as-cran` evidence for anything touching runner.R/parallel.R
+  is not real evidence until fixed. Decisions: **D-1 SETTLED** — `truth_on_failure` ships
+  defaulting to `"warn"`, flips to `"stop"` at the next version bump, because **dev is a live
+  distribution channel** (r-universe pins dev, serving 0.5.1.9000; Missing Effect installs @dev
+  with a queued Hopper run) so a breaking default would land mid-flight; detectors land now,
+  only the abort waits. **D-2 SETTLED** — filed #50. **D-3 OPEN** — probmed dev->main release
+  to unblock #35's clean version pin; cross-repo, needs explicit authorization.
+  CRAN re-verified STILL BLOCKED 2026-08-22: medrobust not on CRAN (probmed isn't either).
+grilled-2026-08-22: All 4 remaining open issues grounded + grilled (7 branches, GD1-GD7).
+  Canonical designs — do NOT re-derive from the issue bodies, several of which are wrong:
+  **#41 = `internal/SPEC-medsim-41-truth-integrity-2026-08-22.md` (AUTHORITATIVE, implementation-ready);
+  its GRILL companion `internal/GRILL-medsim-41-chunk-truth-atomic-cache-2026-08-22.md` is the decision
+  ledger only and its GD2 is SUPERSEDED — build from the SPEC.** Writing the spec found the grill's own
+  GD2 predicate could never fire, and produced 3 empirical reproductions (E-1/E-2/E-3 in the spec):
+  a TRANSIENT truth failure permanently poisons the cache — re-run calls truth 0 times, warns 0 times,
+  and `medsim_analyze_coverage()` returns SUCCESS with "Parameters: 0, Coverage: NA".
+  `internal/GRILL-medsim-35-gauge-probmed-exposure-2026-08-22.md`,
+  `internal/GRILL-medsim-28-cluster-vignette-2026-08-22.md`,
+  `internal/GRILL-medsim-29-prod3-adapter-2026-08-22.md` (DEFERRED, no consumer).
+  Two NEW correctness findings, both live on dev right now, neither previously filed:
+  (a) **truth-cache poisoning** — a failed `truth_function()` warns, then its error sentinel is
+      written to the truth cache (`R/runner.R:696-707`) and silently reused by every later run
+      with NO warning; folded into #41 as item 4. (b) **gauge/probmed exposure** — probmed's
+      per-row IPW weight fix (PR #34) merged to probmed's **dev, not main**; only release v0.3.0
+      predates it; medsim's Remotes resolves to main and Suggests has no floor ⇒ every install
+      route runs gauge coverage against the buggy estimator (upstream measured ~0.85-0.90 vs
+      0.936/0.972 corrected). #35 rescoped around it. Priority order now: #41 → #35 → #28 → (#29 deferred).
+shipped-2026-08-22-phase0: **Phase 0 (#50) DONE — PR #51 MERGED** (squash `dd0d059` on dev,
+  3 commits, +288/−24 over 5 files; issue #50 closed manually — auto-close does not fire for
+  PRs targeting `dev`).
+  PM1: `medsim_run_chunk()` no longer skips the write when zero reps survive — that file is the
+  only carrier of `partial = TRUE`, so a trailing all-failed chunk used to combine with ZERO
+  violations. Fix was a deletion; the write path already re-`stop()`s. PM2: `pfl_parallel_config()`
+  clears `_R_CHECK_LIMIT_CORES_`, pins 2 cores, and lifts the fixture off the `length(tasks) < 4`
+  floor. Both MINORs closed. Gates (run IN the worktree): 1210 pass / 0 fail / 0 error / 1 skip
+  (dev baseline 1197); `R CMD check --as-cran` 0/0/1 (pre-existing NOTE). Every new assertion has
+  a reverted-fix positive control proving it can fail. Design provenance + the PM2 scope
+  correction live in `internal/GRILL-medsim-43-*.md` §Resolution (rides in PR #51, not yet on dev).
+  ⚠️ NOT non-breaking in effect: no API change, but a run that previously combined silently past
+  an all-failed chunk now stops under the default `on_violation = "stop"`. **This is now live on
+  `dev`, hence on r-universe** — the Missing Effect Hopper re-run installs from `@dev`.
+  A high-effort `/code-review` round added 3 fixes (commit `30ed22b`), all in the
+  all-array-tasks-failed path PM1 newly makes reachable: the combine warned that the chunks
+  "lack the schema-v2 stamp (produced by an older medsim)" when they are schema-v2 and merely
+  empty — an HPC user losing every array task would have chased a nonexistent version mismatch;
+  `config$n_replications` was `-Inf`; and `partial_chunk` claimed reps the chunk did not hold.
+  Case 21 guards all three. Final gates: 1219 pass / 0 fail / 0 error / 1 skip; `--as-cran` 0/0/1.
+  Cleanup DONE 2026-08-22: worktree removed, branch `feature/parallel-coverage-zero-vio` deleted
+  local + origin. Also swept `feature/est-error-rename` (#47) and `feature/combine-gate-fixes`
+  (#48), both left on origin after their squash-merges. **medsim now has zero worktrees and zero
+  stale feature branches.** Each deletion was gated on `headRefOid` == local tip AND
+  `git merge-base --is-ancestor <mergeCommit> origin/dev` — never on `git cherry`, which
+  misreports squash-merges. Plain `git branch -d` sufficed every time (git accepts a branch
+  merged into its own upstream); the branch-guard hook blocks `-D`, so do not reach for it.
+
+tooling-2026-08-22: **Session-report delivery + `obsidian-ops` search, both fixed.**
+  `.flow/obsidian-sync.yml` pointed session reports at `Research/20_projects/medsim`;
+  medsim is software engineering, and its vault hub note has always lived at
+  `Engineering/50_packages/medsim.md` beside probmed/medfit. Corrected (`e5d3c29`); two
+  existing reports moved; the hub note was 4 releases stale (v0.1.1) and now carries
+  current state. Note for future syncs: `Engineering/` has its own `.obsidian/` and opens
+  as a separate vault in the app, but obs registers only the outer `Documents` vault and
+  indexes Engineering as a subfolder — nested vaults are deduped, so `vault_id` stays
+  `"Documents"`.
+  Root-caused why the vault looked broken: **`obsidian-ops`' `search_notes` never resolved
+  its vault argument**, so a NAME hit `WHERE n.vault_id = ?` (an ID hash) and matched
+  nothing — every scoped search returned "No notes found" against a healthy 3,654-note
+  index. Fixed upstream in `Data-Wise/obsidian-cli-ops` PR #101 (squash `f0bf010`), with 8
+  further defects from a high-effort review. **The fix is on disk but the MCP server in a
+  running session keeps the pre-fix module in memory — reconnect `obsidian-ops` (`/mcp`)
+  before trusting a scoped search.** Vault index also repaired: 73 ghost rows and 6
+  unscannable notes (malformed YAML front matter) → 0/0, disk == db == 3,654.
+
+next: 🟢 **PHASE 0 MERGED (PR #51, `dd0d059`). Next is PHASE 1 — issue #41.**
+  (`internal/PLAN-medsim-backlog-2026-08-22.md`). Phase 0's PM2 fix was the gating one: the
+  parallel path now has real test coverage, so `--as-cran` evidence for anything touching
+  `runner.R`/`parallel.R` is trustworthy for the first time. Phase 1 = #41 non-breaking
+  hardening (the truth-cache poison fix is the headline; build from the **SPEC**, not its GRILL
+  — GD2 is superseded). Then Phase 2 (loud layer, ships "warn"-default per D-1), #35, #28.
+  #29 deferred (no consumer). **D-3 still open and user-gated**: the probmed `dev → main`
+  release that would unblock #35's clean version pin is cross-repo work.
+  NOTE: the "everything else is optional cleanup" framing that used to sit here is **retired** —
+  #50 is a live silent-data-loss gap plus a CI blind spot, and #41 fixes a confirmed
+  silent-corruption path (a transient truth failure permanently poisons the cache; the re-run
+  then reports "Parameters: 0, Coverage: NA" as a SUCCESS).
+  v0.5.0 RELEASED 2026-07-31 (chunked-run integrity; BREAKING expected_chunks default), dev at
+  0.5.1.9000 (post-#43); r-universe verified serving 0.5.1.9000 on 2026-08-22 (~hourly cron;
+  use the packages.json curl check in CLAUDE.md before assuming it's caught up).
+  CRAN submission remains BLOCKED on medrobust (not in mainstream repos, **re-verified
+  2026-08-22** via `available.packages(repos="https://cloud.r-project.org")` — probmed is not
+  on CRAN either); once medrobust lands, run `devtools::submit_cran()` from a clean `main`
+  checkout (bump DESCRIPTION off the `.9000` dev suffix first). Older optional cleanup below:
   (1) [VERIFIED 2026-07-31] r-universe is live with the 0.4.0 content — reports Version
       `0.4.0.9000`. NOTE: the registry (`Data-Wise/data-wise.r-universe.dev`, packages.json)
       pins medsim to the `dev` branch, NOT `main`, so the published Version always carries the
@@ -40,17 +170,27 @@ next: 🔴 ONE DECISION PENDING — branch `claude/pensive-goodall-3e2dfb` (work
       local, remote was already auto-deleted; PR #33) and dgm-interface + dgm-mbco-port
       (local `-D`; PRs #17/#18, v0.2.0). All merge-verified (local tip == PR head, merge
       commit ancestor of dev). No stale feature branches or worktrees remain;
-  (3) [DONE 2026-07-11] the 7 stale remote branches (cran-readiness, fix-cluster-packages,
-      speed-up-ci, test-parallel, test-runner, test-visualize, trim-suggests) no longer exist
-      on origin — already gone (likely GitHub auto-delete-on-merge), nothing to prune;
+  (3) [ACTUALLY DONE 2026-08-22] the 7 stale remote branches (cran-readiness,
+      fix-cluster-packages, speed-up-ci, test-parallel, test-runner, test-visualize,
+      trim-suggests) — none was an ancestor of `dev` or `main` (abandoned/unmerged, not
+      stale-after-merge) — deleted from origin via `gh api -X DELETE .../git/refs/heads/<b>`
+      (direct `git push --delete` was branch-guard-blocked; this was the suggested compliant
+      alternative). Verified gone via `git ls-remote --heads origin`. The prior
+      "DONE 2026-07-11" entry that claimed this was already done was false — see
+      `grounded-2026-08-22:` above;
   (4) optional: pmed-modern could re-point its P1 gauge grid + Paper-3 run_grid.R to
       `medsim_scenario_gauge()`/`medsim_estimand("variance_share", ...)` now that both are
       released — not required, pmed-modern already has independently-validated results;
-  (5) Missing Effect repo's `code/config.R` still pins `medsim >= 0.2.0` (pre-RNG-fix,
-      buggy) — that repo's own `GAP-2026-07-11`, needs bumping to `>= 0.4.0` there, not here.
+  (5) [RESOLVED — verified 2026-08-22] Missing Effect's `code/config.R` pin. This entry
+      previously said it "still pins `medsim >= 0.2.0` (pre-RNG-fix, buggy)". **That was
+      wrong** — read-only verification during the 2026-08-22 adversarial review found
+      `Missing Effect/code/config.R:8` requires `>= 0.4.0`, and that repo's own `.STATUS:36`
+      records the bump as GAP-2026-07-11 RESOLVED. No action needed there or here.
+      (This stale line was propagated into internal/GRILL-medsim-28 before being caught —
+      a reminder that downstream-consumer claims decay silently; re-verify before citing.)
 done: [2026-07-31 late] Post-release backlog grilled + re-scoped (ledger: internal/BRAINSTORM-backlog-actions-2026-07-31.md, local-only per .gitignore BRAINSTORM-* convention — 7 grill decisions). Executed: #41 REWRITTEN (wrong premise corrected — real gaps: no compute_truth passthrough in medsim_run_chunk, non-atomic cache saveRDS at cache.R:82-86, config.R:28-30 seed doc error); #28 re-scoped docs-only (Gate B shipped; vignette + array_throttle in ?medsim_config; [ -s ] gate noted withdrawn); #29 re-scoped to 6-field factory on the REAL RMediation 1.6.1 API ci(ProductNormal3(mu, Sigma, method="hcubature")) — old medci(type="prod3") was fabricated; rmediation#18 CLOSED as shipped; #35 SPLIT — upstream BCa request filed as probmed#32 (ward_residual se_method is match.arg analytic/bootstrap, no passthrough), #35 now the medsim doc/tracking stub (corrected cites methods_gauge.R:51,:61-63); NEW #43 filed: parallel=TRUE silently DROPS replications whose errors escape the method tryCatch (medsim_error objects fail .medsim_rbind_reps' nrow filter, runner.R:749 — empirically confirmed; this is what masks the v0.5.0 numeric-kind reserved-error regression under parallel). Release vehicle decision: ride dev, NO 0.5.1 patch (r-universe publishes dev). est_error rename fix running in separate session (task_bac224eb) — pending verify-and-absorb on landing. #43 FIX DESIGN COMPLETE — canonical doc `internal/GRILL-medsim-43-parallel-fail-loud-2026-07-31.md` (83f44fa; 19 decisions over 4 grill rounds + 2 adversarial reviews, both AMEND-FIRST, 35 findings/26 confirmed). NOT started; delivery = two PRs: PR-A combine gates (schema-vote fix + partial_chunk + MANDATORY new dgp_failure violation — without it the fix silences rep_gap, measured 1→0, i.e. net detection regression) is UNBLOCKED and lands first; PR-B (runner condition + chunk write + split accounting) waits on task_bac224eb (same runner.R region). Do not re-derive the design from this file or the issue body — both are pointers now. Open: #28 #29 #35(blocked-upstream) #41 #43 + probmed#32. task_bac224eb LANDED (987d176, worktree ~/.git-worktrees/medsim/pensive-goodall-3e2dfb, no PR — which is why no notification fired; poll git refs for spawned-session work, don't wait to be told). Reviewed → FIX-FIRST: rename clean (suite 1123/0/0/1 vs 1117 baseline, verified independently; leak-scan clean; merges cleanly), but 3 blocking items — plain stop() discards completed reps (15 of 20 lost in A/B), the "parallel path" test sets n_cores=1 and never reaches it, _pkgdown.yml:129 still documents `error`. Session reports: .remember/session-reports/session-report-2026-07-31{,-evening}.html (morning + evening; evening also synced to Obsidian Research/20_projects/medsim/). [2026-07-31 night] v0.5.0 RELEASED. Release PR #42 (dev→main, merge commit, 7/7 CI green incl. windows verified on exact head sha) → tag v0.5.0 (ae83888) → GitHub release (Hopper caveat noted in notes) → main pkgdown deployed (root site 0.5.0, CLAUDE.html still 404) → dev bumped 0.5.0.9000 (b724521). Release gates: suite 1117/0/0/1, as-cran 0/0/1-baseline (dev-suffix NOTE gone at clean 0.5.0; AGENTS.md/CLAUDE.md added to .Rbuildignore killing the working-dir NOTE). r-universe lag monitor armed (dev-pinned; poll: curl -s https://data-wise.r-universe.dev/api/packages/medsim). Remaining open: #28 #29 #35 #41 — all post-release features/docs/perf. [2026-07-31 pm] #34 grilled + 3 bugs filed. Interactive /craft:grill of the #34 spec (internal/GRILL-medsim-chunked-run-gates-2026-07-31.md, ead5862): 9 branches (B1–B9) — on_violation stop-with-data-carrying-condition, A.2 configurable thresholds + auto column selection over continuous estimate_cols (named default "estimate" matches NO real column), A.1 self-validating contiguity (no external nsim), D pilot-identity assert before value-match, C SHA auto-detect, B login-shell shebang + write-time output path. Empirical verification then filed: #36 (chunked runs collide replication ids; medsim_analyze reports chunk size 5 as n_replications for nsim=20 — reproduced; fix = persist global_rep_id + metadata_cols registration, is #34's prerequisite), #37 (generated submit template plain #!/bin/bash → module: command not found on Hopper; repo's own inst/hopper-tests script documents -l required — confirmed), #38 (bonus find: chunks overwrite each other's intermediate results_scenario_N.csv, index-only key, same class as #27; .rds combine unaffected — reproduced 4 chunks → 1 csv). Review returned: 26 findings (19 CONFIRMED, 7 empirical) → spec v2 (dd1c318) locked single-global-replication architecture + R1–R10 amendments. #34 SPEC FULLY IMPLEMENTED on branch feature/chunked-run-prereqs (dde3692 → 8797740, pushed; base dev@dd1c318): P1–P3 (global replication ids/schema v2, combine metadata rebuild, failure-row schema — fixes #36+#38+2 crashers) + Gate A (seed-provenance audit, data-carrying medsim_combine_violation, medsim_audit_results() export) + Gate B (hardened login-shell template — fixes #37; exemplar swept) + Gates C+D (provenance header w/ auto-SHA + single-SHA assert; pilot-subset control, identity-first). Full suite in-tree 1077 PASS / 0 FAIL / 1 SKIP; --as-cran 0/0/1-known-NOTE (also fixed the .rforge.yaml/.flow hidden-file NOTE from today via .Rbuildignore). BREAKING: expected_chunks/missing-chunk handling now stop-by-default (interim looks: on_violation="warn"). Doc sync done via 3 parallel agents (vignette audit section, _pkgdown.yml index, cross-refs). MERGED 2026-07-31 evening: PR #39 (chunked-run integrity — P1–P3 + Gates A–D + review hardening; squash 94ec11c) and PR #40 (quality round — closed-form pmed truth, validation/table/docs fixes, bit-identity dedup; squash 5fe9ae4), both squash to dev, both leak-scanned, both adversarially reviewed pre-merge (each returned FIX FIRST once, all blockers fixed + re-verified). dev suite post-merge: 1117 PASS / 0 FAIL / 0 ERR / 1 SKIP; --as-cran 0/0/1-baseline-NOTE. Issues CLOSED: #34 #36 #37 #38 (manual — dev-merge doesn't auto-close). Worktrees removed; remote feature branches deleted; local feature/{chunked-run-prereqs,quality-fixes} refs remain (squash-merge -d false positive — need user -D, tips verified == PR heads). Follow-ups filed: #41 (E4 truth-recompute race + X1 config$seed doc, deferred from review). NOTE: dev now has a BREAKING change vs 0.4.0 (expected_chunks stop-by-default) — next release is a version-bump decision (0.5.0). Note: medsim_run_chunk() has no compute_truth passthrough (unfiled, possibly by-design). [2026-07-31] Issue triage + #34 spec. Closed 3 stale-open issues after verifying against dev: #24 gauge estimand (exported/documented/tested), #25 ADEMP gates (PR #26), #27 truth-cache collision (fixed by .medsim_truth_fingerprint guard PR #31 + green regression test). Adversarial re-review of the 3 closures: #25/#27 SOUND; #24 PARTIAL — BCa CI arm (gate-A3) + ci=/se_method= interface from the issue's Ask were never delivered though closed as "fully shipped" → filed follow-up #35 (not reopened; headline analytic-vs-percentile grid is served). Drafted+committed internal/SPEC-medsim-chunked-run-gates-2026-07-31.md (#34, f59b922) with grill ledger G1–G9; grill spine finding: global_rep_id computed for seeding only, never persisted (runner.R:402 stores local rep_id) → #34-A/#34-D need a prerequisite column, which also fixes an n_replications under-count for combined chunk runs (analyze.R:236). #34 Part B subsumes unshipped #28B — cross-linked #34↔#28. Added .flow/obsidian-sync.yml (savant report/session delivery). Open issues now: #28, #29, #34 (spec'd), #35. [2026-07-31] pkgdown internal-doc leak closed — CLAUDE.md was being published as live CLAUDE.html (pkgdown renders every root .md). Untracked + gitignored CLAUDE.md & AGENTS.md (kept on disk for agents), filed .rforge.yaml with site.allowlist (vignettes/.gitignore false positive) — commit 277c2f8. Purged live gh-pages/CLAUDE.html (404 confirmed); index.html still 200. Only root CLAUDE.html was ever deployed (other scratch htmls were local-build-only). Won't recur: files not in committed tree, so neither CI nor clean-ref deploy rebuilds them. #30 fix(run_chunk): deterministic per-replication seeding via .medsim_det_seed(), independent of chunk/worker/cluster-type/order — fixes SLURM chunk-collapse (coverage pinned at 1.0). #31 two-tier test infra: Tier-A CRAN guards + Tier-B Hopper suite (12,000 reps @ production scale: nominal coverage 0.947, narrow-interval 0.480, 12,000/12,000 distinct seeds, FORK-reproducible — all PASS), surfaced 5 more latent fixes. dev is CRAN-clean: R CMD check --as-cran 0/0/0 (real notes only — .remember/ note is a local-only artifact, absent on clean CI checkout), devtools::test() 968/0/1. #25 ADEMP coverage gates MERGED to dev 2026-06-22 (PR #26; coverage MCSE + failed-run logging + performance table + nsim helper + SE-vs-estimate plot; 913/0, CI green all platforms). Also fixed a pre-existing dev pkgdown failure (Sobol index gap from #22) + CLAUDE.md Remotes drift (medfit→medrobust). v0.3.1 RELEASED 2026-06-19.
 type: r
-last_updated: 2026-07-31
+last_updated: 2026-08-22
 test_infra: MERGED to dev — PR #30 (rng-seed-audit) + PR #31 (test-infrastructure), squash.
   Two-tier sim/parallel test suite — Tier A (CRAN-safe, tests/testthat/) + Tier B
   (Hopper-only, inst/hopper-tests/). DONE: Phase 0 CRAN-blockers (∈ U+2208 fix, seeded
@@ -64,8 +204,9 @@ test_infra: MERGED to dev — PR #30 (rng-seed-audit) + PR #31 (test-infrastruct
   PENDING: Phase 3 (eval:false vignette) — deferred, not release-blocking.
   Autonomous run kit + full knowledge doc: tasks/{GOALS,plan,todo,TEST-INFRASTRUCTURE}.md.
   Root-cause postmortem: the chunked-RNG collapse (coverage=1.0) — see PR #30 / TEST-INFRASTRUCTURE.md.
-  DOWNSTREAM: Missing Effect/code/config.R pins medsim >= 0.2.0 (the buggy pre-fix version) —
-  logged as GAP-2026-07-11 there, needs bump to >= 0.4.0. Other consumers checked
+  DOWNSTREAM: [SUPERSEDED — see item (5) above] this said Missing Effect/code/config.R pins
+  medsim >= 0.2.0 (the buggy pre-fix version); verified 2026-08-22 it pins >= 0.4.0 and the
+  GAP-2026-07-11 is closed. Other consumers checked
   (pmed-modern/03-sobol-pmed/sims/run_grid.R) have only a soft comment, no hard version guard.
 deferred: PROPOSAL-medsim-dm-integration.md — register differential-misclassification
   scenarios (wrap medrobust::simulate_dm_data + bound_ne) so M2a/M2b sims run via medsim_run
