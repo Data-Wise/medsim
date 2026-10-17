@@ -214,9 +214,9 @@ test_that("the adapter's df only re-refers the p-values (same data, imputations,
   skip_if_not_installed("mice")
   d <- toy(200, a = 0.3, b = 0.1)
   set.seed(7)
-  li <- medsim_method_mbco_mi(model, m = 8, ariv = "fixed")(d, list())
+  li <- medsim_method_mbco_mi(model, m = 8, ariv = "fixed", df = "li")(d, list())
   set.seed(7)
-  cm <- medsim_method_mbco_mi(model, m = 8, ariv = "fixed", df = "chan_meng")(d, list())
+  cm <- medsim_method_mbco_mi(model, m = 8)(d, list())   # default df = "chan_meng"
   expect_equal(cm[c("indirect", "indirect_ci_lower", "indirect_ci_upper", "r4", "r4_fixed",
                     "stacked_branch", "branch_mix")],
                li[c("indirect", "indirect_ci_lower", "indirect_ci_upper", "r4", "r4_fixed",
@@ -246,6 +246,35 @@ test_that("MBCO-MI emits the additive branch diagnostics alongside the contract"
   expect_true(out$p_branch_a >= 0 && out$p_branch_a <= 1)
   expect_true(out$indirect_p_fixed >= 0 && out$indirect_p_fixed <= 1)
   expect_true(out$r4 >= 0 && out$r4_fixed >= 0)
+})
+
+test_that("defaults match missingmed: ariv = 'fixed', df = 'chan_meng'", {
+  f <- formals(medsim_method_mbco_mi)
+  expect_equal(eval(f$ariv)[1L], "fixed")
+  expect_equal(eval(f$df)[1L], "chan_meng")
+  expect_equal(eval(f$ariv), c("fixed", "own"))
+  expect_equal(eval(f$df), c("chan_meng", "li"))
+  skip_if_not_installed("mice")
+  d <- toy(200, a = 0.3, b = 0)
+  set.seed(9)
+  def <- medsim_method_mbco_mi(model, m = 8)(d, list())
+  set.seed(9)
+  exp <- medsim_method_mbco_mi(model, m = 8, ariv = "fixed", df = "chan_meng")(d, list())
+  expect_identical(def, exp)
+  expect_equal(def$indirect_p, def$indirect_p_fixed)
+})
+
+test_that("the previous behavior stays reachable via ariv = 'own', df = 'li'", {
+  skip_if_not_installed("mice")
+  d <- toy(200, a = 0.3, b = 0)
+  set.seed(10)
+  old <- medsim_method_mbco_mi(model, m = 8, ariv = "own", df = "li")(d, list())
+  set.seed(10)
+  new <- medsim_method_mbco_mi(model, m = 8)(d, list())
+  expect_equal(old$indirect, new$indirect)              # same data, same imputations
+  expect_equal(old$r4, new$r4)
+  expect_equal(new$indirect_p, new$indirect_p_fixed)   # default: indirect_p is the fixed-branch p
+  expect_gte(old$indirect_p_fixed, 0)
 })
 
 test_that("ariv = 'fixed' routes the fixed-branch p-value into indirect_p", {
