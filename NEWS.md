@@ -1,5 +1,17 @@
 # medsim (development version)
 
+## Breaking changes
+
+* **`medsim_method_mbco_mi()` defaults now match missingmed.** `ariv` defaults
+  to `"fixed"` (was `"own"`) and `df` to `"chan_meng"` (was `"li"`). missingmed
+  documents `ariv = "own"` as liberal at high missingness, so a user on the
+  defaults now gets the same test in both packages. Results of calls that rely
+  on the defaults change. To get the old behavior, pass
+  `ariv = "own", df = "li"`; pin both explicitly in any script that must
+  reproduce an earlier run. `indirect_p` still follows `ariv` and
+  `indirect_p_fixed` is still always returned, so column names are unchanged;
+  under the new default the two columns are equal.
+
 # medsim 0.6.0
 
 ## New features

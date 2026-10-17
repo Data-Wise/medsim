@@ -181,8 +181,8 @@ scn <- medsim_scenario_missing(
 )
 
 # Headline estimator: D4-stacked MBCO via multiple imputation (mice). Reproduces
-# the mitml::testModels(method = "D4") statistic (and its p-value with
-# df = "chan_meng"); degrades to a complete-case MBCO chi-square test when
+# the mitml::testModels(method = "D4") statistic (and its p-value, under the
+# default df = "chan_meng"); degrades to a complete-case MBCO chi-square test when
 # imputation is unavailable.
 results <- medsim_run(
   method = medsim_method_mbco_mi(model = NULL, m = 20),
@@ -196,11 +196,12 @@ medsim_summarize_branch_switch(results)  # share of replicates whose majority br
 # fit selects, so imputations that disagree on the branch cannot deflate it.
 # Both p-values (indirect_p, indirect_p_fixed) and the branch-mixing
 # diagnostics (branch_mix, p_branch_a, stacked_branch, r4, r4_fixed) are
-# always emitted; the default ariv = "own" is the legacy Chan-Meng pooling.
-# df = "chan_meng" refers both p-values to the Chan & Meng (2022, eq. 2.15)
-# denominator df (as mitml does); the default df = "li" is the Li et al. (1991)
-# approximation. Neither option changes the data, imputations, or statistic.
-medsim_method_mbco_mi(model = NULL, m = 20, ariv = "fixed", df = "chan_meng")
+# always emitted. Both options default to missingmed's choices: ariv = "fixed"
+# and df = "chan_meng" (the Chan & Meng (2022, eq. 2.15) denominator df, as
+# mitml does). The previous behavior is ariv = "own" (the legacy Chan-Meng
+# pooling, liberal at high missingness) with df = "li" (Li et al. 1991).
+# Neither option changes the data, imputations, or statistic.
+medsim_method_mbco_mi(model = NULL, m = 20, ariv = "own", df = "li")
 ```
 
 The generators (`medsim_rnonnormal()`, `medsim_amputate()`,

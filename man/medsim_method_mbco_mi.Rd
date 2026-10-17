@@ -7,8 +7,8 @@
 medsim_method_mbco_mi(
   model,
   m = 20L,
-  ariv = c("own", "fixed"),
-  df = c("li", "chan_meng"),
+  ariv = c("fixed", "own"),
+  df = c("chan_meng", "li"),
   ...
 )
 }
@@ -19,11 +19,12 @@ reads the \code{X}, \code{M}, \code{Y} (+ optional \verb{C*}) columns of \code{d
 \item{m}{Integer number of imputations.}
 
 \item{ariv}{Which relative-increase-in-variance (ARIV) estimate feeds the
-\code{indirect_p} column: \code{"own"} (default, legacy) pools per-imputation MBCO
-statistics each computed on its own winning branch (standard Chan-Meng
-\code{r4}); \code{"fixed"} recomputes every per-imputation statistic on the branch
-the stacked constrained fit selected, so branch disagreement across
-imputations cannot pull the ARIV down. Both p-values are always emitted
+\code{indirect_p} column: \code{"fixed"} (default, as in missingmed) recomputes every
+per-imputation statistic on the branch the stacked constrained fit
+selected, so branch disagreement across imputations cannot pull the ARIV
+down; \code{"own"} (the previous default) pools per-imputation MBCO statistics
+each computed on its own winning branch (standard Chan-Meng \code{r4}) and can
+be liberal at high missingness. Both p-values are always emitted
 (\code{indirect_p} and \code{indirect_p_fixed}), together with the branch-mixing
 diagnostics \code{branch_mix}, \code{p_branch_a}, \code{stacked_branch}, \code{r4}, \code{r4_fixed}
 (with a single imputation there is no stacked fit: \code{stacked_branch} is
@@ -31,11 +32,12 @@ that fit's branch and \code{r4 = r4_fixed = 0}; on the error path all six are
 \code{NA}).}
 
 \item{df}{Denominator degrees of freedom for the D4 \code{F} reference, used for
-both \code{indirect_p} and \code{indirect_p_fixed}: \code{"li"} (default, legacy) is the
-Li et al. (1991) / Meng-Rubin approximation, \eqn{\nu = 4 + (k(K-1) - 4)\{1 +
-(1 - 2/(k(K-1)))/r_4\}^2} when \eqn{k(K-1) > 4}; \code{"chan_meng"} is Chan and
-Meng (2022, eq. 2.15), \eqn{\nu = k(K-1)(1 + 1/r_4)^2}, the reference used by
-\code{mitml::testModels(method = "D4")}. Both give \eqn{\nu = \infty} (a
+both \code{indirect_p} and \code{indirect_p_fixed}: \code{"chan_meng"} (default, as in
+missingmed) is Chan and Meng (2022, eq. 2.15), \eqn{\nu = k(K-1)(1 +
+1/r_4)^2}, the reference used by \code{mitml::testModels(method = "D4")}; \code{"li"}
+(the previous default) is the Li et al. (1991) / Meng-Rubin approximation,
+\eqn{\nu = 4 + (k(K-1) - 4)\{1 + (1 - 2/(k(K-1)))/r_4\}^2} when
+\eqn{k(K-1) > 4}. Both give \eqn{\nu = \infty} (a
 chi-square reference) when \eqn{r_4 = 0}. Chan and Meng derive eq. 2.15 for the
 own-branch \eqn{r_4} at a regular null; for \code{ariv = "fixed"}, and at the
 nonregular null \eqn{a = b = 0}, either choice is a working reference whose

@@ -44,22 +44,24 @@
 #'   reads the `X`, `M`, `Y` (+ optional `C*`) columns of `data`).
 #' @param m Integer number of imputations.
 #' @param ariv Which relative-increase-in-variance (ARIV) estimate feeds the
-#'   `indirect_p` column: `"own"` (default, legacy) pools per-imputation MBCO
-#'   statistics each computed on its own winning branch (standard Chan-Meng
-#'   `r4`); `"fixed"` recomputes every per-imputation statistic on the branch
-#'   the stacked constrained fit selected, so branch disagreement across
-#'   imputations cannot pull the ARIV down. Both p-values are always emitted
+#'   `indirect_p` column: `"fixed"` (default, as in missingmed) recomputes every
+#'   per-imputation statistic on the branch the stacked constrained fit
+#'   selected, so branch disagreement across imputations cannot pull the ARIV
+#'   down; `"own"` (the previous default) pools per-imputation MBCO statistics
+#'   each computed on its own winning branch (standard Chan-Meng `r4`) and can
+#'   be liberal at high missingness. Both p-values are always emitted
 #'   (`indirect_p` and `indirect_p_fixed`), together with the branch-mixing
 #'   diagnostics `branch_mix`, `p_branch_a`, `stacked_branch`, `r4`, `r4_fixed`
 #'   (with a single imputation there is no stacked fit: `stacked_branch` is
 #'   that fit's branch and `r4 = r4_fixed = 0`; on the error path all six are
 #'   `NA`).
 #' @param df Denominator degrees of freedom for the D4 `F` reference, used for
-#'   both `indirect_p` and `indirect_p_fixed`: `"li"` (default, legacy) is the
-#'   Li et al. (1991) / Meng-Rubin approximation, \eqn{\nu = 4 + (k(K-1) - 4)\{1 +
-#'   (1 - 2/(k(K-1)))/r_4\}^2} when \eqn{k(K-1) > 4}; `"chan_meng"` is Chan and
-#'   Meng (2022, eq. 2.15), \eqn{\nu = k(K-1)(1 + 1/r_4)^2}, the reference used by
-#'   `mitml::testModels(method = "D4")`. Both give \eqn{\nu = \infty} (a
+#'   both `indirect_p` and `indirect_p_fixed`: `"chan_meng"` (default, as in
+#'   missingmed) is Chan and Meng (2022, eq. 2.15), \eqn{\nu = k(K-1)(1 +
+#'   1/r_4)^2}, the reference used by `mitml::testModels(method = "D4")`; `"li"`
+#'   (the previous default) is the Li et al. (1991) / Meng-Rubin approximation,
+#'   \eqn{\nu = 4 + (k(K-1) - 4)\{1 + (1 - 2/(k(K-1)))/r_4\}^2} when
+#'   \eqn{k(K-1) > 4}. Both give \eqn{\nu = \infty} (a
 #'   chi-square reference) when \eqn{r_4 = 0}. Chan and Meng derive eq. 2.15 for the
 #'   own-branch \eqn{r_4} at a regular null; for `ariv = "fixed"`, and at the
 #'   nonregular null \eqn{a = b = 0}, either choice is a working reference whose
@@ -81,8 +83,8 @@
 #' }
 #' }
 #' @export
-medsim_method_mbco_mi <- function(model, m = 20L, ariv = c("own", "fixed"),
-                                  df = c("li", "chan_meng"), ...) {
+medsim_method_mbco_mi <- function(model, m = 20L, ariv = c("fixed", "own"),
+                                  df = c("chan_meng", "li"), ...) {
   m <- as.integer(m)
   ariv <- match.arg(ariv)
   df <- match.arg(df)

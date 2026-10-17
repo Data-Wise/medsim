@@ -134,18 +134,19 @@ statistic:
 
 - `ariv = "fixed"` computes the relative increase in variance (`r4`) from
   per-imputation statistics on the branch that the stacked constrained fit
-  selects, so imputations that disagree on the branch cannot deflate it. The
-  default `ariv = "own"` is the standard Chan-Meng pooling. Both p-values are
+  selects, so imputations that disagree on the branch cannot deflate it. This is the
+  default; `ariv = "own"` is the standard Chan-Meng pooling and can be
+  liberal at high missingness. Both p-values are
   always returned (`indirect_p`, `indirect_p_fixed`); `ariv` chooses which one
   fills `indirect_p`.
 - `df = "chan_meng"` uses the Chan and Meng (2022, eq. 2.15) denominator degrees
-  of freedom, as `mitml::testModels(method = "D4")` does; the default
-  `df = "li"` keeps the Li et al. (1991) approximation. Only the p-values change.
+  of freedom, as `mitml::testModels(method = "D4")` does. This is the
+  default; `df = "li"` keeps the Li et al. (1991) approximation. Only the p-values change.
 
 ```{r}
 #| label: ariv-df
-results_fixed <- medsim_run(
-  method = medsim_method_mbco_mi(model = NULL, m = 20, ariv = "fixed", df = "chan_meng"),
+results_legacy <- medsim_run(
+  method = medsim_method_mbco_mi(model = NULL, m = 20, ariv = "own", df = "li"),
   scenarios = list(scn),
   config = medsim_config("test")
 )
@@ -186,5 +187,5 @@ results_ipw <- medsim_run(
   the estimand-kind system used elsewhere in medsim.
 - `medsim_method_mbco_mi()` reproduces the `mitml::testModels(method = "D4")`
   statistic when `mice`/`mitml` are installed (Reiter/Chan-Meng D4 pooling). Its
-  p-value matches `mitml` (with `ariv = "positive"`) under `df = "chan_meng"`; the
-  default `df = "li"` keeps the legacy Li et al. (1991) denominator df.
+  p-value matches `mitml` (with `ariv = "positive"`) under the default `df = "chan_meng"`;
+  `df = "li"` gives the legacy Li et al. (1991) denominator df.
