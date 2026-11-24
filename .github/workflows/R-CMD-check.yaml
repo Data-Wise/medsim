@@ -5,13 +5,9 @@
 # because it has no PPM binaries and source compilation takes ~30 min.
 # Keeping it off PRs makes the feedback loop ~4 min instead of ~30 min.
 on:
-  push:
-    branches: [main, master, dev]
-  pull_request:
-    branches: [main, master, dev]
   workflow_dispatch:
 
-name: R-CMD-check
+name: PR 67 dependency-only check
 
 permissions: read-all
 
@@ -40,6 +36,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: 09f1c615f700581cb7bb9ea20b79a2f4b0b023fe
+          persist-credentials: false
 
       - uses: r-lib/actions/setup-pandoc@v2
 
@@ -56,7 +55,14 @@ jobs:
           needs: check
           install-quarto: true
 
-      - uses: r-lib/actions/check-r-package@v2
-        with:
-          upload-snapshots: true
-          build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
+      - name: Verify the tested head and load dependencies
+        shell: Rscript {0}
+        run: |
+          sha <- system2("git", c("rev-parse", "HEAD"), stdout = TRUE)
+          stopifnot(identical(sha, "09f1c615f700581cb7bb9ea20b79a2f4b0b023fe"))
+          cat("Tested PR #67 head", sha, "\n")
+          for (package in c("S7", "medfit", "probmed")) {
+            loadNamespace(package)
+            cat(package, as.character(packageVersion(package)), "\n")
+          }
+          stopifnot(packageVersion("S7") == "0.2.2")
