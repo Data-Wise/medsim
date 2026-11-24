@@ -132,7 +132,8 @@ smoke <- function() {
   # The reduced grid and fake provenance are confined to this local check.
   reduced <- grid[!duplicated(grid$group), ]
   reduced$attempts <- reduced$last_id <- 2L
-  pin <- list(medsim_sha = "smoke", medsim_code = "smoke", harness = "smoke", checker = "smoke")
+  pin <- list(medsim_sha = "smoke", medsim_code = "smoke", harness = "smoke", checker = "smoke",
+              r = R.version.string, rng = RNGkind(), packages = c(medsim = "smoke"))
   driver$runtime <- function(sha) pin
   driver$src$calibration_grid <- function() reduced
   root <- file.path(dir, "mock-release")
@@ -142,11 +143,21 @@ smoke <- function() {
   driver$save_atomic(list(grid = reduced, groups = groups, runtime = pin), manifest)
   hash <- driver$sha256(manifest)
   parity <- file.path(root, "parity.rds")
+  values <- c(D4 = 1, p = .25, r4 = 0, nu = Inf, stacked_branch = 1)
+  comparison <- function(mode) list(
+    medsim = values, medsim_branch_mix = 0L,
+    missingmed = structure(values, ariv = mode, stacked_branch = "a", branch_mix = 0L, k = 1L)
+  )
+  pair <- list(own = comparison("own"), fixed = comparison("fixed"))
   driver$save_atomic(list(
     passed = TRUE, medsim_sha = "smoke", medsim_code = "smoke",
     checker_hash = "smoke", harness_hash = "smoke",
     missingmed_sha = h$.calibration_missingmed_sha,
-    fixture_blob = h$.calibration_fixture_blob
+    fixture_blob = h$.calibration_fixture_blob,
+    fixture_sha256 = driver$parity_fixture_sha,
+    missingmed_code = strrep("a", 64), command = "smoke", r = pin$r, rng = pin$rng,
+    packages = c(pin$packages, missingmed = "smoke"),
+    comparisons = list(seed26 = pair, seed9 = pair, seed28 = pair)
   ), parity)
   for (i in seq_len(nrow(reduced))) {
     synthetic <- rows
@@ -271,11 +282,7 @@ parity <- function(path, receipt_path = NULL) {
       for (field in c("D4", "r4", "nu", "p")) {
         a <- x[[field]]
         b <- y[[field]]
-        agree <- if (is.finite(a) && is.finite(b)) {
-          abs(a - b) <= 1e-10 * max(1, abs(a), abs(b))
-        } else {
-          field == "nu" && identical(a, Inf) && identical(b, Inf)
-        }
+        agree <- driver$parity_values_agree(a, b, field)
         check(agree, name, ariv, field, a, b)
       }
       branch <- if (local$stacked_branch == 1) "a" else "b"
@@ -287,7 +294,9 @@ parity <- function(path, receipt_path = NULL) {
       # medsim's linear D4 call has one constraint on either union-null branch.
       check(y@k == 1L, name, ariv, "dimension", 1L, y@k)
       check((x[["p"]] < .05) == (y[["p"]] < .05), name, ariv, "reject", x[["p"]], y[["p"]])
-      comparisons[[name]][[ariv]] <- list(medsim = x, missingmed = y)
+      comparisons[[name]][[ariv]] <- list(
+        medsim = x, missingmed = y, medsim_branch_mix = local$branch_mix
+      )
     }
   }
   if (length(disagreements)) {
@@ -299,15 +308,17 @@ parity <- function(path, receipt_path = NULL) {
   if (!is.null(receipt_path)) {
     pin <- driver$runtime(medsim_sha)
     if (file.exists(receipt_path)) stop("Parity receipt already exists.")
-    driver$save_atomic(list(
+    receipt <- list(
       passed = TRUE, medsim_sha = medsim_sha, medsim_code = pin$medsim_code,
       harness_hash = pin$harness, checker_hash = pin$checker,
       missingmed_sha = missingmed_sha, fixture_blob = h$.calibration_fixture_blob,
       fixture_sha256 = driver$sha256(path), r = R.version.string,
-      packages = driver$dependency_versions(c("medsim", "missingmed")),
+      packages = driver$dependency_versions(c("medsim", "mice", "missingmed")),
       missingmed_code = driver$sha256(system.file("R", "missingmed.rdb", package = "missingmed")),
       rng = RNGkind(), command = commandArgs(), comparisons = comparisons
-    ), receipt_path)
+    )
+    driver$validate_parity(receipt, pin)
+    driver$save_atomic(receipt, receipt_path)
   }
   cat("PASS missingmed parity: 3 shared-input cases x 2 ARIV rules x 8 comparisons\n")
 }

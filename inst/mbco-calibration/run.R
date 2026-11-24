@@ -21,6 +21,15 @@ sha256 <- function(path) {
   substr(value, 1L, 64L)
 }
 
+read_hashed_rds <- function(path, expected = NULL, label = basename(path)) {
+  snapshot <- tempfile("medsim-rds-")
+  on.exit(unlink(snapshot))
+  if (!file.copy(path, snapshot)) stop("Cannot snapshot ", path)
+  hash <- sha256(snapshot)
+  if (!is.null(expected) && !identical(hash, expected)) stop(label, " hash mismatch")
+  list(hash = hash, value = readRDS(snapshot))
+}
+
 dependency_versions <- function(packages) {
   db <- utils::installed.packages()
   dependencies <- tools::package_dependencies(
@@ -215,18 +224,69 @@ read_attempts <- function(root, plan, group, chunk, scenarios, ids) {
   selected
 }
 
+parity_fixture_sha <- "b88d9e26e462f6f387ea711766511507f8c638939f18d95ddab67c640964e4e8"
+
+parity_values_agree <- function(a, b, field) {
+  if (!is.numeric(a) || !is.numeric(b) || length(a) != 1L || length(b) != 1L) return(FALSE)
+  if (is.finite(a) && is.finite(b)) return(abs(a - b) <= 1e-10 * max(1, abs(a), abs(b)))
+  field == "nu" && identical(a, Inf) && identical(b, Inf)
+}
+
+validate_parity <- function(parity, pin) {
+  valid <- function(ok) {
+    if (!isTRUE(ok)) stop("A complete, passing shared-input parity receipt for this runtime is required.")
+  }
+  valid(is.list(parity) && !anyDuplicated(names(parity)))
+  valid(isTRUE(parity$passed) && identical(parity$medsim_sha, pin$medsim_sha) &&
+    identical(parity$medsim_code, pin$medsim_code) &&
+    identical(parity$checker_hash, pin$checker) &&
+    identical(parity$harness_hash, pin$harness) &&
+    identical(parity$missingmed_sha, src$.calibration_missingmed_sha) &&
+    identical(parity$fixture_blob, src$.calibration_fixture_blob) &&
+    identical(parity$fixture_sha256, parity_fixture_sha) &&
+    is.character(parity$missingmed_code) && length(parity$missingmed_code) == 1L &&
+    grepl("^[0-9a-f]{64}$", parity$missingmed_code) &&
+    is.character(parity$command) && length(parity$command) > 0L &&
+    all(!is.na(parity$command) & nzchar(parity$command)) &&
+    identical(parity$r, pin$r) && identical(parity$rng, pin$rng) &&
+    is.character(parity$packages) && !anyDuplicated(names(parity$packages)) &&
+    all(!is.na(parity$packages) & nzchar(parity$packages)) &&
+    all(c(names(pin$packages), "missingmed") %in% names(parity$packages)) &&
+    identical(parity$packages[names(pin$packages)], pin$packages))
+
+  cases <- c("seed26", "seed9", "seed28")
+  ariv <- c("own", "fixed")
+  fields <- c("D4", "r4", "nu", "p")
+  valid(is.list(parity$comparisons) && length(parity$comparisons) == 3L &&
+    setequal(names(parity$comparisons), cases))
+  for (case in cases) {
+    pair <- parity$comparisons[[case]]
+    valid(is.list(pair) && length(pair) == 2L && setequal(names(pair), ariv))
+    for (mode in ariv) {
+      comparison <- pair[[mode]]
+      valid(is.list(comparison) && !anyDuplicated(names(comparison)))
+      x <- comparison$medsim
+      y <- comparison$missingmed
+      valid(is.numeric(x) && is.numeric(y) && !anyDuplicated(names(x)) &&
+        !anyDuplicated(names(y)) && all(c(fields, "stacked_branch") %in% names(x)) &&
+        all(fields %in% names(y)))
+      valid(all(vapply(fields, function(field) parity_values_agree(x[[field]], y[[field]], field),
+        logical(1))))
+      valid(identical(attr(y, "ariv"), mode) && x[["stacked_branch"]] %in% 0:1 &&
+        identical(attr(y, "stacked_branch"), if (x[["stacked_branch"]] == 1) "a" else "b") &&
+        comparison$medsim_branch_mix %in% 0:1 &&
+        isTRUE(comparison$medsim_branch_mix == attr(y, "branch_mix")) &&
+        isTRUE(attr(y, "k") == 1L) && (x[["p"]] < .05) == (y[["p"]] < .05))
+    }
+  }
+  invisible(TRUE)
+}
+
 finalize <- function(root, parity_path, combine_chunks = medsim::medsim_combine_chunks,
                      audit_implementation = NULL) {
   plan <- read_plan(root)
-  parity <- readRDS(parity_path)
-  if (!isTRUE(parity$passed) || !identical(parity$medsim_sha, plan$runtime$medsim_sha) ||
-    !identical(parity$medsim_code, plan$runtime$medsim_code) ||
-    !identical(parity$checker_hash, plan$runtime$checker) ||
-    !identical(parity$harness_hash, plan$runtime$harness) ||
-    !identical(parity$missingmed_sha, src$.calibration_missingmed_sha) ||
-    !identical(parity$fixture_blob, src$.calibration_fixture_blob)) {
-    stop("A passing shared-input parity receipt for this runtime is required.")
-  }
+  parity <- read_hashed_rds(parity_path)
+  validate_parity(parity$value, plan$runtime)
   report_path <- file.path(root, "decision.rds")
   lock <- file.path(root, "finalize.lock")
   new_directory(lock)
@@ -290,7 +350,7 @@ finalize <- function(root, parity_path, combine_chunks = medsim::medsim_combine_
   }, logical(1)))
   if (!identical(initial, snapshot())) stop("Attempt files changed during finalization.")
   save_atomic(list(
-    manifest_hash = plan$hash, parity_hash = sha256(parity_path),
+    manifest_hash = plan$hash, parity_hash = parity$hash,
     chunks = lapply(selected, function(paths) stats::setNames(vapply(paths, sha256, ""), paths)),
     cells = results, passed = pass, command = commandArgs(),
     audit_implementation = audit_implementation
