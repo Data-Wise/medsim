@@ -111,6 +111,17 @@ calibration_fit <- function(data, params) {
 
 calibration_valid_p <- function(p) is.finite(p) & p >= 0 & p <= 1
 
+calibration_valid_path <- function(rows) {
+  valid <- with(rows, (complete_by_design & effective_k == 1L) |
+    (!complete_by_design & effective_k == .calibration_k))
+  valid[is.na(valid)] <- FALSE
+  valid
+}
+
+calibration_usable <- function(rows, valid_path = calibration_valid_path(rows)) {
+  lapply(rows[.calibration_arms], function(p) calibration_valid_p(p) & valid_path)
+}
+
 calibration_pass <- function(u_paired, u_size) u_paired < .005 && u_size < .065
 
 calibration_limits <- function(new, new_only, legacy_only, attempts) {
@@ -144,10 +155,8 @@ calibration_summarize <- function(rows, cell) {
     stop("Wrong replicate keys for ", cell$scenario)
   }
   p <- rows[.calibration_arms]
-  valid_path <- with(rows, (complete_by_design & effective_k == 1L) |
-    (!complete_by_design & effective_k == .calibration_k))
-  valid_path[is.na(valid_path)] <- FALSE
-  usable <- lapply(p, function(x) calibration_valid_p(x) & valid_path)
+  valid_path <- calibration_valid_path(rows)
+  usable <- calibration_usable(rows, valid_path)
   reject <- Map(function(x, ok) ok & x < .05, p, usable)
   new <- reject$fixed_chan_meng | !usable$fixed_chan_meng
   legacy <- reject$own_li

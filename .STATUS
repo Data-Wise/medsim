@@ -16,6 +16,13 @@ calibration-2026-11-23: #62 task 1b harness implemented in `inst/mbco-calibratio
   All 54 null cells cleared both bounds across 5,580,000 planned datasets.
   Worst simultaneous bounds were 0.1277 percentage points paired and
   5.3863% absolute. Release authorization remains separate.
+factorial-report-2026-11-24: Implemented the #62 V1 paired ARIV-by-df report.
+  Verified all 1,320 saved Hopper chunks and 360 contrasts across 72 cells
+  and 5,580,000 datasets. Counts, paired MCSEs, interaction identities, and
+  both official bounds matched independent checks. No new simulations ran.
+  After review, snapshot and replicate-key validation reproduced the same CSV
+  byte for byte from all 1,320 chunks.
+  Local CSV is internal/RESULTS-medsim-62-factorial-v1-2026-11-24.csv.
 merged-2026-08-17: PR #44 (`feature/mbco-fixed-branch-ariv`, squash `c748d1b` on dev) —
   medsim_method_mbco_mi() ariv=c("own","fixed") + additive branch diagnostics (indirect_p_fixed,
   branch_mix, p_branch_a, stacked_branch, r4, r4_fixed); .medsim_d4_mbco(fixed_branch=, lls_S=).

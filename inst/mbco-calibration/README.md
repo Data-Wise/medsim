@@ -74,3 +74,26 @@ that misses a size bound records `HOLD`; its fixed budget has ended.
 ```sh
 Rscript --vanilla "$HARNESS/run.R" finalize "$RUN_DIR" "$PARITY_RECEIPT"
 ```
+
+## Paired factorial report from saved chunks
+
+Use the report command after finalization. A relocated archive is supported
+when it preserves `manifest.rds`, `decision.rds`, and the attempt directory
+layout with the selected payloads and their receipts. Obtain the expected
+decision SHA-256 from the trusted run record. Use a new CSV path outside
+the attempts directory.
+
+```sh
+Rscript --vanilla "$HARNESS/report.R" "$RUN_DIR" "$REPORT_CSV" "$DECISION_SHA256"
+```
+
+The CSV reports four simple contrasts and the ARIV-by-df interaction for
+each cell. Estimates and paired Monte Carlo standard errors use the same
+four-arm usable draws and are in probability units. Each row includes the
+number of draws usable for its particular comparison, the signed difference
+counts on the common subset, and diagnostics from the official decision.
+The gate bounds are blank for power cells. The command validates the
+receipt-selected chunks, exact replicate keys, and decision diagnostics
+before writing the report. It hashes and reads the same private snapshot of
+each RDS input. The command needs `sha256sum` or `shasum` and an output
+filesystem that supports hard links. It only reads saved simulation data.

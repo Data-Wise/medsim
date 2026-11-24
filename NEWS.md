@@ -25,6 +25,9 @@
 * The #62 finalizer uses significant digits for its p-value collapse checks.
   Other callers can opt in for named columns with `collapse_p_columns`.
 
+* The #62 harness can report paired ARIV-by-df contrasts and their Monte
+  Carlo standard errors from finalized, receipt-verified chunks.
+
 # medsim 0.6.0
 
 ## New features
