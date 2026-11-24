@@ -92,5 +92,7 @@ four-arm usable draws and are in probability units. Each row includes the
 number of draws usable for its particular comparison, the signed difference
 counts on the common subset, and diagnostics from the official decision.
 The gate bounds are blank for power cells. The command validates the
-receipt-selected chunks before writing the report. It only reads saved
-simulation data.
+receipt-selected chunks, exact replicate keys, and decision diagnostics
+before writing the report. It hashes and reads the same private snapshot of
+each RDS input. The command needs `sha256sum` or `shasum` and an output
+filesystem that supports hard links. It only reads saved simulation data.

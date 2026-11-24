@@ -87,6 +87,8 @@ test_that("the report verifies relocated selected payloads before publication", 
   hash <- prepare(transform(rows, replication = c(1L, 1L, 3:5)))
   expect_error(report$report_run(root, outfile, hash, driver), "replicate keys")
   expect_false(file.exists(outfile))
+  hash <- prepare(transform(rows, replication = c(1 + .Machine$double.eps, 2:5)))
+  expect_error(report$report_run(root, outfile, hash, driver), "replicate keys")
   hash <- prepare(rows, partial = TRUE)
   expect_error(report$report_run(root, outfile, hash, driver), "provenance")
   expect_false(file.exists(outfile))
@@ -102,4 +104,41 @@ test_that("the report verifies relocated selected payloads before publication", 
   expect_true(all(is.na(result$u_paired)))
   expect_true(all(result$decision_sha256 == hash))
   expect_error(report$report_run(root, outfile, hash, driver), "already exists")
+
+  selected_hash <- driver$sha256(path)
+  replacement <- readRDS(path)
+  replacement$results$own_li[1] <- .8
+  modified <- file.path(root, "replacement.rds")
+  saveRDS(replacement, modified)
+  original_sha256 <- driver$sha256
+  withr::defer(driver$sha256 <- original_sha256)
+  driver$sha256 <- function(snapshot) {
+    digest <- original_sha256(snapshot)
+    if (identical(digest, selected_hash)) stopifnot(file.copy(modified, path, overwrite = TRUE))
+    digest
+  }
+  second <- file.path(root, "snapshot.csv")
+  expect_silent(report$report_run(root, second, hash, driver))
+  expect_identical(utils::read.csv(second), result)
+  expect_false(identical(original_sha256(path), selected_hash))
+  driver$sha256 <- original_sha256
+
+  plan$grid$is_null <- TRUE
+  saveRDS(plan, manifest)
+  hash <- prepare(rows)
+  third <- file.path(root, "null.csv")
+  expect_error(report$report_run(root, third, hash, driver), "Incomplete decision diagnostics")
+  expect_false(file.exists(third))
+  summary <- driver$src$calibration_summarize(rows, plan$grid)
+  hash <- prepare(rows)
+  expect_silent(report$report_run(root, third, hash, driver))
+  expect_equal(unique(utils::read.csv(third)$u_size), unname(summary$decision[["u_size"]]))
+})
+
+test_that("selection errors name the affected chunk", {
+  report <- .factorial_report
+  path <- "/original/attempts/100-power/1/1/chunk_0001.rds"
+  selected <- stats::setNames(strrep("a", 64L), path)
+  expect_error(report$report_selection(selected, "100-power", 2L), "100-power chunk 2")
+  expect_error(report$report_selection(c(selected, selected), "100-power", 1L), "100-power chunk 1")
 })

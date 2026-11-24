@@ -48,21 +48,30 @@ factorial_summary <- function(counts) {
 }
 
 report_selection <- function(selected, group, chunks) {
-  if (!is.character(selected) || length(selected) != chunks || is.null(names(selected)) ||
-    anyNA(names(selected)) || anyNA(selected) || any(!grepl("^[a-f0-9]{64}$", selected))) {
+  if (is.null(selected) || !length(selected)) stop("Missing selected chunk in ", group, " chunk 1")
+  if (!is.character(selected) || is.null(names(selected)) || anyNA(names(selected))) {
     stop("Invalid chunk selection in ", group)
   }
   parts <- lapply(strsplit(names(selected), "/", fixed = TRUE), utils::tail, n = 5L)
-  if (any(lengths(parts) != 5L)) stop("Invalid selected chunk path in ", group)
+  if (any(lengths(parts) != 5L)) {
+    stop("Invalid selected chunk path in ", group, ": ", names(selected)[which(lengths(parts) != 5L)[1L]])
+  }
   parts <- do.call(rbind, parts)
   ids <- as.character(seq_len(chunks))
-  if (!setequal(ids, parts[, 3L])) stop("Missing or duplicate selected chunks in ", group)
+  missing <- setdiff(ids, parts[, 3L])
+  if (length(missing)) stop("Missing selected chunk in ", group, " chunk ", missing[1L])
+  duplicate <- anyDuplicated(parts[, 3L])
+  if (duplicate) stop("Duplicate selected chunk in ", group, " chunk ", parts[duplicate, 3L])
+  extra <- setdiff(parts[, 3L], ids)
+  if (length(extra)) stop("Unexpected selected chunk in ", group, " chunk ", extra[1L])
   order <- match(ids, parts[, 3L])
   parts <- parts[order, , drop = FALSE]
   filenames <- vapply(seq_len(chunks), medsim:::.medsim_chunk_filename, "")
   valid <- parts[, 1L] == "attempts" & parts[, 2L] == group &
     grepl("^[1-9][0-9]*$", parts[, 4L]) & parts[, 5L] == filenames
   if (!all(valid)) stop("Invalid selected path in ", group, " chunk ", which(!valid)[1L])
+  valid_hash <- grepl("^[a-f0-9]{64}$", selected[order])
+  if (!all(valid_hash)) stop("Invalid selected hash in ", group, " chunk ", which(!valid_hash)[1L])
   data.frame(
     path = file.path("attempts", group, ids, parts[, 4L], filenames),
     attempt = parts[, 4L], hash = unname(selected[order])
@@ -71,7 +80,7 @@ report_selection <- function(selected, group, chunks) {
 
 report_payload <- function(root, entry, plan, group, chunk, scenarios, driver) {
   path <- file.path(root, entry$path)
-  if (!identical(driver$sha256(path), entry$hash)) stop("Selected payload hash mismatch")
+  payload <- driver$read_hashed_rds(path, entry$hash, "Selected payload")$value
   start <- readRDS(file.path(dirname(path), "started.rds"))
   receipt <- readRDS(file.path(dirname(path), "receipt.rds"))
   if (!identical(start$manifest, plan$hash) || !identical(start$group, group$group) ||
@@ -80,16 +89,16 @@ report_payload <- function(root, entry, plan, group, chunk, scenarios, driver) {
     !identical(receipt$output_hash, entry$hash)) {
     stop("Invalid selected attempt receipts")
   }
-  payload <- readRDS(path)
   provenance <- attr(payload, "provenance", exact = TRUE)
   if (!identical(provenance$code_sha, plan$runtime$medsim_sha) || !isFALSE(provenance$partial)) {
     stop("Invalid selected payload provenance")
   }
   rows <- payload$results
-  if (!is.character(rows$scenario) || !is.numeric(rows$replication) || anyNA(rows$replication)) {
+  ids <- medsim:::.medsim_chunk_indices(group$attempts, group$chunks, chunk)
+  if (!is.character(rows$scenario) || !is.numeric(rows$replication) ||
+    !all(rows$scenario %in% scenarios) || !all(rows$replication %in% ids)) {
     stop("Invalid replicate keys")
   }
-  ids <- medsim:::.medsim_chunk_indices(group$attempts, group$chunks, chunk)
   keys <- paste(rows$scenario, rows$replication)
   expected <- as.vector(outer(scenarios, ids, paste))
   if (length(keys) != length(expected) || anyDuplicated(keys) || !setequal(keys, expected)) {
@@ -97,6 +106,29 @@ report_payload <- function(root, entry, plan, group, chunk, scenarios, driver) {
   }
   if (any(medsim:::.medsim_is_dgp_failure(rows$error))) stop("DGP failure in selected payload")
   rows
+}
+
+report_diagnostics <- function(official, cell) {
+  fields <- c("branch_mix", "branch_mix_denominator", "complete_pairs",
+              "complete_pair_difference", "complete_pair_mcse", "u_paired", "u_size")
+  required <- c("attempts", if (cell$is_null) fields else fields[1:5])
+  if (!is.numeric(official) || anyDuplicated(names(official)) ||
+    !all(required %in% names(official)) || !isTRUE(official[["attempts"]] == cell$attempts)) {
+    stop("Incomplete decision diagnostics for ", cell$scenario)
+  }
+  diagnostics <- unname(official[fields])
+  counts <- diagnostics[1:3]
+  if (any(!is.finite(counts) | counts != floor(counts) | counts < 0 | counts > cell$attempts) ||
+    counts[1L] > counts[2L]) {
+    stop("Invalid decision counts for ", cell$scenario)
+  }
+  bounds <- diagnostics[6:7]
+  if (cell$is_null && (any(!is.finite(bounds)) || abs(bounds[1L]) > 1 ||
+    bounds[2L] < 0 || bounds[2L] > 1)) {
+    stop("Invalid null gate bounds for ", cell$scenario)
+  }
+  if (!cell$is_null) diagnostics[6:7] <- NA_real_
+  stats::setNames(as.list(diagnostics), fields)
 }
 
 report_run <- function(root, output, decision_hash, driver) {
@@ -109,15 +141,21 @@ report_run <- function(root, output, decision_hash, driver) {
   }
   decision_path <- file.path(root, "decision.rds")
   manifest_path <- file.path(root, "manifest.rds")
-  if (!identical(driver$sha256(decision_path), decision_hash)) stop("Decision receipt hash mismatch")
-  decision <- readRDS(decision_path)
-  manifest_hash <- driver$sha256(manifest_path)
-  if (!identical(manifest_hash, decision$manifest_hash)) stop("Manifest hash mismatch")
-  plan <- readRDS(manifest_path)
+  if (!is.character(decision_hash) || length(decision_hash) != 1L ||
+    !grepl("^[a-f0-9]{64}$", decision_hash)) stop("Expected a decision SHA-256 digest")
+  decision <- driver$read_hashed_rds(decision_path, decision_hash, "Decision receipt")$value
+  manifest_hash <- decision$manifest_hash
+  if (!is.character(manifest_hash) || length(manifest_hash) != 1L ||
+    !grepl("^[a-f0-9]{64}$", manifest_hash)) stop("Missing or invalid manifest hash")
+  plan <- driver$read_hashed_rds(manifest_path, manifest_hash, "Manifest")$value
   plan$hash <- manifest_hash
   grid <- plan$grid
   groups <- plan$groups
   if (!nrow(grid) || anyDuplicated(grid$scenario) || anyDuplicated(groups$group) ||
+    !is.logical(grid$is_null) || anyNA(grid$is_null) ||
+    any(!is.finite(groups$chunks) | groups$chunks != floor(groups$chunks) |
+      groups$chunks < 1L | groups$chunks > groups$attempts) ||
+    any(!is.finite(groups$attempts) | groups$attempts != floor(groups$attempts)) ||
     !all(grepl("^[A-Za-z0-9_-]+$", groups$group)) ||
     !setequal(groups$group, grid$group) || !setequal(groups$group, names(decision$chunks)) ||
     anyDuplicated(names(decision$chunks)) || !setequal(grid$scenario, names(decision$cells)) ||
@@ -143,13 +181,10 @@ report_run <- function(root, output, decision_hash, driver) {
       totals[cells] <- if (chunk == 1L) counts else Map(`+`, totals[cells], counts)
     }
   }
-  fields <- c("branch_mix", "branch_mix_denominator", "complete_pairs",
-              "complete_pair_difference", "complete_pair_mcse", "u_paired", "u_size")
   report <- do.call(rbind, lapply(seq_len(nrow(grid)), function(i) {
     cell <- grid[i, ]
     official <- decision$cells[[cell$scenario]]$decision
-    if (official[["attempts"]] != cell$attempts) stop("Wrong decision budget for ", cell$scenario)
-    diagnostics <- stats::setNames(as.list(unname(official[fields])), fields)
+    diagnostics <- report_diagnostics(official, cell)
     contrasts <- factorial_summary(totals[[i]])
     data.frame(cell, contrasts, diagnostics, manifest_sha256 = manifest_hash,
                decision_sha256 = decision_hash, row.names = NULL)
