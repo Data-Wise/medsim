@@ -3,6 +3,13 @@ test_that("the finalizer requires complete, consistent shared-input parity evide
   driver <- new.env(parent = baseenv())
   driver$commandArgs <- function(...) paste0("--file=", file.path(directory, "run.R"))
   sys.source(file.path(directory, "run.R"), envir = driver)
+  root <- withr::local_tempdir()
+  name <- if (.Platform$OS.type == "windows") "hash input" else "hash \\ input"
+  input <- file.path(root, name)
+  writeBin(as.raw(c(0x61, 0x0d, 0x0a, 0x1a, 0x00, 0xff)), input)
+  expected <- "5f3a00835fec1ac5375bdc710a18b3008d4fcf3d7799146f7e8737442d4cb971"
+  expect_identical(driver$sha256(input), expected)
+
   pin <- list(medsim_sha = "medsim", medsim_code = "code", checker = "checker",
               harness = "harness", r = "R version", rng = c("kind", "normal", "sample"),
               packages = c(medsim = "0.6.0", mice = "3.0.0"))
@@ -23,7 +30,6 @@ test_that("the finalizer requires complete, consistent shared-input parity evide
   expect_true(driver$validate_parity(receipt, pin))
 
   driver$read_plan <- function(root) list(runtime = pin)
-  root <- withr::local_tempdir()
   parity <- file.path(root, "parity.rds")
   expect_rejected <- function(x) {
     saveRDS(x, parity)

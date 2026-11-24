@@ -8,14 +8,16 @@ sys.source(file.path(directory, "harness.R"), envir = src)
 
 sha256 <- function(path) {
   executable <- Sys.which("sha256sum")
-  args <- shQuote(path)
+  args <- "-b"
   if (!nzchar(executable)) {
     executable <- Sys.which("shasum")
     args <- c("-a", "256", args)
   }
   if (!nzchar(executable) || !file.exists(path)) stop("Cannot hash ", path)
-  value <- system2(executable, args, stdout = TRUE)
-  if (length(value) != 1L || !grepl("^[0-9a-f]{64} ", value)) {
+  # Hash the bytes through stdin so the tool never prints an escaped path.
+  value <- system2(executable, args, stdout = TRUE, stdin = path)
+  if (!is.null(attr(value, "status")) || length(value) != 1L ||
+      !grepl("^[0-9a-f]{64} ", value)) {
     stop("Invalid SHA-256 output for ", path)
   }
   substr(value, 1L, 64L)

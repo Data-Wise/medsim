@@ -20,6 +20,8 @@
   validation, an audited chunk
   workflow, and the fixed-budget release decision.
 
+* Calibration SHA-256 checks hash file bytes consistently on Windows and Unix.
+
 * The #62 finalizer uses significant digits for its p-value collapse checks.
   Other callers can opt in for named columns with `collapse_p_columns`.
 
