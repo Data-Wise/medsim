@@ -16,7 +16,8 @@
 
 * The #62 MBCO-MI calibration harness in `inst/mbco-calibration/` runs the
   paired four-arm design with shared imputations and likelihood fits. It
-  provides local adapter and missingmed parity checks, an audited chunk
+  provides local adapter and missingmed parity checks with complete receipt
+  validation, an audited chunk
   workflow, and the fixed-budget release decision.
 
 * The #62 finalizer uses significant digits for its p-value collapse checks.

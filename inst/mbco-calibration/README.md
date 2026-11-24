@@ -59,6 +59,10 @@ Rscript --vanilla "$HARNESS/run.R" chunk "$RUN_DIR" "$GROUP" "$CHUNK" "$ATTEMPT"
 
 After all scheduler attempts and retries have ended, finalize once. Preserve
 the manifest, parity receipt, and attempt directories with the decision.
+The finalizer requires the signed-off fixture identity, matching R, RNG and
+dependency versions, and recorded values for all six case-by-ARIV
+comparisons. It checks the numeric and discrete parity criteria before
+reconciling the attempts.
 Finalization compares overlapping results, runs stock combine per group, and
 writes `decision.rds` with selected chunk hashes and per-cell results. The
 collapse check uses 12 significant digits for the four arm p-values and
