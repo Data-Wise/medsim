@@ -5,6 +5,7 @@ defines the 72 cells, the paired release rule, the missingmed crosswalk, and
 the fixed 5,580,000-dataset budget. The four arms share each data draw,
 imputation list, and set of likelihood fits. The scripts use the stock medsim
 chunk runner and combine audit.
+The harness uses `sha256sum` or `shasum` to hash file bytes in binary mode.
 
 ## Local checks
 

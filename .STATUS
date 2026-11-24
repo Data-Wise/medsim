@@ -9,6 +9,7 @@ calibration-2026-11-23: #62 task 1b harness implemented in `inst/mbco-calibratio
   map and exercised six-group reconciliation with synthetic files.
   The finalizer validates all six shared-input comparisons and their
   provenance. CI pins S7 0.2.2 for compatibility with CRAN medfit 0.3.2.
+  Snapshot checksums use binary input to handle Windows paths.
   Hopper pilot, pinned shared-input parity, and combine rehearsal passed.
   The fixed-budget Hopper calibration passed. Finalizer 4365646 applied
   the approved p-value precision audit to all 1,320 saved chunks.
