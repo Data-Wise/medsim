@@ -101,61 +101,16 @@ medsim_method_mbco_mi <- function(model, m = 20L, ariv = c("fixed", "own"),
         covs <- .medsim_md_covariates(data)
         use_mi <- requireNamespace("mice", quietly = TRUE) && anyNA(data)
         implist <- .medsim_md_implist(data, m = m, use_mi = use_mi)
-        kk <- length(implist)
-
-        ## Point estimate a*b, Rubin-pooled across imputations.
-        fitlist <- lapply(implist, function(d) .medsim_md_fit_ab(d, covs))
-        a_est <- vapply(fitlist, function(z) z$a, numeric(1))
-        b_est <- vapply(fitlist, function(z) z$b, numeric(1))
-        a_hat <- mean(a_est)
-        b_hat <- mean(b_est)
-        va <- .medsim_rubin_var(a_est, vapply(fitlist, function(z) z$va, numeric(1)))
-        vb <- .medsim_rubin_var(b_est, vapply(fitlist, function(z) z$vb, numeric(1)))
-        ab <- a_hat * b_hat
-
-        ## CI: Monte-Carlo product interval on the pooled (a, b) with Rubin totals.
-        mc <- .medsim_md_mc_ci(a_hat, b_hat, va, vb)
-
-        ## Per-imputation MBCO log-likelihood triples, computed ONCE: both the
-        ## D4/chi-sq test and the branch indicator derive from them (~6 lm fits
-        ## per imputation instead of ~10).
-        lls_list <- lapply(implist, function(d) .medsim_mbco_lls(d, covs))
-
-        ## P-values: the validated MBCO test (D4 pooling when K >= 2, else chi-sq),
-        ## with the ARIV computed on each imputation's OWN branch (legacy) and on
-        ## the STACKED fit's branch (fixed) -- both always emitted.
-        branches <- vapply(lls_list, .medsim_mbco_branch_from_lls, 0)
-        if (kk >= 2L) {
-          ## The stacked-fit triple is shared: fit it once, reuse for both ARIVs.
-          lls_S <- .medsim_mbco_lls(do.call(rbind, implist), covs)
-          d4_own <- .medsim_d4_mbco(implist, covs, lls_list = lls_list,
-                                    lls_S = lls_S, df = df)
-          d4_fix <- .medsim_d4_mbco(implist, covs, lls_list = lls_list,
-                                    lls_S = lls_S, fixed_branch = TRUE, df = df)
-          p_own <- unname(d4_own[["p"]])
-          p_fix <- unname(d4_fix[["p"]])
-          r4_own <- unname(d4_own[["r4"]])
-          r4_fix <- unname(d4_fix[["r4"]])
-          stacked_branch <- unname(d4_fix[["stacked_branch"]])
-        } else {
-          tstat <- .medsim_mbco_T_from_lls(lls_list[[1L]])
-          p_own <- p_fix <- stats::pchisq(max(tstat, 0), df = 1, lower.tail = FALSE)
-          r4_own <- r4_fix <- 0
-          stacked_branch <- branches[[1L]]
-        }
-        pval <- if (ariv == "fixed") p_fix else p_own
-
-        ## branch_switch: majority union-null branch (1 = the a = 0 branch wins).
-        p_branch_a <- mean(branches)
-        branch_switch <- as.integer(p_branch_a >= 0.5)
-        branch_mix <- as.integer(length(unique(branches)) > 1L)
-
-        list(
-          indirect = ab, indirect_ci_lower = mc[1L], indirect_ci_upper = mc[2L],
-          indirect_p = pval, branch_switch = branch_switch, converged = 1,
-          indirect_p_fixed = p_fix, branch_mix = branch_mix, p_branch_a = p_branch_a,
-          stacked_branch = stacked_branch, r4 = r4_own, r4_fixed = r4_fix
-        )
+        fit <- .medsim_mbco_mi_fit(implist, covs, df)
+        tests <- fit$tests[[df]]
+        c(fit$effect, list(
+          indirect_p = tests[[ariv]][["p"]],
+          branch_switch = fit$branch_switch, converged = 1,
+          indirect_p_fixed = tests$fixed[["p"]],
+          branch_mix = fit$branch_mix, p_branch_a = fit$p_branch_a,
+          stacked_branch = fit$stacked_branch,
+          r4 = tests$own[["r4"]], r4_fixed = tests$fixed[["r4"]]
+        ))
       },
       error = function(e) NULL
     )
@@ -479,6 +434,51 @@ medsim_method_ipw <- function(model, ...) {
     vapply(lls_list, .medsim_mbco_T_from_lls, 0)
   }
   c(.medsim_d4_from_stats(d_k, d_S, k = 1, df = df), stacked_branch = stacked_branch)
+}
+
+# Shared by the public adapter and the paired calibration harness.
+.medsim_mbco_mi_fit <- function(implist, covs, df) {
+  fits <- lapply(implist, .medsim_md_fit_ab, covs = covs)
+  a <- vapply(fits, function(fit) fit$a, numeric(1))
+  b <- vapply(fits, function(fit) fit$b, numeric(1))
+  a_hat <- mean(a)
+  b_hat <- mean(b)
+  va <- .medsim_rubin_var(a, vapply(fits, function(fit) fit$va, numeric(1)))
+  vb <- .medsim_rubin_var(b, vapply(fits, function(fit) fit$vb, numeric(1)))
+  ci <- .medsim_md_mc_ci(a_hat, b_hat, va, vb)
+
+  lls <- lapply(implist, .medsim_mbco_lls, covs = covs)
+  branches <- vapply(lls, .medsim_mbco_branch_from_lls, 0)
+  if (length(implist) > 1L) {
+    stacked <- .medsim_mbco_lls(do.call(rbind, implist), covs)
+    tests <- lapply(df, function(reference) {
+      list(
+        own = .medsim_d4_mbco(implist, covs, lls_list = lls,
+                              lls_S = stacked, df = reference),
+        fixed = .medsim_d4_mbco(implist, covs, lls_list = lls,
+                                lls_S = stacked, fixed_branch = TRUE, df = reference)
+      )
+    })
+    stacked_branch <- .medsim_mbco_branch_from_lls(stacked)
+  } else {
+    statistic <- max(.medsim_mbco_T_from_lls(lls[[1L]]), 0)
+    result <- c(D4 = statistic, p = stats::pchisq(statistic, 1, lower.tail = FALSE),
+                r4 = 0, nu = Inf)
+    tests <- lapply(df, function(reference) list(own = result, fixed = result))
+    stacked_branch <- branches[[1L]]
+  }
+  names(tests) <- df
+
+  p_branch_a <- mean(branches)
+  list(
+    effect = list(indirect = a_hat * b_hat,
+                  indirect_ci_lower = ci[1L], indirect_ci_upper = ci[2L]),
+    tests = tests,
+    branch_switch = as.integer(p_branch_a >= 0.5),
+    branch_mix = as.integer(length(unique(branches)) > 1L),
+    p_branch_a = p_branch_a,
+    stacked_branch = stacked_branch
+  )
 }
 
 # Base-R Monte-Carlo CI for the product a*b given (a,b) ~ independent normals.

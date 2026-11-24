@@ -12,6 +12,13 @@
   `indirect_p_fixed` is still always returned, so column names are unchanged;
   under the new default the two columns are equal.
 
+## Development tools
+
+* The #62 MBCO-MI calibration harness in `inst/mbco-calibration/` runs the
+  paired four-arm design with shared imputations and likelihood fits. It
+  provides local adapter and missingmed parity checks, an audited chunk
+  workflow, and the fixed-budget release decision.
+
 # medsim 0.6.0
 
 ## New features
