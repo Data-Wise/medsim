@@ -1,4 +1,4 @@
-# medsim (development version)
+# medsim 0.7.0
 
 ## Breaking changes
 
@@ -17,8 +17,10 @@
 * The #62 MBCO-MI calibration harness in `inst/mbco-calibration/` runs the
   paired four-arm design with shared imputations and likelihood fits. It
   provides local adapter and missingmed parity checks with complete receipt
-  validation, an audited chunk
-  workflow, and the fixed-budget release decision.
+  validation, an audited chunk workflow, and the fixed-budget release decision.
+  All 54 null scenarios passed the calibration gate. The worst simultaneous
+  upper bounds were 0.1277 percentage points for the paired size increase
+  (0.5-point margin) and 5.3863% for absolute size (6.5% ceiling).
 
 * Calibration SHA-256 checks hash file bytes consistently on Windows and Unix.
 
