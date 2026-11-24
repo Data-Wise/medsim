@@ -60,7 +60,9 @@ Rscript --vanilla "$HARNESS/run.R" chunk "$RUN_DIR" "$GROUP" "$CHUNK" "$ATTEMPT"
 After all scheduler attempts and retries have ended, finalize once. Preserve
 the manifest, parity receipt, and attempt directories with the decision.
 Finalization compares overlapping results, runs stock combine per group, and
-writes `decision.rds` with selected chunk hashes and per-cell results. A
+writes `decision.rds` with selected chunk hashes and per-cell results. The
+collapse check uses 12 significant digits for the four arm p-values and
+the two p-value aliases. It uses decimal places for other audited fields. A
 provenance or integrity error leaves the decision unwritten. A valid result
 that misses a size bound records `HOLD`; its fixed budget has ended.
 

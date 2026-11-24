@@ -11,7 +11,8 @@ medsim_audit_results(
   collapse_threshold = 0.9,
   collapse_digits = 12L,
   collapse_min_cell = 30L,
-  collapse_exclude = .medsim_collapse_exclude_default
+  collapse_exclude = .medsim_collapse_exclude_default,
+  collapse_p_columns = character()
 )
 }
 \arguments{
@@ -49,6 +50,11 @@ plus the \code{medsim_method_mbco_mi()} branch diagnostics \code{branch_mix},
 low-cardinality). Name-based (not distinctness-based) so a totally
 collapsed estimate column cannot exempt itself; add any custom discrete
 field your method emits.}
+
+\item{collapse_p_columns}{Character vector naming p-value columns. The
+collapse audit counts distinct values after rounding to \code{collapse_digits}
+significant digits in these columns. Other columns use decimal places.
+The default is empty. Stored values and exact ties are preserved.}
 }
 \value{
 Invisibly, the list of violations found (empty if clean). Signalling

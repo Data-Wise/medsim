@@ -16,7 +16,8 @@ medsim_combine_chunks(
   collapse_exclude = .medsim_collapse_exclude_default,
   pilot_reference = NULL,
   pilot_tol = 1e-09,
-  verbose = TRUE
+  verbose = TRUE,
+  collapse_p_columns = character()
 )
 }
 \arguments{
@@ -81,6 +82,11 @@ correct code (FORK-reproducibility scope). For a rebuilt environment,
 loosen the tolerance or use \code{on_violation = "warn"}.}
 
 \item{verbose}{Logical: print file counts.}
+
+\item{collapse_p_columns}{Character vector naming p-value columns. The
+collapse audit counts distinct values after rounding to \code{collapse_digits}
+significant digits in these columns. Other columns use decimal places.
+The default is empty. Stored values and exact ties are preserved.}
 }
 \value{
 A \code{medsim_results} object with combined \verb{$results} and \verb{$truth}.

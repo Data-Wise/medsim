@@ -19,6 +19,9 @@
   provides local adapter and missingmed parity checks, an audited chunk
   workflow, and the fixed-budget release decision.
 
+* The #62 finalizer uses significant digits for its p-value collapse checks.
+  Other callers can opt in for named columns with `collapse_p_columns`.
+
 # medsim 0.6.0
 
 ## New features

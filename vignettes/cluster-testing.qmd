@@ -158,6 +158,11 @@ combined <- tryCatch(
 medsim_audit_results(combined, nsim = 2000)
 ```
 
+For methods that store very small p-values, pass their column names in
+`collapse_p_columns`. The audit counts distinct p-values at the configured
+number of significant digits and still flags repeated values. It uses
+decimal places for other audited columns.
+
 A chunk whose replications **all** fail is the case worth knowing about,
 because it is the one an array job hits most often — a bad node, a missing
 module, a dependency that failed to load. Such a chunk still writes its RDS

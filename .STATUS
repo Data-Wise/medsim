@@ -7,7 +7,12 @@ calibration-2026-11-23: #62 task 1b harness implemented in `inst/mbco-calibratio
   Local two-replicate smoke, four-arm public adapter, and pinned shared-input
   missingmed parity checks passed. The smoke verified the full 5,580,000-seed
   map and exercised six-group reconciliation with synthetic files.
-  Hopper pilot, production run, and release remain pending separate authorization.
+  Hopper pilot, pinned shared-input parity, and combine rehearsal passed.
+  The fixed-budget Hopper calibration passed. Finalizer 4365646 applied
+  the approved p-value precision audit to all 1,320 saved chunks.
+  All 54 null cells cleared both bounds across 5,580,000 planned datasets.
+  Worst simultaneous bounds were 0.1277 percentage points paired and
+  5.3863% absolute. Release authorization remains separate.
 merged-2026-08-17: PR #44 (`feature/mbco-fixed-branch-ariv`, squash `c748d1b` on dev) —
   medsim_method_mbco_mi() ariv=c("own","fixed") + additive branch diagnostics (indirect_p_fixed,
   branch_mix, p_branch_a, stacked_branch, r4, r4_fixed); .medsim_d4_mbco(fixed_branch=, lls_S=).

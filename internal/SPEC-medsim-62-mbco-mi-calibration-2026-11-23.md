@@ -39,8 +39,11 @@ Use six combine groups, one for each sample size and attempt budget. Each
 sample size has a null group with 18 cells and a power group with six cells.
 Give each group a separate chunk directory and combine with its own expected
 chunk count and `nsim` (100,000 or 10,000). Preserve the stock combine integrity
-checks. Reconcile the six group receipts against one frozen 72-cell manifest
-that lists each cell, its group, and its exact replicate ID range. Before
+checks. For the four arm p-values and their two result aliases, count distinct
+values at 12 significant digits. The collapse threshold and decimal-place
+rule for other columns stay the same. Use the saved values for all rejection
+decisions. Reconcile the six group receipts against one frozen 72-cell
+manifest that lists each cell, its group, and its exact replicate ID range. Before
 submission, check the actual medsim seed mapping for collisions over every
 planned `(scenario name, global replicate ID)`, including across groups.
 Resolve any collision before freezing the confirmatory manifest.

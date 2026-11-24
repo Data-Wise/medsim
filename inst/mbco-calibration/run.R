@@ -215,7 +215,8 @@ read_attempts <- function(root, plan, group, chunk, scenarios, ids) {
   selected
 }
 
-finalize <- function(root, parity_path) {
+finalize <- function(root, parity_path, combine_chunks = medsim::medsim_combine_chunks,
+                     audit_implementation = NULL) {
   plan <- read_plan(root)
   parity <- readRDS(parity_path)
   if (!isTRUE(parity$passed) || !identical(parity$medsim_sha, plan$runtime$medsim_sha) ||
@@ -268,13 +269,14 @@ finalize <- function(root, parity_path) {
   for (i in seq_len(nrow(plan$groups))) {
     group <- plan$groups[i, ]
     cells <- plan$grid[plan$grid$group == group$group, ]
-    combined <- medsim::medsim_combine_chunks(
+    combined <- combine_chunks(
       file.path(lock, group$group),
       expected_chunks = group$chunks, nsim = group$attempts,
       collapse_exclude = c(
         medsim:::.medsim_collapse_exclude_default,
         "effective_k", "realized_missing"
-      )
+      ),
+      collapse_p_columns = c(src$.calibration_arms, "indirect_p", "indirect_p_fixed")
     )$results
     for (j in seq_len(nrow(cells))) {
       cell <- cells[j, ]
@@ -290,7 +292,8 @@ finalize <- function(root, parity_path) {
   save_atomic(list(
     manifest_hash = plan$hash, parity_hash = sha256(parity_path),
     chunks = lapply(selected, function(paths) stats::setNames(vapply(paths, sha256, ""), paths)),
-    cells = results, passed = pass, command = commandArgs()
+    cells = results, passed = pass, command = commandArgs(),
+    audit_implementation = audit_implementation
   ), report_path)
   cat(if (pass) "PASS\n" else "HOLD\n")
 }
