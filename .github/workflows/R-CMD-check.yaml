@@ -51,7 +51,8 @@ jobs:
 
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
-          extra-packages: any::rcmdcheck, any::quarto
+          # CRAN medfit 0.3.2 cannot load with S7 1.0.0.
+          extra-packages: any::rcmdcheck, any::quarto, RConsortium/S7@v0.2.2
           needs: check
           install-quarto: true
 

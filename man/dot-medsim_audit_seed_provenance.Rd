@@ -10,7 +10,8 @@
   collapse_threshold = 0.9,
   collapse_digits = 12L,
   collapse_min_cell = 30L,
-  collapse_exclude = .medsim_collapse_exclude_default
+  collapse_exclude = .medsim_collapse_exclude_default,
+  collapse_p_columns = character()
 )
 }
 \arguments{
@@ -20,6 +21,8 @@
 
 \item{collapse_threshold, collapse_digits, collapse_min_cell}{See
 \code{\link[=medsim_combine_chunks]{medsim_combine_chunks()}}.}
+
+\item{collapse_p_columns}{See \code{\link[=medsim_combine_chunks]{medsim_combine_chunks()}}.}
 }
 \value{
 List of violations, each \code{list(type =, scenario =, message =)}.
