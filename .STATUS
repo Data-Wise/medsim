@@ -3,6 +3,9 @@ priority: P1
 progress: 99
 kind: package
 cran_state: dev
+release-docs-2026-11-24: Clarified standard mitml D4 parity, fixed-branch
+  effects on the pooled D4 statistic, and the two p-value columns for 0.7.0.
+  Local R CMD check passed with the existing Remotes note.
 calibration-2026-11-23: #62 task 1b harness implemented in `inst/mbco-calibration/`.
   Local two-replicate smoke, four-arm public adapter, and pinned shared-input
   missingmed parity checks passed. The smoke verified the full 5,580,000-seed

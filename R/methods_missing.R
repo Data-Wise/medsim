@@ -29,11 +29,14 @@
 #' MBCO-MI estimator adapter
 #'
 #' Multiple imputation (via `mice`) + **D4-stacked MBCO** likelihood-ratio
-#' inference for the union null `H0: ab = 0`. Ports the validated
-#' `Missing Effect/code/prototype-d4-mbco.R` (phase-2; the D4 statistic matches
-#' `mitml::testModels(method = "D4")`, and so does the p-value with
-#' `df = "chan_meng"`): per-imputation MBCO LRTs are pooled with
-#' the Reiter/Chan-Meng D4 rule (Grund et al. 2021) into an F reference.
+#' inference for the union null `H0: ab = 0`. Per-imputation MBCO LRTs are pooled
+#' with the Reiter/Chan-Meng D4 rule (Grund et al. 2021). With identical
+#' likelihood-ratio inputs, `ariv = "own", df = "chan_meng"` reproduces the
+#' D4 statistic and p-value from
+#' `mitml::testModels(method = "D4", ariv = "positive")`. The default
+#' fixed-branch ARIV can change the pooled D4 statistic and p-value when
+#' imputations select different branches. The adapter ports the phase-2
+#' prototype `Missing Effect/code/prototype-d4-mbco.R`.
 #'
 #' The point estimate is the Rubin-pooled `a*b`; the CI is a Monte-Carlo product
 #' interval on the pooled paths; the p-value is the D4-pooled MBCO test. With no
@@ -49,9 +52,10 @@
 #'   selected, so branch disagreement across imputations cannot pull the ARIV
 #'   down; `"own"` (the previous default) pools per-imputation MBCO statistics
 #'   each computed on its own winning branch (standard Chan-Meng `r4`) and can
-#'   be liberal at high missingness. Both p-values are always emitted
-#'   (`indirect_p` and `indirect_p_fixed`), together with the branch-mixing
-#'   diagnostics `branch_mix`, `p_branch_a`, `stacked_branch`, `r4`, `r4_fixed`
+#'   be liberal at high missingness. `indirect_p` uses the selected mode and
+#'   `indirect_p_fixed` always uses fixed-branch ARIV. The two columns are equal
+#'   under the default. Branch-mixing diagnostics are
+#'   `branch_mix`, `p_branch_a`, `stacked_branch`, `r4`, `r4_fixed`
 #'   (with a single imputation there is no stacked fit: `stacked_branch` is
 #'   that fit's branch and `r4 = r4_fixed = 0`; on the error path all six are
 #'   `NA`).

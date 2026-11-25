@@ -10,7 +10,9 @@
   `ariv = "own", df = "li"`; pin both explicitly in any script that must
   reproduce an earlier run. `indirect_p` still follows `ariv` and
   `indirect_p_fixed` is still always returned, so column names are unchanged;
-  under the new default the two columns are equal.
+  under the new default the two columns are equal. Standard `mitml` D4 parity
+  on identical likelihood-ratio inputs uses `ariv = "own", df = "chan_meng"`.
+  Fixed-branch ARIV can change the pooled D4 statistic and its p-value.
 
 ## Development tools
 

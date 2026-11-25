@@ -24,9 +24,10 @@ per-imputation statistic on the branch the stacked constrained fit
 selected, so branch disagreement across imputations cannot pull the ARIV
 down; \code{"own"} (the previous default) pools per-imputation MBCO statistics
 each computed on its own winning branch (standard Chan-Meng \code{r4}) and can
-be liberal at high missingness. Both p-values are always emitted
-(\code{indirect_p} and \code{indirect_p_fixed}), together with the branch-mixing
-diagnostics \code{branch_mix}, \code{p_branch_a}, \code{stacked_branch}, \code{r4}, \code{r4_fixed}
+be liberal at high missingness. \code{indirect_p} uses the selected mode and
+\code{indirect_p_fixed} always uses fixed-branch ARIV. The two columns are equal
+under the default. Branch-mixing diagnostics are
+\code{branch_mix}, \code{p_branch_a}, \code{stacked_branch}, \code{r4}, \code{r4_fixed}
 (with a single imputation there is no stacked fit: \code{stacked_branch} is
 that fit's branch and \code{r4 = r4_fixed = 0}; on the error path all six are
 \code{NA}).}
@@ -51,11 +52,14 @@ A \verb{function(data, params)} returning the shared method contract (see file h
 }
 \description{
 Multiple imputation (via \code{mice}) + \strong{D4-stacked MBCO} likelihood-ratio
-inference for the union null \code{H0: ab = 0}. Ports the validated
-\verb{Missing Effect/code/prototype-d4-mbco.R} (phase-2; the D4 statistic matches
-\code{mitml::testModels(method = "D4")}, and so does the p-value with
-\code{df = "chan_meng"}): per-imputation MBCO LRTs are pooled with
-the Reiter/Chan-Meng D4 rule (Grund et al. 2021) into an F reference.
+inference for the union null \code{H0: ab = 0}. Per-imputation MBCO LRTs are pooled
+with the Reiter/Chan-Meng D4 rule (Grund et al. 2021). With identical
+likelihood-ratio inputs, \verb{ariv = "own", df = "chan_meng"} reproduces the
+D4 statistic and p-value from
+\code{mitml::testModels(method = "D4", ariv = "positive")}. The default
+fixed-branch ARIV can change the pooled D4 statistic and p-value when
+imputations select different branches. The adapter ports the phase-2
+prototype \verb{Missing Effect/code/prototype-d4-mbco.R}.
 }
 \details{
 The point estimate is the Rubin-pooled \code{a*b}; the CI is a Monte-Carlo product

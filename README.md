@@ -180,10 +180,10 @@ scn <- medsim_scenario_missing(
   nonnormal = list(skew = 1.5, kurtosis = 4)
 )
 
-# Headline estimator: D4-stacked MBCO via multiple imputation (mice). Reproduces
-# the mitml::testModels(method = "D4") statistic (and its p-value, under the
-# default df = "chan_meng"); degrades to a complete-case MBCO chi-square test when
-# imputation is unavailable.
+# D4-stacked MBCO via multiple imputation (mice). The default uses fixed-branch
+# ARIV, as in missingmed. Standard own-branch pooling with Chan–Meng df matches
+# the mitml D4 calculation on shared inputs. When imputation is unavailable,
+# the adapter uses a complete-case MBCO chi-square test.
 results <- medsim_run(
   method = medsim_method_mbco_mi(model = NULL, m = 20),
   scenarios = list(scn),
@@ -194,13 +194,12 @@ medsim_summarize_branch_switch(results)  # share of replicates whose majority br
 
 # ariv = "fixed" recomputes the D4 ARIV on the branch the STACKED constrained
 # fit selects, so imputations that disagree on the branch cannot deflate it.
-# Both p-values (indirect_p, indirect_p_fixed) and the branch-mixing
-# diagnostics (branch_mix, p_branch_a, stacked_branch, r4, r4_fixed) are
-# always emitted. Both options default to missingmed's choices: ariv = "fixed"
-# and df = "chan_meng" (the Chan & Meng (2022, eq. 2.15) denominator df, as
-# mitml does). The previous behavior is ariv = "own" (the legacy Chan-Meng
-# pooling, liberal at high missingness) with df = "li" (Li et al. 1991).
-# Neither option changes the data, imputations, or statistic.
+# indirect_p uses the selected ARIV mode. indirect_p_fixed always uses fixed-
+# branch ARIV. Both columns are equal under the default ariv = "fixed".
+# Branch diagnostics are branch_mix, p_branch_a, stacked_branch, r4, and r4_fixed.
+# Changing ariv can change the pooled D4 statistic and its p-value. Changing
+# df alone affects the reference distribution and p-values.
+# For legacy behavior use ariv = "own" and df = "li" (Li et al. 1991).
 medsim_method_mbco_mi(model = NULL, m = 20, ariv = "own", df = "li")
 ```
 
