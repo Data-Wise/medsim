@@ -382,6 +382,10 @@ medsim_run_chunk <- function(scenarios, method, config, verbose = TRUE,
 #'   (defaults 0.9 and 12; calibration: the 0.3.1 seed-collapse produced ~17
 #'   distinct outcomes in 1000). Cells with fewer than `collapse_min_cell`
 #'   non-NA values (default 30) are skipped as too small to diagnose.
+#' @param collapse_p_columns Character vector naming p-value columns. The
+#'   collapse audit counts distinct values after rounding to `collapse_digits`
+#'   significant digits in these columns. Other columns use decimal places.
+#'   The default is empty. Stored values and exact ties are preserved.
 #' @param collapse_exclude Character: DISCRETE method-contract fields excluded
 #'   from the collapse audit BY NAME (default: `converged`, `branch_switch`,
 #'   plus the `medsim_method_mbco_mi()` branch diagnostics `branch_mix`,
@@ -429,7 +433,8 @@ medsim_combine_chunks <- function(output_dir, pattern = "chunk_*.rds",
                                    collapse_exclude = .medsim_collapse_exclude_default,
                                    pilot_reference = NULL,
                                    pilot_tol = 1e-9,
-                                   verbose = TRUE) {
+                                   verbose = TRUE,
+                                   collapse_p_columns = character()) {
   on_violation <- match.arg(on_violation)
 
   # Convert glob to regex for list.files
@@ -603,7 +608,8 @@ medsim_combine_chunks <- function(output_dir, pattern = "chunk_*.rds",
     collapse_threshold = collapse_threshold,
     collapse_digits    = collapse_digits,
     collapse_min_cell  = collapse_min_cell,
-    collapse_exclude   = collapse_exclude))
+    collapse_exclude   = collapse_exclude,
+    collapse_p_columns = collapse_p_columns))
 
   # Gate D: pilot-subset positive control (identity first, then values).
   if (!is.null(pilot_reference)) {
@@ -664,7 +670,8 @@ medsim_audit_results <- function(results,
                                  collapse_threshold = 0.9,
                                  collapse_digits = 12L,
                                  collapse_min_cell = 30L,
-                                 collapse_exclude = .medsim_collapse_exclude_default) {
+                                 collapse_exclude = .medsim_collapse_exclude_default,
+                                 collapse_p_columns = character()) {
   on_violation <- match.arg(on_violation)
   df <- if (is.data.frame(results)) results else results$results
   if (is.null(df) || nrow(df) == 0L) {
@@ -685,7 +692,8 @@ medsim_audit_results <- function(results,
       collapse_threshold = collapse_threshold,
       collapse_digits    = collapse_digits,
       collapse_min_cell  = collapse_min_cell,
-      collapse_exclude   = collapse_exclude))
+      collapse_exclude   = collapse_exclude,
+      collapse_p_columns = collapse_p_columns))
   .medsim_signal_violations(violations, results, on_violation,
                             context = "medsim_audit_results")
   invisible(violations)
@@ -813,6 +821,7 @@ medsim_audit_results <- function(results,
 #' @param nsim Optional integer: pin the absolute per-scenario rep count.
 #' @param collapse_threshold,collapse_digits,collapse_min_cell See
 #'   [medsim_combine_chunks()].
+#' @param collapse_p_columns See [medsim_combine_chunks()].
 #' @return List of violations, each `list(type =, scenario =, message =)`.
 #' @keywords internal
 .medsim_audit_seed_provenance <- function(df,
@@ -820,7 +829,8 @@ medsim_audit_results <- function(results,
                                           collapse_threshold = 0.9,
                                           collapse_digits = 12L,
                                           collapse_min_cell = 30L,
-                                          collapse_exclude = .medsim_collapse_exclude_default) {
+                                          collapse_exclude = .medsim_collapse_exclude_default,
+                                          collapse_p_columns = character()) {
   violations <- list()
   add <- function(type, message, scenario = NA_character_) {
     violations[[length(violations) + 1L]] <<-
@@ -919,7 +929,12 @@ medsim_audit_results <- function(results,
         next
       }
       if (n_ok < collapse_min_cell) next  # too small to diagnose
-      n_dist <- length(unique(round(x, collapse_digits)))
+      rounded <- if (cl %in% collapse_p_columns) {
+        signif(x, collapse_digits)
+      } else {
+        round(x, collapse_digits)
+      }
+      n_dist <- length(unique(rounded))
       if (n_dist <= collapse_threshold * n_ok) {
         add("collapse", sprintf(
           "scenario '%s', column '%s': only %d distinct values in %d non-NA replications -- the 0.3.1 seed-collapse signature (or a DGM calling set.seed() internally)",

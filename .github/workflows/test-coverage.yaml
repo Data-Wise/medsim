@@ -3,8 +3,6 @@
 on:
   push:
     branches: [main, master, dev]
-  pull_request:
-    branches: [main, master, dev]
   workflow_dispatch:
 
 name: test-coverage.yaml
@@ -30,7 +28,8 @@ jobs:
 
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
-          extra-packages: any::covr, any::xml2
+          # CRAN medfit 0.3.2 cannot load with S7 1.0.0.
+          extra-packages: any::covr, any::xml2, RConsortium/S7@v0.2.2
           needs: coverage
 
       - name: Test coverage

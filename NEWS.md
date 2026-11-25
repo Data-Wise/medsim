@@ -1,3 +1,37 @@
+# medsim 0.7.0
+
+## Breaking changes
+
+* **`medsim_method_mbco_mi()` defaults now match missingmed.** `ariv` defaults
+  to `"fixed"` (was `"own"`) and `df` to `"chan_meng"` (was `"li"`). missingmed
+  documents `ariv = "own"` as liberal at high missingness, so a user on the
+  defaults now gets the same test in both packages. Results of calls that rely
+  on the defaults change. To get the old behavior, pass
+  `ariv = "own", df = "li"`; pin both explicitly in any script that must
+  reproduce an earlier run. `indirect_p` still follows `ariv` and
+  `indirect_p_fixed` is still always returned, so column names are unchanged;
+  under the new default the two columns are equal. Standard `mitml` D4 parity
+  on identical likelihood-ratio inputs uses `ariv = "own", df = "chan_meng"`.
+  Fixed-branch ARIV can change the pooled D4 statistic and its p-value.
+
+## Development tools
+
+* The #62 MBCO-MI calibration harness in `inst/mbco-calibration/` runs the
+  paired four-arm design with shared imputations and likelihood fits. It
+  provides local adapter and missingmed parity checks with complete receipt
+  validation, an audited chunk workflow, and the fixed-budget release decision.
+  All 54 null scenarios passed the calibration gate. The worst simultaneous
+  upper bounds were 0.1277 percentage points for the paired size increase
+  (0.5-point margin) and 5.3863% for absolute size (6.5% ceiling).
+
+* Calibration SHA-256 checks hash file bytes consistently on Windows and Unix.
+
+* The #62 finalizer uses significant digits for its p-value collapse checks.
+  Other callers can opt in for named columns with `collapse_p_columns`.
+
+* The #62 harness can report paired ARIV-by-df contrasts and their Monte
+  Carlo standard errors from finalized, receipt-verified chunks.
+
 # medsim 0.6.0
 
 ## New features

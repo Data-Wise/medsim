@@ -29,11 +29,14 @@
 #' MBCO-MI estimator adapter
 #'
 #' Multiple imputation (via `mice`) + **D4-stacked MBCO** likelihood-ratio
-#' inference for the union null `H0: ab = 0`. Ports the validated
-#' `Missing Effect/code/prototype-d4-mbco.R` (phase-2; the D4 statistic matches
-#' `mitml::testModels(method = "D4")`, and so does the p-value with
-#' `df = "chan_meng"`): per-imputation MBCO LRTs are pooled with
-#' the Reiter/Chan-Meng D4 rule (Grund et al. 2021) into an F reference.
+#' inference for the union null `H0: ab = 0`. Per-imputation MBCO LRTs are pooled
+#' with the Reiter/Chan-Meng D4 rule (Grund et al. 2021). With identical
+#' likelihood-ratio inputs, `ariv = "own", df = "chan_meng"` reproduces the
+#' D4 statistic and p-value from
+#' `mitml::testModels(method = "D4", ariv = "positive")`. The default
+#' fixed-branch ARIV can change the pooled D4 statistic and p-value when
+#' imputations select different branches. The adapter ports the phase-2
+#' prototype `Missing Effect/code/prototype-d4-mbco.R`.
 #'
 #' The point estimate is the Rubin-pooled `a*b`; the CI is a Monte-Carlo product
 #' interval on the pooled paths; the p-value is the D4-pooled MBCO test. With no
@@ -44,22 +47,25 @@
 #'   reads the `X`, `M`, `Y` (+ optional `C*`) columns of `data`).
 #' @param m Integer number of imputations.
 #' @param ariv Which relative-increase-in-variance (ARIV) estimate feeds the
-#'   `indirect_p` column: `"own"` (default, legacy) pools per-imputation MBCO
-#'   statistics each computed on its own winning branch (standard Chan-Meng
-#'   `r4`); `"fixed"` recomputes every per-imputation statistic on the branch
-#'   the stacked constrained fit selected, so branch disagreement across
-#'   imputations cannot pull the ARIV down. Both p-values are always emitted
-#'   (`indirect_p` and `indirect_p_fixed`), together with the branch-mixing
-#'   diagnostics `branch_mix`, `p_branch_a`, `stacked_branch`, `r4`, `r4_fixed`
+#'   `indirect_p` column: `"fixed"` (default, as in missingmed) recomputes every
+#'   per-imputation statistic on the branch the stacked constrained fit
+#'   selected, so branch disagreement across imputations cannot pull the ARIV
+#'   down; `"own"` (the previous default) pools per-imputation MBCO statistics
+#'   each computed on its own winning branch (standard Chan-Meng `r4`) and can
+#'   be liberal at high missingness. `indirect_p` uses the selected mode and
+#'   `indirect_p_fixed` always uses fixed-branch ARIV. The two columns are equal
+#'   under the default. Branch-mixing diagnostics are
+#'   `branch_mix`, `p_branch_a`, `stacked_branch`, `r4`, `r4_fixed`
 #'   (with a single imputation there is no stacked fit: `stacked_branch` is
 #'   that fit's branch and `r4 = r4_fixed = 0`; on the error path all six are
 #'   `NA`).
 #' @param df Denominator degrees of freedom for the D4 `F` reference, used for
-#'   both `indirect_p` and `indirect_p_fixed`: `"li"` (default, legacy) is the
-#'   Li et al. (1991) / Meng-Rubin approximation, \eqn{\nu = 4 + (k(K-1) - 4)\{1 +
-#'   (1 - 2/(k(K-1)))/r_4\}^2} when \eqn{k(K-1) > 4}; `"chan_meng"` is Chan and
-#'   Meng (2022, eq. 2.15), \eqn{\nu = k(K-1)(1 + 1/r_4)^2}, the reference used by
-#'   `mitml::testModels(method = "D4")`. Both give \eqn{\nu = \infty} (a
+#'   both `indirect_p` and `indirect_p_fixed`: `"chan_meng"` (default, as in
+#'   missingmed) is Chan and Meng (2022, eq. 2.15), \eqn{\nu = k(K-1)(1 +
+#'   1/r_4)^2}, the reference used by `mitml::testModels(method = "D4")`; `"li"`
+#'   (the previous default) is the Li et al. (1991) / Meng-Rubin approximation,
+#'   \eqn{\nu = 4 + (k(K-1) - 4)\{1 + (1 - 2/(k(K-1)))/r_4\}^2} when
+#'   \eqn{k(K-1) > 4}. Both give \eqn{\nu = \infty} (a
 #'   chi-square reference) when \eqn{r_4 = 0}. Chan and Meng derive eq. 2.15 for the
 #'   own-branch \eqn{r_4} at a regular null; for `ariv = "fixed"`, and at the
 #'   nonregular null \eqn{a = b = 0}, either choice is a working reference whose
@@ -81,8 +87,8 @@
 #' }
 #' }
 #' @export
-medsim_method_mbco_mi <- function(model, m = 20L, ariv = c("own", "fixed"),
-                                  df = c("li", "chan_meng"), ...) {
+medsim_method_mbco_mi <- function(model, m = 20L, ariv = c("fixed", "own"),
+                                  df = c("chan_meng", "li"), ...) {
   m <- as.integer(m)
   ariv <- match.arg(ariv)
   df <- match.arg(df)
@@ -99,61 +105,16 @@ medsim_method_mbco_mi <- function(model, m = 20L, ariv = c("own", "fixed"),
         covs <- .medsim_md_covariates(data)
         use_mi <- requireNamespace("mice", quietly = TRUE) && anyNA(data)
         implist <- .medsim_md_implist(data, m = m, use_mi = use_mi)
-        kk <- length(implist)
-
-        ## Point estimate a*b, Rubin-pooled across imputations.
-        fitlist <- lapply(implist, function(d) .medsim_md_fit_ab(d, covs))
-        a_est <- vapply(fitlist, function(z) z$a, numeric(1))
-        b_est <- vapply(fitlist, function(z) z$b, numeric(1))
-        a_hat <- mean(a_est)
-        b_hat <- mean(b_est)
-        va <- .medsim_rubin_var(a_est, vapply(fitlist, function(z) z$va, numeric(1)))
-        vb <- .medsim_rubin_var(b_est, vapply(fitlist, function(z) z$vb, numeric(1)))
-        ab <- a_hat * b_hat
-
-        ## CI: Monte-Carlo product interval on the pooled (a, b) with Rubin totals.
-        mc <- .medsim_md_mc_ci(a_hat, b_hat, va, vb)
-
-        ## Per-imputation MBCO log-likelihood triples, computed ONCE: both the
-        ## D4/chi-sq test and the branch indicator derive from them (~6 lm fits
-        ## per imputation instead of ~10).
-        lls_list <- lapply(implist, function(d) .medsim_mbco_lls(d, covs))
-
-        ## P-values: the validated MBCO test (D4 pooling when K >= 2, else chi-sq),
-        ## with the ARIV computed on each imputation's OWN branch (legacy) and on
-        ## the STACKED fit's branch (fixed) -- both always emitted.
-        branches <- vapply(lls_list, .medsim_mbco_branch_from_lls, 0)
-        if (kk >= 2L) {
-          ## The stacked-fit triple is shared: fit it once, reuse for both ARIVs.
-          lls_S <- .medsim_mbco_lls(do.call(rbind, implist), covs)
-          d4_own <- .medsim_d4_mbco(implist, covs, lls_list = lls_list,
-                                    lls_S = lls_S, df = df)
-          d4_fix <- .medsim_d4_mbco(implist, covs, lls_list = lls_list,
-                                    lls_S = lls_S, fixed_branch = TRUE, df = df)
-          p_own <- unname(d4_own[["p"]])
-          p_fix <- unname(d4_fix[["p"]])
-          r4_own <- unname(d4_own[["r4"]])
-          r4_fix <- unname(d4_fix[["r4"]])
-          stacked_branch <- unname(d4_fix[["stacked_branch"]])
-        } else {
-          tstat <- .medsim_mbco_T_from_lls(lls_list[[1L]])
-          p_own <- p_fix <- stats::pchisq(max(tstat, 0), df = 1, lower.tail = FALSE)
-          r4_own <- r4_fix <- 0
-          stacked_branch <- branches[[1L]]
-        }
-        pval <- if (ariv == "fixed") p_fix else p_own
-
-        ## branch_switch: majority union-null branch (1 = the a = 0 branch wins).
-        p_branch_a <- mean(branches)
-        branch_switch <- as.integer(p_branch_a >= 0.5)
-        branch_mix <- as.integer(length(unique(branches)) > 1L)
-
-        list(
-          indirect = ab, indirect_ci_lower = mc[1L], indirect_ci_upper = mc[2L],
-          indirect_p = pval, branch_switch = branch_switch, converged = 1,
-          indirect_p_fixed = p_fix, branch_mix = branch_mix, p_branch_a = p_branch_a,
-          stacked_branch = stacked_branch, r4 = r4_own, r4_fixed = r4_fix
-        )
+        fit <- .medsim_mbco_mi_fit(implist, covs, df)
+        tests <- fit$tests[[df]]
+        c(fit$effect, list(
+          indirect_p = tests[[ariv]][["p"]],
+          branch_switch = fit$branch_switch, converged = 1,
+          indirect_p_fixed = tests$fixed[["p"]],
+          branch_mix = fit$branch_mix, p_branch_a = fit$p_branch_a,
+          stacked_branch = fit$stacked_branch,
+          r4 = tests$own[["r4"]], r4_fixed = tests$fixed[["r4"]]
+        ))
       },
       error = function(e) NULL
     )
@@ -477,6 +438,51 @@ medsim_method_ipw <- function(model, ...) {
     vapply(lls_list, .medsim_mbco_T_from_lls, 0)
   }
   c(.medsim_d4_from_stats(d_k, d_S, k = 1, df = df), stacked_branch = stacked_branch)
+}
+
+# Shared by the public adapter and the paired calibration harness.
+.medsim_mbco_mi_fit <- function(implist, covs, df) {
+  fits <- lapply(implist, .medsim_md_fit_ab, covs = covs)
+  a <- vapply(fits, function(fit) fit$a, numeric(1))
+  b <- vapply(fits, function(fit) fit$b, numeric(1))
+  a_hat <- mean(a)
+  b_hat <- mean(b)
+  va <- .medsim_rubin_var(a, vapply(fits, function(fit) fit$va, numeric(1)))
+  vb <- .medsim_rubin_var(b, vapply(fits, function(fit) fit$vb, numeric(1)))
+  ci <- .medsim_md_mc_ci(a_hat, b_hat, va, vb)
+
+  lls <- lapply(implist, .medsim_mbco_lls, covs = covs)
+  branches <- vapply(lls, .medsim_mbco_branch_from_lls, 0)
+  if (length(implist) > 1L) {
+    stacked <- .medsim_mbco_lls(do.call(rbind, implist), covs)
+    tests <- lapply(df, function(reference) {
+      list(
+        own = .medsim_d4_mbco(implist, covs, lls_list = lls,
+                              lls_S = stacked, df = reference),
+        fixed = .medsim_d4_mbco(implist, covs, lls_list = lls,
+                                lls_S = stacked, fixed_branch = TRUE, df = reference)
+      )
+    })
+    stacked_branch <- .medsim_mbco_branch_from_lls(stacked)
+  } else {
+    statistic <- max(.medsim_mbco_T_from_lls(lls[[1L]]), 0)
+    result <- c(D4 = statistic, p = stats::pchisq(statistic, 1, lower.tail = FALSE),
+                r4 = 0, nu = Inf)
+    tests <- lapply(df, function(reference) list(own = result, fixed = result))
+    stacked_branch <- branches[[1L]]
+  }
+  names(tests) <- df
+
+  p_branch_a <- mean(branches)
+  list(
+    effect = list(indirect = a_hat * b_hat,
+                  indirect_ci_lower = ci[1L], indirect_ci_upper = ci[2L]),
+    tests = tests,
+    branch_switch = as.integer(p_branch_a >= 0.5),
+    branch_mix = as.integer(length(unique(branches)) > 1L),
+    p_branch_a = p_branch_a,
+    stacked_branch = stacked_branch
+  )
 }
 
 # Base-R Monte-Carlo CI for the product a*b given (a,b) ~ independent normals.

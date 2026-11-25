@@ -3,6 +3,29 @@ priority: P1
 progress: 99
 kind: package
 cran_state: dev
+release-docs-2026-11-24: Clarified standard mitml D4 parity, fixed-branch
+  effects on the pooled D4 statistic, and the two p-value columns for 0.7.0.
+  Local R CMD check passed with the existing Remotes note.
+calibration-2026-11-23: #62 task 1b harness implemented in `inst/mbco-calibration/`.
+  Local two-replicate smoke, four-arm public adapter, and pinned shared-input
+  missingmed parity checks passed. The smoke verified the full 5,580,000-seed
+  map and exercised six-group reconciliation with synthetic files.
+  The finalizer validates all six shared-input comparisons and their
+  provenance. R-CMD-check and coverage pin S7 0.2.2 for CRAN medfit 0.3.2.
+  Snapshot checksums use binary input to handle Windows paths.
+  Hopper pilot, pinned shared-input parity, and combine rehearsal passed.
+  The fixed-budget Hopper calibration passed. Finalizer 4365646 applied
+  the approved p-value precision audit to all 1,320 saved chunks.
+  All 54 null cells cleared both bounds across 5,580,000 planned datasets.
+  Worst simultaneous bounds were 0.1277 percentage points paired and
+  5.3863% absolute. Release authorization remains separate.
+factorial-report-2026-11-24: Implemented the #62 V1 paired ARIV-by-df report.
+  Verified all 1,320 saved Hopper chunks and 360 contrasts across 72 cells
+  and 5,580,000 datasets. Counts, paired MCSEs, interaction identities, and
+  both official bounds matched independent checks. No new simulations ran.
+  After review, snapshot and replicate-key validation reproduced the same CSV
+  byte for byte from all 1,320 chunks.
+  Local CSV is internal/RESULTS-medsim-62-factorial-v1-2026-11-24.csv.
 merged-2026-08-17: PR #44 (`feature/mbco-fixed-branch-ariv`, squash `c748d1b` on dev) —
   medsim_method_mbco_mi() ariv=c("own","fixed") + additive branch diagnostics (indirect_p_fixed,
   branch_mix, p_branch_a, stacked_branch, r4, r4_fixed); .medsim_d4_mbco(fixed_branch=, lls_S=).
@@ -141,7 +164,12 @@ tooling-2026-08-22: **Session-report delivery + `obsidian-ops` search, both fixe
   before trusting a scoped search.** Vault index also repaired: 73 ghost rows and 6
   unscannable notes (malformed YAML front matter) → 0/0, disk == db == 3,654.
 
-next: 🟢 **PHASE 0 MERGED (PR #51, `dd0d059`). Next is PHASE 1 — issue #41.**
+next: 🟢 **v0.6.0 RELEASED 2026-10-14** (release PR #60, merge `0caced5`, tag `v0.6.0`): #41 truth
+  integrity (PR #59, `truth_on_failure` now defaults to "stop"), the API PR #58, D4 `df` option (#55),
+  articles (#56/#57). dev bumped to 0.6.0.9000. Next: #28 cluster docs → 0.6.1; #35 blocked upstream
+  (probmed#32); #29 deferred. R-universe builds `dev` — switching it to `main` is a deferred decision
+  (`internal/GRILL-medsim-060-release-2026-10-14.md`). The plan text below is historical.
+  (was) PHASE 0 MERGED (PR #51, `dd0d059`). Next is PHASE 1 — issue #41.
   (`internal/PLAN-medsim-backlog-2026-08-22.md`). Phase 0's PM2 fix was the gating one: the
   parallel path now has real test coverage, so `--as-cran` evidence for anything touching
   `runner.R`/`parallel.R` is trustworthy for the first time. Phase 1 = #41 non-breaking

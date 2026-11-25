@@ -128,24 +128,26 @@ summary(results)
 
 ### Fixed-branch correction and the reference degrees of freedom
 
-Two options of `medsim_method_mbco_mi()` change how the D4 test is referred to
-its `F` distribution. Neither changes the data, the imputations, or the D4
-statistic:
+The `ariv` and `df` options of `medsim_method_mbco_mi()` use the same data and
+imputations. ARIV enters the pooled D4 statistic. The denominator degrees of
+freedom determine the reference distribution for that statistic.
 
 - `ariv = "fixed"` computes the relative increase in variance (`r4`) from
   per-imputation statistics on the branch that the stacked constrained fit
-  selects, so imputations that disagree on the branch cannot deflate it. The
-  default `ariv = "own"` is the standard Chan-Meng pooling. Both p-values are
-  always returned (`indirect_p`, `indirect_p_fixed`); `ariv` chooses which one
-  fills `indirect_p`.
+  selects, so imputations that disagree on the branch cannot deflate it. This is the
+  default; `ariv = "own"` is the standard Chan-Meng pooling and can be
+  liberal at high missingness. Changing `ariv` can change the pooled D4
+  statistic and p-value when imputations select different branches.
+  `indirect_p` uses the selected mode and `indirect_p_fixed` always uses
+  fixed-branch ARIV. The two columns are equal under the default.
 - `df = "chan_meng"` uses the Chan and Meng (2022, eq. 2.15) denominator degrees
-  of freedom, as `mitml::testModels(method = "D4")` does; the default
-  `df = "li"` keeps the Li et al. (1991) approximation. Only the p-values change.
+  of freedom, as `mitml::testModels(method = "D4")` does. This is the
+  default; `df = "li"` keeps the Li et al. (1991) approximation. Only the p-values change.
 
 ```{r}
 #| label: ariv-df
-results_fixed <- medsim_run(
-  method = medsim_method_mbco_mi(model = NULL, m = 20, ariv = "fixed", df = "chan_meng"),
+results_legacy <- medsim_run(
+  method = medsim_method_mbco_mi(model = NULL, m = 20, ariv = "own", df = "li"),
   scenarios = list(scn),
   config = medsim_config("test")
 )
@@ -184,7 +186,7 @@ results_ipw <- medsim_run(
 - See `vignette("getting-started")` for the general `medsim_run()` workflow.
 - See `vignette("estimand-kinds")` for how missing-data scenarios relate to
   the estimand-kind system used elsewhere in medsim.
-- `medsim_method_mbco_mi()` reproduces the `mitml::testModels(method = "D4")`
-  statistic when `mice`/`mitml` are installed (Reiter/Chan-Meng D4 pooling). Its
-  p-value matches `mitml` (with `ariv = "positive"`) under `df = "chan_meng"`; the
-  default `df = "li"` keeps the legacy Li et al. (1991) denominator df.
+- To reproduce the standard `mitml::testModels(method = "D4", ariv = "positive")`
+  calculation on the same per-imputation and stacked likelihood-ratio inputs,
+  use `ariv = "own", df = "chan_meng"`. The default fixed-branch calculation
+  uses the same degrees-of-freedom formula with its own ARIV estimate.
